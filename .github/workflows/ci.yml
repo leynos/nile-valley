@@ -64,7 +64,7 @@ jobs:
       - name: Install uv
         id: setup-uv
         # v6.4.3
-        uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6
+        uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41
         with:
           cache-dependency-glob: |
             **/pyproject.toml
