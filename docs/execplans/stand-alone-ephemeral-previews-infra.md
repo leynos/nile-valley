@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: APPROVED
 
 No `PLANS.md` file exists in this repository.
 
@@ -25,6 +25,8 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 - Keep the infrastructure automation functional and idempotent. The composite
   action that provisions clusters and renders GitOps manifests must still run
   end-to-end after renaming and generalisation.
+- Retain a single example Helm chart, but remove all Wildside application
+  code and assets outside that example.
 - Maintain en-GB spelling in documentation and comments.
 - Use the Makefile targets for formatting, linting, and tests. Run all quality
   gates before committing any changes.
@@ -82,7 +84,9 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 - [x] (2026-01-30 00:00Z) Reviewed key infra roadmap and architecture docs.
 - [x] (2026-01-30 00:00Z) Scanned repository for Wildside-specific references
   in infra, scripts, deploy assets, and docs.
-- [ ] Define the target repo boundary (what remains vs. moved/removed).
+- [x] (2026-01-30 00:00Z) Defined repo boundary: remove Wildside app code,
+  retain an example Helm chart.
+- [x] (2026-01-30 00:00Z) Confirmed naming convention: `nile-valley`.
 - [ ] Produce a concrete Wildside removal and rename inventory list.
 - [ ] Draft the implementation steps and validation plan.
 
@@ -99,6 +103,15 @@ Nile Valley documentation and supplying its own Helm chart from another repo
   elements before any implementation.
   Rationale: The change spans infra, scripts, docs, and CI; a controlled plan
   reduces risk.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Remove Wildside application code but keep a single example Helm
+  chart for integration guidance.
+  Rationale: The repo is now infrastructure-focused, yet needs a concrete
+  chart reference for adopters.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Use `nile-valley` as the naming convention for actions, repos,
+  and defaults.
+  Rationale: Aligns with the new project identity and avoids Wildside naming.
   Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
@@ -141,10 +154,11 @@ Stage A: Define scope and inventory (no code changes).
 
 Stage B: Repository pruning and structural updates.
 
-- Remove or relocate Wildside application components so the repo contains only
+- Remove Wildside application components so the repo contains only
   infrastructure-related code. This likely includes `backend/`,
-  `frontend-pwa/`, `packages/`, `crates/`, `spec/`, and the Wildside Helm
-  chart and Kustomize overlays under `deploy/`.
+  `frontend-pwa/`, `packages/`, `crates/`, `spec/`, and Kustomize overlays
+  under `deploy/`, while retaining a single example Helm chart under a neutral
+  name (e.g. `deploy/charts/example-app`).
 - Update the Makefile, CI workflows, and dependency manifests to align with
   the reduced scope. Remove steps that build or test the deleted application
   code. Preserve infra test and lint targets.
@@ -169,7 +183,7 @@ Stage C: Rename and generalise infrastructure automation.
 Stage D: Documentation overhaul.
 
 - Rewrite `README.md` to describe Nile Valley, its purpose, and how to use it
-  with a third-party application Helm chart.
+  with a third-party application Helm chart plus the bundled example chart.
 - Update `docs/contents.md` to point to Nile Valley-oriented infrastructure
   docs and remove links that are purely about the Wildside application.
 - Update `docs/cloud-native-ephemeral-previews.md` and
@@ -197,7 +211,8 @@ Stage E: Validation and audit.
 1. Inventory Wildside references and categorise them.
 
    - Run:
-     rg -n "wildside" . | tee /tmp/inventory-nile-valley-$(git branch --show).out
+     rg -n "wildside" . | tee \
+       /tmp/inventory-nile-valley-$(git branch --show).out
 
    - Summarise the output into a short, categorised list in this ExecPlan
      (append under `Surprises & Discoveries` or a new sub-section).
@@ -281,6 +296,7 @@ appropriate.
 
 ## Revision note
 
-Initial draft created after reviewing infra roadmap docs and scanning the
-repo for Wildside references. Further revisions will add the inventory list
-and confirm boundary decisions.
+Updated status to APPROVED, captured the repo boundary decision (remove
+Wildside app code, retain an example Helm chart), and recorded the
+`nile-valley` naming convention. Adjusted scope language in Stage B and
+documentation goals accordingly.
