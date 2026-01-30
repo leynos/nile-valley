@@ -38,34 +38,21 @@ jobs:
       - name: Install action-validator
         run: bun install -g action-validator
 
+      - name: Setup Go
+        # v5.0.2
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
+        with:
+          go-version: '1.22.x'
+
       - name: Install actionlint
         shell: bash
         run: |
           set -euxo pipefail
-
-          version="1.7.7"
-          arch_raw="$(uname -m)"
-          case "$arch_raw" in
-            x86_64)
-              arch="x86_64"
-              ;;
-            aarch64|arm64)
-              arch="arm64"
-              ;;
-            *)
-              echo "Unsupported architecture for actionlint: ${arch_raw}" >&2
-              exit 1
-              ;;
-          esac
-
-          url="https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_${arch}.tar.gz"
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-
-          curl -fsSL "$url" -o "$tmpdir/actionlint.tar.gz"
-          tar -xzf "$tmpdir/actionlint.tar.gz" -C "$tmpdir"
-          install -m 0755 "$tmpdir/actionlint" /usr/local/bin/actionlint
-          actionlint --version
+          version="1.7.10"
+          go install "github.com/rhysd/actionlint/cmd/actionlint@v${version}"
+          gobin="$(go env GOPATH)/bin"
+          echo "$gobin" >> "$GITHUB_PATH"
+          "$gobin/actionlint" -version
 
       - name: Install TFLint
         # v6.2.1
