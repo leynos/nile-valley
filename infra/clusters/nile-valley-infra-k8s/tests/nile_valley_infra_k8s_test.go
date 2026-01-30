@@ -8,12 +8,12 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/require"
-	testutil "wildside/infra/testutil"
+	testutil "nile-valley/infra/testutil"
 )
 
 func testVars() map[string]interface{} {
 	return map[string]interface{}{
-		"cluster_name": "wildside-preview",
+		"cluster_name": "nile-valley-preview",
 		"region":       "nyc1",
 		"node_pools": []map[string]interface{}{
 			{
@@ -32,31 +32,31 @@ func testVars() map[string]interface{} {
 	}
 }
 
-func TestWildsideInfraK8sValidate(t *testing.T) {
+func TestNileValleyInfraK8sValidate(t *testing.T) {
 	t.Parallel()
 	_, opts := testutil.SetupTerraform(t, testutil.TerraformConfig{
 		SourceRootRel: "../../..",
-		TfSubDir:      "clusters/wildside-infra-k8s",
+		TfSubDir:      "clusters/nile-valley-infra-k8s",
 		Vars:          testVars(),
 	})
 	terraform.InitAndValidate(t, opts)
 }
 
-func TestWildsideInfraK8sPlanUnauthenticated(t *testing.T) {
+func TestNileValleyInfraK8sPlanUnauthenticated(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("DIGITALOCEAN_TOKEN") != "" {
 		t.Skip("DIGITALOCEAN_TOKEN set; skipping unauthenticated plan")
 	}
 	_, opts := testutil.SetupTerraform(t, testutil.TerraformConfig{
 		SourceRootRel: "../../..",
-		TfSubDir:      "clusters/wildside-infra-k8s",
+		TfSubDir:      "clusters/nile-valley-infra-k8s",
 		Vars:          testVars(),
 	})
 	_, err := terraform.InitAndPlanE(t, opts)
 	require.NoError(t, err)
 }
 
-func TestWildsideInfraK8sPlanDetailedExitCode(t *testing.T) {
+func TestNileValleyInfraK8sPlanDetailedExitCode(t *testing.T) {
 	t.Parallel()
 	token := os.Getenv("DIGITALOCEAN_TOKEN")
 	if token == "" {
@@ -64,7 +64,7 @@ func TestWildsideInfraK8sPlanDetailedExitCode(t *testing.T) {
 	}
 	_, opts := testutil.SetupTerraform(t, testutil.TerraformConfig{
 		SourceRootRel: "../../..",
-		TfSubDir:      "clusters/wildside-infra-k8s",
+		TfSubDir:      "clusters/nile-valley-infra-k8s",
 		Vars:          testVars(),
 		EnvVars:       map[string]string{"DIGITALOCEAN_TOKEN": token},
 	})
@@ -82,7 +82,7 @@ func TestWildsideInfraK8sPlanDetailedExitCode(t *testing.T) {
 	require.Equal(t, 2, exitErr.ExitCode())
 }
 
-func TestWildsideInfraK8sPolicy(t *testing.T) {
+func TestNileValleyInfraK8sPolicy(t *testing.T) {
 	t.Parallel()
 	token := os.Getenv("DIGITALOCEAN_TOKEN")
 	if token == "" {
@@ -93,7 +93,7 @@ func TestWildsideInfraK8sPolicy(t *testing.T) {
 	}
 	tfDir, opts := testutil.SetupTerraform(t, testutil.TerraformConfig{
 		SourceRootRel: "../../..",
-		TfSubDir:      "clusters/wildside-infra-k8s",
+		TfSubDir:      "clusters/nile-valley-infra-k8s",
 		Vars:          testVars(),
 		EnvVars:       map[string]string{"DIGITALOCEAN_TOKEN": token},
 	})
@@ -124,7 +124,7 @@ func TestWildsideInfraK8sPolicy(t *testing.T) {
 	require.NoErrorf(t, err, "conftest failed: %s", string(out))
 }
 
-func TestWildsideInfraK8sFluxRequiresKubeconfig(t *testing.T) {
+func TestNileValleyInfraK8sFluxRequiresKubeconfig(t *testing.T) {
 	t.Parallel()
 	vars := testVars()
 	vars["flux_install"] = true
@@ -132,7 +132,7 @@ func TestWildsideInfraK8sFluxRequiresKubeconfig(t *testing.T) {
 
 	_, opts := testutil.SetupTerraform(t, testutil.TerraformConfig{
 		SourceRootRel: "../../..",
-		TfSubDir:      "clusters/wildside-infra-k8s",
+		TfSubDir:      "clusters/nile-valley-infra-k8s",
 		Vars:          vars,
 	})
 	_, err := terraform.InitAndPlanE(t, opts)

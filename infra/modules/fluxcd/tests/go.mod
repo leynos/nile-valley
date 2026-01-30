@@ -1,4 +1,4 @@
-module wildside/infra/modules/fluxcd/tests
+module nile-valley/infra/modules/fluxcd/tests
 
 go 1.23.0
 
@@ -7,7 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/gruntwork-io/terratest v0.50.0
 	github.com/stretchr/testify v1.11.1
-	wildside/infra/testutil v0.0.0
+	nile-valley/infra/testutil v0.0.0
 )
 
 require (
@@ -128,4 +128,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace wildside/infra/testutil => ../../../testutil
+replace nile-valley/infra/testutil => ../../../testutil

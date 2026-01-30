@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = ["cyclopts>=2.9"]
 # ///
-"""Prepare inputs for the wildside-infra-k8s GitHub Action.
+"""Prepare inputs for the nile-valley-infra-k8s GitHub Action.
 
 This command resolves CLI and environment inputs, validates them, masks
 sensitive values (via ``prepare_inputs`` and ``mask_secret``), and exports
@@ -38,7 +38,7 @@ __all__ = [
     "prepare_inputs",
 ]
 
-app = App(help="Prepare wildside-infra-k8s action inputs.")
+app = App(help="Prepare nile-valley-infra-k8s action inputs.")
 
 CLUSTER_NAME_PARAM = Parameter(help="Cluster name override.")
 ENVIRONMENT_PARAM = Parameter(help="Environment override.")
@@ -121,7 +121,7 @@ def _run_prepare_flow(raw: RawInputs) -> int:
     """Resolve and export inputs for downstream action steps."""
     resolved = _resolve_all_inputs(raw)
     prepare_inputs(resolved)
-    print("Prepared wildside-infra-k8s inputs.")
+    print("Prepared nile-valley-infra-k8s inputs.")
     return 0
 
 
@@ -154,7 +154,7 @@ def main(
     runner_temp: Path | None = RUNNER_TEMP_PARAM,
     github_env: Path | None = GITHUB_ENV_PARAM,
 ) -> int:
-    """Prepare inputs for the wildside-infra-k8s action (CLI overrides env)."""
+    """Prepare inputs for the nile-valley-infra-k8s action (CLI overrides env)."""
     raw = _collect_cli_values(locals())
     return _run_prepare_flow(raw)
 

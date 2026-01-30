@@ -1,6 +1,6 @@
 """Run OpenTofu for cluster provisioning and export outputs.
 
-This module orchestrates OpenTofu init/plan/apply for the wildside-infra-k8s
+This module orchestrates OpenTofu init/plan/apply for the nile-valley-infra-k8s
 cluster module and exports resulting values to ``GITHUB_ENV`` so downstream
 action steps can consume them. Use it after inputs have been resolved and
 validated (typically via ``scripts/provision_cluster.py``).
@@ -55,7 +55,7 @@ from scripts._infra_k8s import (
 from scripts._provision_cluster_inputs import ProvisionInputs
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CLUSTER_MODULE_PATH = REPO_ROOT / "infra" / "clusters" / "wildside-infra-k8s"
+CLUSTER_MODULE_PATH = REPO_ROOT / "infra" / "clusters" / "nile-valley-infra-k8s"
 BACKEND_CONFIG_PATH = REPO_ROOT / "infra" / "backend-config" / "spaces.tfbackend"
 
 

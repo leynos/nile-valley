@@ -83,7 +83,7 @@ lint-infra:
 	$(call ensure_tool,uvx)
 	cd infra/modules/doks && tflint --init && tflint --config .tflint.hcl
 	cd infra/clusters/dev && tflint --init && tflint --config .tflint.hcl
-	cd infra/clusters/wildside-infra-k8s && tflint --init && tflint --config .tflint.hcl
+	cd infra/clusters/nile-valley-infra-k8s && tflint --init && tflint --config .tflint.hcl
 	cd infra/modules/fluxcd && tflint --init && tflint --config .tflint.hcl
 	cd infra/modules/vault_appliance && tflint --init && tflint --config .tflint.hcl
 	cd infra/modules/traefik && tflint --init && tflint --config .tflint.hcl
@@ -192,8 +192,8 @@ dev-cluster-test: conftest tofu
 	DOKS_KUBERNETES_VERSION=$(DOKS_KUBERNETES_VERSION) ./scripts/dev-cluster-test.sh
 
 cluster-provision-test:
-	@echo "Running wildside-infra-k8s cluster tests..."
-	cd infra/clusters/wildside-infra-k8s/tests && $(GO_TEST_ENV) go test -v -timeout 30m ./...
+	@echo "Running nile-valley-infra-k8s cluster tests..."
+	cd infra/clusters/nile-valley-infra-k8s/tests && $(GO_TEST_ENV) go test -v -timeout 30m ./...
 
 fluxcd-test:
 	tofu fmt -check infra/modules/fluxcd

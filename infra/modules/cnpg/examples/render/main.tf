@@ -7,7 +7,7 @@
 variable "cluster_name" {
   description = "Name of the CNPG Cluster resource"
   type        = string
-  default     = "wildside-pg-main"
+  default     = "nile-valley-pg-main"
 }
 
 variable "instances" {
@@ -25,13 +25,13 @@ variable "storage_size" {
 variable "database_name" {
   description = "Initial database name"
   type        = string
-  default     = "wildside_prod"
+  default     = "nile_valley_prod"
 }
 
 variable "database_owner" {
   description = "Owner of the initial database"
   type        = string
-  default     = "wildside_app"
+  default     = "nile_valley_app"
 }
 
 variable "postgis_enabled" {

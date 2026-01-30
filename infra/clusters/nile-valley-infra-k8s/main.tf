@@ -1,7 +1,7 @@
 # Wildside Infrastructure Kubernetes Cluster Provisioning
 #
 # Provisions a DigitalOcean Kubernetes cluster and bootstraps FluxCD for GitOps.
-# This configuration is invoked by the wildside-infra-k8s GitHub Action to
+# This configuration is invoked by the nile-valley-infra-k8s GitHub Action to
 # assemble cluster infrastructure and commit manifests to the GitOps repository.
 #
 # State is stored in DigitalOcean Spaces via the S3-compatible backend. Each

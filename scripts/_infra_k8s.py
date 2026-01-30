@@ -1,4 +1,4 @@
-"""Public re-export surface for wildside-infra-k8s utilities."""
+"""Public re-export surface for nile-valley-infra-k8s utilities."""
 
 from __future__ import annotations
 

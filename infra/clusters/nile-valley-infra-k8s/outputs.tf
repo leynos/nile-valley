@@ -1,6 +1,6 @@
-# Output values for the wildside-infra-k8s cluster configuration.
+# Output values for the nile-valley-infra-k8s cluster configuration.
 #
-# These outputs are exposed to the wildside-infra-k8s GitHub Action for
+# These outputs are exposed to the nile-valley-infra-k8s GitHub Action for
 # publishing cluster information and kubeconfig to downstream consumers.
 
 # -----------------------------------------------------------------------------

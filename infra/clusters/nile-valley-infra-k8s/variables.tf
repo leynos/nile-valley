@@ -1,6 +1,6 @@
-# Input variables for the wildside-infra-k8s cluster configuration.
+# Input variables for the nile-valley-infra-k8s cluster configuration.
 #
-# These variables are passed by the wildside-infra-k8s GitHub Action when
+# These variables are passed by the nile-valley-infra-k8s GitHub Action when
 # provisioning or updating cluster infrastructure.
 
 # -----------------------------------------------------------------------------

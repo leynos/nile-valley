@@ -17,7 +17,7 @@ Examples
 ...         cluster_name="preview-1",
 ...         environment="preview",
 ...         region="nyc1",
-...         spaces_bucket="wildside-tofu-state",
+...         spaces_bucket="nile-valley-tofu-state",
 ...         spaces_region="nyc3",
 ...         spaces_access_key="access",
 ...         spaces_secret_key="secret",
@@ -184,7 +184,7 @@ def _resolve_spaces_config(
     """Resolve Spaces backend configuration inputs."""
     spaces_bucket = _with_override(
         raw.spaces_bucket,
-        InputResolution(env_key="SPACES_BUCKET", default="wildside-tofu-state"),
+        InputResolution(env_key="SPACES_BUCKET", default="nile-valley-tofu-state"),
     )
     spaces_region = _with_override(
         raw.spaces_region, InputResolution(env_key="SPACES_REGION", default="lon1")

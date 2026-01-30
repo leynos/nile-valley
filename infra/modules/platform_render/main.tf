@@ -149,7 +149,7 @@ module "cnpg" {
 # kubernetes ~> 3.0.1, while other modules use ~> 2.13.0 and ~> 2.25.0.
 # A future upgrade will unify provider versions across all modules, at which
 # point valkey can be re-added to this orchestration module.
-# See: docs/execplans/infra-3-1-1-develop-the-wildside-infra-k8s-action.md
+# See: docs/execplans/infra-3-1-1-develop-the-nile-valley-infra-k8s-action.md
 
 # -----------------------------------------------------------------------------
 # Manifest Aggregation and Validation

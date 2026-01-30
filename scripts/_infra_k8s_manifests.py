@@ -1,4 +1,4 @@
-"""Manifest and validation helpers for wildside-infra-k8s."""
+"""Manifest and validation helpers for nile-valley-infra-k8s."""
 
 from __future__ import annotations
 

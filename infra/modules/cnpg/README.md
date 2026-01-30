@@ -35,9 +35,9 @@ module "cnpg" {
 
   mode = "render"
 
-  cluster_name     = "wildside-pg-main"
-  database_name    = "wildside_prod"
-  database_owner   = "wildside_user"
+  cluster_name     = "nile-valley-pg-main"
+  database_name    = "nile_valley_prod"
+  database_owner   = "nile_valley_user"
   instances        = 3
   postgis_enabled  = true
 }
@@ -66,9 +66,9 @@ module "cnpg" {
 
   mode = "apply"
 
-  cluster_name     = "wildside-pg-main"
-  database_name    = "wildside_prod"
-  database_owner   = "wildside_user"
+  cluster_name     = "nile-valley-pg-main"
+  database_name    = "nile_valley_prod"
+  database_owner   = "nile_valley_user"
   instances        = 3
   postgis_enabled  = true
 }
@@ -82,9 +82,9 @@ module "cnpg" {
 
   mode = "render"
 
-  cluster_name   = "wildside-pg-main"
-  database_name  = "wildside_prod"
-  database_owner = "wildside_user"
+  cluster_name   = "nile-valley-pg-main"
+  database_name  = "nile_valley_prod"
+  database_owner = "nile_valley_user"
 
   # ESO integration
   eso_enabled                       = true
@@ -102,9 +102,9 @@ module "cnpg" {
 
   mode = "render"
 
-  cluster_name   = "wildside-pg-main"
-  database_name  = "wildside_prod"
-  database_owner = "wildside_user"
+  cluster_name   = "nile-valley-pg-main"
+  database_name  = "nile_valley_prod"
+  database_owner = "nile_valley_user"
 
   # S3 backups
   backup_enabled          = true
@@ -141,13 +141,13 @@ module "cnpg" {
 
 | Name                      | Description                                      | Type          | Default                                   | Required |
 | ------------------------- | ------------------------------------------------ | ------------- | ----------------------------------------- | :------: |
-| `cluster_name`            | CNPG Cluster resource name                       | `string`      | `"wildside-pg-main"`                      | no       |
+| `cluster_name`            | CNPG Cluster resource name                       | `string`      | `"nile-valley-pg-main"`                   | no       |
 | `instances`               | PostgreSQL instances (1 primary + N-1 replicas)  | `number`      | `3`                                       | no       |
 | `image_name`              | PostgreSQL container image                       | `string`      | `"ghcr.io/cloudnative-pg/postgis:16-3.4"` | no       |
 | `storage_size`            | PVC storage size per instance                    | `string`      | `"50Gi"`                                  | no       |
 | `storage_class`           | Kubernetes StorageClass                          | `string`      | `"do-block-storage"`                      | no       |
-| `database_name`           | Initial database name                            | `string`      | `"wildside_prod"`                         | no       |
-| `database_owner`          | Database owner username                          | `string`      | `"wildside_user"`                         | no       |
+| `database_name`           | Initial database name                            | `string`      | `"nile_valley_prod"`                      | no       |
+| `database_owner`          | Database owner username                          | `string`      | `"nile_valley_user"`                      | no       |
 | `postgis_enabled`         | Install PostGIS extensions                       | `bool`        | `true`                                    | no       |
 | `primary_update_strategy` | Update strategy (`unsupervised` or `supervised`) | `string`      | `"unsupervised"`                          | no       |
 | `primary_update_method`   | Update method (`switchover` or `restart`)        | `string`      | `"switchover"`                            | no       |
@@ -217,22 +217,22 @@ workloads:
 ```hcl
 {
   cluster = {
-    name      = "wildside-pg-main"
+    name      = "nile-valley-pg-main"
     namespace = "databases"
   }
   endpoints = {
     primary = {
-      host = "wildside-pg-main-rw.databases.svc.cluster.local"
+      host = "nile-valley-pg-main-rw.databases.svc.cluster.local"
       port = 5432
     }
     replica = {
-      host = "wildside-pg-main-ro.databases.svc.cluster.local"
+      host = "nile-valley-pg-main-ro.databases.svc.cluster.local"
       port = 5432
     }
   }
   database = {
-    name  = "wildside_prod"
-    owner = "wildside_user"
+    name  = "nile_valley_prod"
+    owner = "nile_valley_user"
   }
   credentials = {
     superuser_secret = {

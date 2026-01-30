@@ -1,7 +1,7 @@
 variable "cluster_name" {
   description = "Name of the CNPG Cluster resource"
   type        = string
-  default     = "wildside-pg-main"
+  default     = "nile-valley-pg-main"
 
   validation {
     condition = (
@@ -65,7 +65,7 @@ variable "storage_class" {
 variable "database_name" {
   description = "Initial database name to create"
   type        = string
-  default     = "wildside_prod"
+  default     = "nile_valley_prod"
 
   validation {
     condition = (
@@ -80,7 +80,7 @@ variable "database_name" {
 variable "database_owner" {
   description = "Owner username for the initial database"
   type        = string
-  default     = "wildside_user"
+  default     = "nile_valley_user"
 
   validation {
     condition = (

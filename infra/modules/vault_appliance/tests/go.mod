@@ -1,11 +1,11 @@
-module wildside/infra/modules/vault_appliance/tests
+module nile-valley/infra/modules/vault_appliance/tests
 
 go 1.21
 
 require (
 	github.com/gruntwork-io/terratest v0.46.5
 	github.com/stretchr/testify v1.8.1
-	wildside/infra/testutil v0.0.0
+	nile-valley/infra/testutil v0.0.0
 )
 
 require (
@@ -97,4 +97,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace wildside/infra/testutil => ../../../testutil
+replace nile-valley/infra/testutil => ../../../testutil

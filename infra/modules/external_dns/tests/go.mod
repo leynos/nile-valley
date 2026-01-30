@@ -1,4 +1,4 @@
-module wildside/infra/modules/external_dns/tests
+module nile-valley/infra/modules/external_dns/tests
 
 go 1.24.0
 
@@ -7,7 +7,7 @@ toolchain go1.24.9
 require (
 	github.com/gruntwork-io/terratest v0.54.0
 	github.com/stretchr/testify v1.11.1
-	wildside/infra/testutil v0.0.0
+	nile-valley/infra/testutil v0.0.0
 )
 
 require (
@@ -132,4 +132,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace wildside/infra/testutil => ../../../testutil
+replace nile-valley/infra/testutil => ../../../testutil

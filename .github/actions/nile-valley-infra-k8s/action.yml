@@ -1,10 +1,10 @@
-name: wildside-infra-k8s
+name: nile-valley-infra-k8s
 description: >-
   Provision a DigitalOcean Kubernetes cluster and render platform fixtures for
   GitOps deployment. This action provisions the cluster via OpenTofu, renders
   Flux-ready manifests for all platform modules, and commits them to the GitOps
   repository for FluxCD reconciliation.
-author: Wildside platform team
+author: Nile Valley platform team
 branding:
   icon: cloud
   color: blue
@@ -37,7 +37,7 @@ inputs:
     required: true
   gitops_repository:
     description: >-
-      Target GitOps repository in owner/repo format (e.g. wildside-dev/wildside-infra).
+      Target GitOps repository in owner/repo format (e.g. OWNER/nile-valley-infra).
     required: true
   gitops_branch:
     description: Branch in the GitOps repository to commit manifests to.

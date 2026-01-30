@@ -42,10 +42,10 @@ provider "helm" {
 
 module "fluxcd" {
   # A released tag or commit SHA should be used for reproducibility
-  source = "git::https://github.com/OWNER/wildside.git//infra/modules/fluxcd"
+  source = "git::https://github.com/OWNER/nile-valley.git//infra/modules/fluxcd"
   # Pin to a released tag or commit using ?ref=<VERSION_OR_SHA>
 
-  git_repository_url    = "https://github.com/OWNER/wildside-infra.git"
+  git_repository_url    = "https://github.com/OWNER/nile-valley-infra.git"
   git_repository_branch = "main"
   git_repository_path   = "./clusters/dev"
   reconcile_interval    = "1m"

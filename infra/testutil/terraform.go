@@ -134,7 +134,7 @@ func TerraformEnvVars(t testing.TB, extras map[string]string) map[string]string 
 			return env
 		}
 
-		pluginCacheDir := filepath.Join(cacheDir, "wildside", "opentofu", "plugin-cache")
+		pluginCacheDir := filepath.Join(cacheDir, "nile-valley", "opentofu", "plugin-cache")
 		if err := os.MkdirAll(pluginCacheDir, 0o755); err != nil {
 			t.Logf(
 				"unable to configure TF_PLUGIN_CACHE_DIR (os.MkdirAll(%s) failed): %v",

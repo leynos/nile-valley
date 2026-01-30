@@ -78,7 +78,7 @@ func TestTerraformEnvVarsConfiguresPluginCacheDir(t *testing.T) {
 		t.Fatalf("expected TF_PLUGIN_CACHE_DIR to be set when XDG_CACHE_HOME is writable")
 	}
 
-	expected := filepath.Join(cacheHome, "wildside", "opentofu", "plugin-cache")
+	expected := filepath.Join(cacheHome, "nile-valley", "opentofu", "plugin-cache")
 	if pluginCacheDir != expected {
 		t.Fatalf("TF_PLUGIN_CACHE_DIR mismatch: want %q, got %q", expected, pluginCacheDir)
 	}
@@ -92,7 +92,7 @@ func TestTerraformEnvVarsRespectsExistingPluginCacheDir(t *testing.T) {
 	cacheHome := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cacheHome)
 
-	extras := map[string]string{"TF_PLUGIN_CACHE_DIR": "/tmp/wildside-plugin-cache"}
+	extras := map[string]string{"TF_PLUGIN_CACHE_DIR": "/tmp/nile-valley-plugin-cache"}
 	env := TerraformEnvVars(t, extras)
 
 	if got := env["TF_PLUGIN_CACHE_DIR"]; got != extras["TF_PLUGIN_CACHE_DIR"] {
@@ -102,7 +102,7 @@ func TestTerraformEnvVarsRespectsExistingPluginCacheDir(t *testing.T) {
 		t.Fatalf("extras map was mutated: %v", extras)
 	}
 
-	expectedDefault := filepath.Join(cacheHome, "wildside", "opentofu", "plugin-cache")
+	expectedDefault := filepath.Join(cacheHome, "nile-valley", "opentofu", "plugin-cache")
 	if _, err := os.Stat(expectedDefault); err == nil {
 		t.Fatalf("did not expect default plugin cache directory %s to be created when override is set", expectedDefault)
 	}
@@ -111,7 +111,7 @@ func TestTerraformEnvVarsRespectsExistingPluginCacheDir(t *testing.T) {
 func TestTerraformEnvDoesNotMutateProcessEnvironment(t *testing.T) {
 	const fooKey = "WILDSIDE_TERRAFORM_ENV_FOO"
 
-	t.Setenv("PATH", "/tmp/wildside:test")
+	t.Setenv("PATH", "/tmp/nile-valley:test")
 	t.Setenv("SHOULD_NOT_LEAK", "1")
 	t.Setenv(fooKey, "existing")
 
@@ -127,7 +127,7 @@ func TestTerraformEnvDoesNotMutateProcessEnvironment(t *testing.T) {
 	if got := env["TF_IN_AUTOMATION"]; got != "1" {
 		t.Fatalf("env slice missing TF_IN_AUTOMATION=1 entry, got %q", got)
 	}
-	if got := env["PATH"]; got != "/tmp/wildside:test" {
+	if got := env["PATH"]; got != "/tmp/nile-valley:test" {
 		t.Fatalf("env slice did not propagate PATH, got %q", got)
 	}
 	if _, ok := env["SHOULD_NOT_LEAK"]; ok {
@@ -192,7 +192,7 @@ func TestTerraformEnvIncludesPluginCacheDir(t *testing.T) {
 		t.Fatalf("expected TerraformEnv to include TF_PLUGIN_CACHE_DIR when XDG_CACHE_HOME is writable")
 	}
 
-	expected := filepath.Join(cacheHome, "wildside", "opentofu", "plugin-cache")
+	expected := filepath.Join(cacheHome, "nile-valley", "opentofu", "plugin-cache")
 	if pluginCacheDir != expected {
 		t.Fatalf("TF_PLUGIN_CACHE_DIR mismatch: want %q, got %q", expected, pluginCacheDir)
 	}

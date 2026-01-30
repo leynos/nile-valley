@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: APPROVED
+Status: IN PROGRESS
 
 No `PLANS.md` file exists in this repository.
 
@@ -87,8 +87,15 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 - [x] (2026-01-30 00:00Z) Defined repo boundary: remove Wildside app code,
   retain an example Helm chart.
 - [x] (2026-01-30 00:00Z) Confirmed naming convention: `nile-valley`.
-- [ ] Produce a concrete Wildside removal and rename inventory list.
-- [ ] Draft the implementation steps and validation plan.
+- [x] (2026-01-30 01:10Z) Removed Wildside application code and updated
+  Makefile/CI/dependencies to align with infra-only scope.
+- [x] (2026-01-30 02:20Z) Renamed infra action/cluster paths and updated
+  scripts, OpenTofu modules, defaults, and Go test module paths to use
+  Nile Valley naming.
+- [ ] (2026-01-30 02:40Z) Overhaul documentation to remove Wildside-only
+  material and add Nile Valley integration guidance.
+- [ ] Run final audit for remaining Wildside references and re-run all quality
+  gates.
 
 ## Surprises & Discoveries
 
@@ -113,25 +120,33 @@ Nile Valley documentation and supplying its own Helm chart from another repo
   and defaults.
   Rationale: Aligns with the new project identity and avoids Wildside naming.
   Date/Author: 2026-01-30 / Codex
+- Decision: Use `leynos/nile-valley-infra` as the default GitOps repository
+  example in scripts/tests, while keeping module README sources in
+  `OWNER/nile-valley` form.
+  Rationale: Keeps scripts/tests aligned with the current repo owner but
+  preserves portable documentation examples.
+  Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
 
-Pending execution.
+Stage B and Stage C are complete. The repository now retains only infra
+automation and an example Helm chart, while automation defaults and tests use
+Nile Valley naming. Documentation still needs a full Nile Valley rewrite and
+final Wildside reference audit.
 
 ## Context and Orientation
 
-This repository currently mirrors the Wildside monorepo. It includes
-application code (`backend/`, `frontend-pwa/`, `packages/`, `crates/`),
-application deployment assets (`deploy/charts/wildside`, `deploy/k8s`), and
-infrastructure automation (`infra/`, `scripts/`, `.github/actions/`). The
-infrastructure for ephemeral previews is described in
+This repository now focuses on Nile Valley infrastructure. Wildside
+application code has been removed and a single example Helm chart is retained
+under `deploy/charts/example-app`. Infrastructure automation lives in
+`infra/`, `scripts/`, and `.github/actions/`, with the primary composite
+action now at `.github/actions/nile-valley-infra-k8s/action.yml`. The
+infrastructure for ephemeral previews remains described in
 `docs/cloud-native-ephemeral-previews.md` and
-`docs/ephemeral-previews-roadmap.md`, but these documents are written from the
-Wildside perspective and reference `wildside-infra`, `wildside-apps`, and the
-`wildside-infra-k8s` action. The primary composite action lives in
-`.github/actions/wildside-infra-k8s/action.yml`, while supporting Python
-helpers sit in `scripts/` (e.g. `scripts/prepare_infra_k8s_inputs.py`) and the
-OpenTofu modules and tests are in `infra/`.
+`docs/ephemeral-previews-roadmap.md`, but these documents still carry
+Wildside-specific naming that must be updated. Supporting Python helpers sit
+in `scripts/` (e.g. `scripts/prepare_infra_k8s_inputs.py`), and OpenTofu
+modules and tests are in `infra/`.
 
 The goal is to remove Wildside-specific elements so Nile Valley becomes a
 stand-alone infrastructure platform usable by multiple applications, with
@@ -282,10 +297,8 @@ appropriate.
 
 ## Interfaces and Dependencies
 
-- Composite action (rename required):
-  - Current: `.github/actions/wildside-infra-k8s/action.yml`
-  - Proposed: `.github/actions/nile-valley-infra-k8s/action.yml` (or another
-    agreed name).
+- Composite action (rename complete):
+  - Current: `.github/actions/nile-valley-infra-k8s/action.yml`
   - Inputs/outputs must remain functionally equivalent, with any Wildside
     defaults replaced by neutral placeholders.
 - Python helper scripts under `scripts/` are treated as internal interfaces for
@@ -296,7 +309,6 @@ appropriate.
 
 ## Revision note
 
-Updated status to APPROVED, captured the repo boundary decision (remove
-Wildside app code, retain an example Helm chart), and recorded the
-`nile-valley` naming convention. Adjusted scope language in Stage B and
-documentation goals accordingly.
+- 2026-01-30: Updated status to IN PROGRESS, recorded completion of removal
+  and rename work, refreshed context, and added a GitOps defaults decision.
+  Remaining work now focuses on documentation overhaul and final audit.

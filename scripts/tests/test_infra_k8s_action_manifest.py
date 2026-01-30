@@ -1,4 +1,4 @@
-"""Structural tests for the wildside-infra-k8s composite action."""
+"""Structural tests for the nile-valley-infra-k8s composite action."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import yaml
 
 ACTION_PATH = (
     Path(__file__).resolve().parents[2]
-    / ".github/actions/wildside-infra-k8s/action.yml"
+    / ".github/actions/nile-valley-infra-k8s/action.yml"
 )
 
 

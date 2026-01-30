@@ -339,7 +339,7 @@ locals {
     ["../sources/cloudnative-pg-repo.yaml"],
     ["namespace-cnpg-system.yaml", "namespace-databases.yaml"],
     ["cnpg-operator-helmrelease.yaml"],
-    ["wildside-pg-cluster.yaml"],
+    ["nile-valley-pg-cluster.yaml"],
     local.pdb_enabled ? ["pdb-cnpg-cluster.yaml"] : [],
     local.backup_enabled && local.scheduled_backup_manifest != null ? ["scheduled-backup.yaml"] : [],
     local.s3_credentials_secret_manifest != null ? ["s3-credentials-secret.yaml"] : [],
@@ -373,7 +373,7 @@ locals {
         "%s\n",
         yamlencode(local.flux_helmrelease_manifest)
       )
-      "platform/databases/wildside-pg-cluster.yaml" = format(
+      "platform/databases/nile-valley-pg-cluster.yaml" = format(
         "%s\n",
         yamlencode(local.cluster_manifest)
       )

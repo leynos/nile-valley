@@ -34,7 +34,7 @@ module "external_dns" {
 
 When `mode = "render"`, the module does not talk to a Kubernetes cluster. It
 instead returns a `rendered_manifests` map, keyed by the intended GitOps
-(Git-based operations) path within the `wildside-infra` repository.
+(Git-based operations) path within the `nile-valley-infra` repository.
 
 ```hcl
 module "external_dns" {

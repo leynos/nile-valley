@@ -1,4 +1,4 @@
-"""Exception hierarchy for wildside-infra-k8s utilities.
+"""Exception hierarchy for nile-valley-infra-k8s utilities.
 
 These exceptions provide a domain-specific error surface for the shared action
 helpers so callers can catch a single base error when appropriate.
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 
 class InfraK8sError(Exception):
-    """Base error for wildside-infra-k8s orchestration helpers.
+    """Base error for nile-valley-infra-k8s orchestration helpers.
 
     Parameters
     ----------

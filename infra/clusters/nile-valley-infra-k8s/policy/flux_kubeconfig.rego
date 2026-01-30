@@ -1,4 +1,4 @@
-package wildside_infra_k8s.policy
+package nile_valley_infra_k8s.policy
 
 deny contains msg if {
   flux_install := object.get(input.variables, "flux_install", {"value": false}).value
