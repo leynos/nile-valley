@@ -74,7 +74,7 @@ rstest-bdd = "0.3.2"
 rstest-bdd-macros = "0.3.2"
 insta = { version = "1", features = ["json", "redactions"] }
 postgres = { version = "0.19.12", features = ["with-uuid-1"] }
-mockable = { version = "0.3", features = ["mock"] }
+mockable = { version = "3.0", features = ["mock"] }
 # Diesel migration runner for integration tests
 diesel_migrations = "2.2"
 
