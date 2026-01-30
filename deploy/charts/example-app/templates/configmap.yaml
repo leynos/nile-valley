@@ -1,0 +1,12 @@
+{{- if .Values.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "example-app.fullname" . }}-config
+  labels:
+    {{- include "example-app.labels" . | nindent 4 }}
+data:
+{{- range $key := keys .Values.config | sortAlpha }}
+  {{ $key }}: "{{ index $.Values.config $key | toString }}"
+{{- end }}
+{{- end }}

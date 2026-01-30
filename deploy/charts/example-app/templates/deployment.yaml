@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "example-app.fullname" . }}
+  labels:
+    {{- include "example-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+{{- end }}
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "example-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "example-app.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+      annotations:
+        checksum/config: {{ if .Values.config }}{{ toYaml .Values.config | sha256sum }}{{ end }}
+        {{- if .Values.sessionSecret.enabled }}
+        {{- $secret := lookup "v1" "Secret" .Release.Namespace (.Values.sessionSecret.name | default "example-app-session-key") }}
+        {{- if $secret }}
+        checksum/session-secret: {{ $secret.data | toYaml | sha256sum }}
+        {{- end }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "example-app.selectorLabels" . | nindent 14 }}
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "example-app.selectorLabels" . | nindent 14 }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: app
+          {{- $tag := .Values.image.tag | default .Chart.AppVersion }}
+          image: "{{ .Values.image.repository }}:{{$tag}}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default (ternary "Always" "IfNotPresent" (eq $tag "latest")) }}
+          ports:
+            - name: http
+              containerPort: 8080
+          {{- $cfg := .Values.config | default dict }}
+          {{- $sec := .Values.secretEnvFromKeys | default dict }}
+          {{- $name := .Values.existingSecretName }}
+          {{- include "example-app.validateSecrets" . -}}
+          {{- if or (gt (len $cfg) 0) (gt (len $sec) 0) }}
+          env:
+            {{- range $k, $_ := $cfg }}
+            - name: {{ $k }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "example-app.fullname" $ }}-config
+                  key: {{ $k }}
+            {{- end }}
+            {{- range $k, $secretKey := $sec }}
+            - name: {{ $k }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name | quote }}
+                  key: {{ $secretKey | quote }}
+                  optional: {{ $.Values.allowMissingSecret | default true }}
+           {{- end }}
+         {{- end }}
+{{- with .Values.securityContext }}
+          securityContext:
+{{ toYaml . | replace "drop:\n  -" "drop:\n    -" | nindent 12 }}
+{{- end }}
+{{- with .Values.container.readinessProbe }}
+            readinessProbe:
+{{- toYaml . | nindent 14 }}
+{{- end }}
+{{- with .Values.container.livenessProbe }}
+            livenessProbe:
+{{- toYaml . | nindent 14 }}
+{{- end }}
+{{- with .Values.container.startupProbe }}
+            startupProbe:
+{{- toYaml . | nindent 14 }}
+{{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.sessionSecret.enabled }}
+          volumeMounts:
+            - name: session-key
+              mountPath: {{ .Values.sessionSecret.mountPath | default "/var/run/secrets" }}
+              readOnly: true
+          {{- end }}
+      {{- if .Values.sessionSecret.enabled }}
+      volumes:
+        - name: session-key
+          secret:
+            secretName: {{ .Values.sessionSecret.name | default "example-app-session-key" }}
+            items:
+              - key: {{ .Values.sessionSecret.keyName | default "session_key" }}
+                path: session_key
+      {{- end }}
