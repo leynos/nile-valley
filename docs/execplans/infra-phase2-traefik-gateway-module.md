@@ -24,7 +24,6 @@ After completion, a newcomer can:
    - dashboard hostname(s),
    - the default certificate issuer name to be used cluster-wide.
 4. Validate changes locally using the repository gates:
-   `make check-fmt`, `make typecheck`, `make lint`, and `make test`.
 
 This work must also:
 
@@ -123,7 +122,6 @@ Completed outcomes:
   downstream modules/actions.
 - Terratest covers render outputs and key unhappy paths.
 - Conftest policies validate rendered manifests and enforce version pinning.
-- `make check-fmt`, `make typecheck`, `make lint`, and `make test` succeed.
 - `docs/ephemeral-previews-roadmap.md` marks the Traefik gateway module item as
   complete.
 
@@ -160,7 +158,7 @@ Terminology:
 - “Traefik CRDs”: Kubernetes `CustomResourceDefinition` objects defining
   `traefik.io/v1alpha1` resources such as `IngressRoute`.
 - “Render mode”: producing YAML manifest outputs to commit into
-  `wildside-infra` for Flux to reconcile.
+  `nile-valley-infra` for Flux to reconcile.
 - “Apply mode”: applying resources directly to a cluster via providers.
 
 ## Plan of Work
@@ -200,12 +198,12 @@ Terminology:
 
 All commands run from the repo root:
 
-    cd /mnt/home/leynos/Projects/wildside.worktrees/validate-traefik
+    cd /mnt/home/leynos/Projects/nile-valley.worktrees/validate-traefik
 
 Use this pattern for long commands to preserve output and exit status:
 
     set -o pipefail
-    timeout 300s make <target> 2>&1 | tee "/tmp/wildside-<target>.log"
+    timeout 300s make <target> 2>&1 | tee "/tmp/nile-valley-<target>.log"
     status=${PIPESTATUS[0]}
     test "$status" -eq 0
 
@@ -218,19 +216,18 @@ Baseline checks:
 After implementation, run:
 
     set -o pipefail
-    timeout 300s make check-fmt 2>&1 | tee /tmp/wildside-check-fmt.log
+    timeout 300s make check-fmt 2>&1 | tee /tmp/nile-valley-check-fmt.log
     test ${PIPESTATUS[0]} -eq 0
 
     set -o pipefail
-    timeout 300s make typecheck 2>&1 | tee /tmp/wildside-typecheck.log
     test ${PIPESTATUS[0]} -eq 0
 
     set -o pipefail
-    timeout 300s make lint 2>&1 | tee /tmp/wildside-lint.log
+    timeout 300s make lint 2>&1 | tee /tmp/nile-valley-lint.log
     test ${PIPESTATUS[0]} -eq 0
 
     set -o pipefail
-    timeout 300s make test 2>&1 | tee /tmp/wildside-test.log
+    timeout 300s make test 2>&1 | tee /tmp/nile-valley-test.log
     test ${PIPESTATUS[0]} -eq 0
 
 ## Validation and Acceptance
@@ -255,7 +252,7 @@ Acceptance requires:
      and the deny is validated by an automated test.
 
 4. Repository gates:
-   - `make check-fmt`, `make typecheck`, `make lint`, `make test` succeed.
+   - `make check-fmt`, `make lint`, and `make test` succeed.
 
 5. GitHub Actions lint:
    - `make lint-actions` runs `yamllint` and `actionlint` successfully.
@@ -275,7 +272,7 @@ Acceptance requires:
 
 If a command fails, inspect the log:
 
-    less /tmp/wildside-<target>.log
+    less /tmp/nile-valley-<target>.log
 
 Then rerun only the failing target after fixing the underlying issue.
 

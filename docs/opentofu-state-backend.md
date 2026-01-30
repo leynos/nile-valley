@@ -1,7 +1,7 @@
 # OpenTofu State Backend Configuration
 
 This document describes the state management strategy for OpenTofu
-configurations in the Wildside infrastructure.
+configurations in the Nile Valley infrastructure.
 
 ## Overview
 
@@ -18,7 +18,7 @@ Service (S3)-compatible object storage service. This provides:
 
 The backend is configured in `infra/backend-config/spaces.tfbackend`:
 
-    bucket                      = "wildside-tofu-state"
+    bucket                      = "nile-valley-tofu-state"
     region                      = "nyc3"
     endpoint                    = "nyc3.digitaloceanspaces.com"
     skip_credentials_validation = true
@@ -59,9 +59,9 @@ bucket.
 ## Credential Management
 
 Spaces credentials are stored in HashiCorp Vault and retrieved by the
-`wildside-infra-k8s` action during execution. The credentials require:
+`nile-valley-infra-k8s` action during execution. The credentials require:
 
-- **Read/Write access** to the `wildside-tofu-state` bucket.
+- **Read/Write access** to the `nile-valley-tofu-state` bucket.
 - **List access** for workspace enumeration.
 
 Never commit Spaces credentials to version control. The action retrieves them
@@ -83,7 +83,7 @@ To prevent concurrent modifications:
 If state becomes corrupted:
 
 1. Enable object versioning on the Spaces bucket (if not already enabled).
-2. List object versions: `s3cmd ls --versions s3://wildside-tofu-state/`.
+2. List object versions: `s3cmd ls --versions s3://nile-valley-tofu-state/`.
 3. Restore the previous version of the state file.
 4. Run `tofu refresh` to reconcile.
 

@@ -5,7 +5,7 @@
 Provide an OpenTofu module that deploys cert-manager and exposes ClusterIssuer
 resources for ACME (Automated Certificate Management Environment, Let's
 Encrypt) and Vault. The module supports both render mode (Flux-ready manifests)
-and apply mode (direct Kubernetes provisioning) so the `wildside-infra-k8s`
+and apply mode (direct Kubernetes provisioning) so the `nile-valley-infra-k8s`
 action can converge shared Transport Layer Security (TLS) fixtures on each run.
 
 ## Goals

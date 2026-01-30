@@ -1,7 +1,7 @@
 # FluxCD OpenTofu module design
 
 This document records the design decisions behind the FluxCD module that
-installs the GitOps control plane for Wildside's ephemeral preview platform.
+installs the GitOps control plane for Nile Valley's ephemeral preview platform.
 
 ## Overview
 
@@ -36,7 +36,7 @@ module.
 - **Policy enforcement.** A Conftest policy ensures Git URLs use an accepted
   scheme, reconciliation intervals stay within seconds or minutes, pruning is
   enabled, and the Kustomization references a GitRepository source. This aligns
-  with the GitOps conventions defined for Wildside.
+  with the GitOps conventions defined for Nile Valley.
 - **Testing strategy.** Terratest covers validation failures, provider errors
   (missing kubeconfig), detailed exit codes, Conftest enforcement, and a gated
   apply flow that runs only when `FLUXCD_ACCEPT_APPLY` and `KUBECONFIG` are

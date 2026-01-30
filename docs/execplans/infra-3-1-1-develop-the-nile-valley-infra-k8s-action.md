@@ -1,4 +1,4 @@
-# Develop the wildside-infra-k8s GitHub Action
+# Develop the nile-valley-infra-k8s GitHub Action
 
 This Execution Plan (ExecPlan) is a living document. The sections `Progress`,
 `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must
@@ -11,11 +11,11 @@ policy to follow.
 
 ## Purpose / big picture
 
-Deliver the `wildside-infra-k8s` GitHub Action (Phase 3.1 of the ephemeral
+Deliver the `nile-valley-infra-k8s` GitHub Action (Phase 3.1 of the ephemeral
 previews roadmap) so that Kubernetes clusters and shared fixtures can be
-assembled from the OpenTofu modules in the Wildside repository and persisted in
-the `wildside-infra` GitOps repository for Flux Continuous Delivery (FluxCD)
-to reconcile. Success is visible when:
+assembled from the OpenTofu modules in the Nile Valley repository and
+persisted in the `nile-valley-infra` GitOps repository for Flux Continuous
+Delivery (FluxCD) to reconcile. Success is visible when:
 
 1. The action can be invoked with cluster identifiers, Vault credentials, and
    GitOps repository details.
@@ -24,14 +24,14 @@ to reconcile. Success is visible when:
    cluster.
 3. The action renders Flux-ready manifests from all platform modules (traefik,
    cert-manager, external-dns, vault-eso, cnpg, valkey) in render mode.
-4. The action commits the rendered manifests to `wildside-infra` with the
+4. The action commits the rendered manifests to `nile-valley-infra` with the
    expected GitOps layout (`clusters/<cluster>/`, `modules/`, `platform/*`).
 5. Re-running the action is idempotent—it provisions or updates the cluster and
    reconciles the GitOps repository without duplicating resources.
 6. OpenTofu state is persisted to a backend (e.g., DigitalOcean Spaces or
    Amazon Simple Storage Service (S3)) so that subsequent runs can detect and
    reconcile drift.
-7. All tests pass: `make check-fmt`, `make typecheck`, `make lint`, `make test`.
+7. All tests pass: `make check-fmt`, `make lint`, and `make test`.
 
 ## Constraints
 
@@ -132,7 +132,7 @@ Thresholds that trigger escalation when breached:
   `provision_cluster.py`, `render_platform_manifests.py`,
   `commit_gitops_manifests.py`, `publish_infra_k8s_outputs.py`.
 - [x] (2026-01-16) Create the composite action definition (action.yml).
-  Created: `.github/actions/wildside-infra-k8s/action.yml`.
+  Created: `.github/actions/nile-valley-infra-k8s/action.yml`.
 - [x] (2026-01-16) Write structural tests for action.yml.
   Created: `scripts/tests/test_infra_k8s_action_manifest.py` with 12 tests.
 - [x] (2026-01-16) Add Terratest coverage for platform_render module.
@@ -198,8 +198,8 @@ Initial anticipated decisions below:
   subset.
   Date/Author: Pending.
 
-- Decision: (Pending) Sync infra/modules/ to wildside-infra/modules/ as part of
-  the commit workflow.
+- Decision: (Pending) Sync infra/modules/ to nile-valley-infra/modules/ as
+  part of the commit workflow.
   Rationale: Keeps the GitOps repository self-contained; enables FluxCD to
   reference modules for cluster-specific overrides.
   Date/Author: Pending.
@@ -220,7 +220,7 @@ Initial anticipated decisions below:
 
 ## Context and orientation
 
-The `wildside-infra-k8s` action is part of Phase 3.1 of the ephemeral previews
+The `nile-valley-infra-k8s` action is part of Phase 3.1 of the ephemeral previews
 roadmap. It consumes the OpenTofu modules created in Phase 2.3 (traefik,
 cert-manager, external-dns, vault-eso, cnpg, valkey) and orchestrates them to
 produce a coherent set of Flux-ready manifests.
@@ -253,7 +253,7 @@ Definitions used in this plan:
 - **Render mode**: OpenTofu emits manifests as a map output for Flux to apply
   via GitOps, without directly applying resources to a cluster.
 - **Apply mode**: OpenTofu applies resources directly to a live cluster.
-- **GitOps repository**: The `wildside-infra` repository that FluxCD monitors
+- **GitOps repository**: The `nile-valley-infra` repository that FluxCD monitors
   and reconciles.
 - **Platform modules**: traefik, cert-manager, external-dns, vault-eso, cnpg,
   valkey.
@@ -282,7 +282,7 @@ Files to create:
 
 ### Phase 2: Cluster Provisioning Configuration
 
-Create `infra/clusters/wildside-infra-k8s/` as the OpenTofu root configuration
+Create `infra/clusters/nile-valley-infra-k8s/` as the OpenTofu root configuration
 that provisions clusters via the DOKS module:
 
 1. Define the root configuration that invokes the DOKS module.
@@ -293,12 +293,12 @@ that provisions clusters via the DOKS module:
 
 Files to create:
 
-- `infra/clusters/wildside-infra-k8s/main.tf` — root configuration.
-- `infra/clusters/wildside-infra-k8s/variables.tf` — cluster inputs.
-- `infra/clusters/wildside-infra-k8s/outputs.tf` — cluster outputs.
-- `infra/clusters/wildside-infra-k8s/versions.tf` — provider requirements.
-- `infra/clusters/wildside-infra-k8s/backend.tf` — backend configuration.
-- `infra/clusters/wildside-infra-k8s/.tflint.hcl` — symlink to the shared
+- `infra/clusters/nile-valley-infra-k8s/main.tf` — root configuration.
+- `infra/clusters/nile-valley-infra-k8s/variables.tf` — cluster inputs.
+- `infra/clusters/nile-valley-infra-k8s/outputs.tf` — cluster outputs.
+- `infra/clusters/nile-valley-infra-k8s/versions.tf` — provider requirements.
+- `infra/clusters/nile-valley-infra-k8s/backend.tf` — backend configuration.
+- `infra/clusters/nile-valley-infra-k8s/.tflint.hcl` — symlink to the shared
   `infra/.tflint.hcl` linting configuration.
 
 ### Phase 3: Platform Render Orchestration Module
@@ -359,7 +359,7 @@ Create Python scripts following the `bootstrap-vault-appliance` pattern:
    - Write manifests to `$RENDER_OUTPUT_DIR`.
 
 4. **`scripts/commit_gitops_manifests.py`**
-   - Clone the `wildside-infra` GitOps repository.
+   - Clone the `nile-valley-infra` GitOps repository.
    - Sync `infra/modules/` to `modules/` in the GitOps repository.
    - Copy rendered manifests to `clusters/<cluster>/` and `platform/`.
    - Check for changes; commit and push only if there are differences.
@@ -376,7 +376,7 @@ Create Python scripts following the `bootstrap-vault-appliance` pattern:
 
 ### Phase 5: Composite Action Definition
 
-Create `.github/actions/wildside-infra-k8s/action.yml`:
+Create `.github/actions/nile-valley-infra-k8s/action.yml`:
 
 **Inputs:**
 
@@ -447,7 +447,7 @@ Create `.github/actions/wildside-infra-k8s/action.yml`:
 
 **Terratest suites:**
 
-For `infra/clusters/wildside-infra-k8s/tests/`:
+For `infra/clusters/nile-valley-infra-k8s/tests/`:
 
 - Test cluster provisioning with mocked DigitalOcean provider.
 - Test `tofu plan -detailed-exitcode` for drift detection.
@@ -463,7 +463,7 @@ For `infra/modules/platform_render/tests/`:
 
 **OPA/Conftest policies:**
 
-For `infra/clusters/wildside-infra-k8s/policy/`:
+For `infra/clusters/nile-valley-infra-k8s/policy/`:
 
 - Validate cluster configuration (region, version, node pools).
 - Ensure `prevent_destroy` is present on cluster resources.
@@ -495,12 +495,12 @@ Add the following targets:
 
 ### Phase 8: Documentation and Roadmap
 
-- Create `docs/wildside-infra-k8s-action-design.md` with design decisions.
+- Create `docs/nile-valley-infra-k8s-action-design.md` with design decisions.
 - Create `docs/opentofu-state-backend.md` with state management documentation.
 - Update `docs/contents.md` to include the new design documents.
-- Update `docs/ephemeral-previews-roadmap.md` to mark the `wildside-infra-k8s`
+- Update `docs/ephemeral-previews-roadmap.md` to mark the `nile-valley-infra-k8s`
   entry as done.
-- Create `.github/actions/wildside-infra-k8s/README.md` with usage examples.
+- Create `.github/actions/nile-valley-infra-k8s/README.md` with usage examples.
 
 ## Concrete Steps
 
@@ -511,7 +511,7 @@ timeout for long-running commands.
 
     mkdir -p infra/backend-config
     cat > infra/backend-config/spaces.tfbackend <<'EOF'
-    bucket   = "wildside-tofu-state"
+    bucket   = "nile-valley-tofu-state"
     key      = "clusters/${cluster_name}/terraform.tfstate"
     region   = "nyc3"
     endpoint = "nyc3.digitaloceanspaces.com"
@@ -519,11 +519,11 @@ timeout for long-running commands.
 
 ### Step 2: Create the cluster provisioning configuration
 
-    mkdir -p infra/clusters/wildside-infra-k8s/{tests,policy}
+    mkdir -p infra/clusters/nile-valley-infra-k8s/{tests,policy}
 
-Create `infra/clusters/wildside-infra-k8s/main.tf`:
+Create `infra/clusters/nile-valley-infra-k8s/main.tf`:
 
-    # Wildside Infrastructure Kubernetes Cluster Provisioning
+    # Nile Valley Infrastructure Kubernetes Cluster Provisioning
     #
     # Provisions a DigitalOcean Kubernetes cluster and bootstraps FluxCD.
 
@@ -593,7 +593,7 @@ module patterns.
 ### Step 5: Generate provider lock files
 
     timeout 300s bash -lc \
-      'tofu -chdir=infra/clusters/wildside-infra-k8s init -input=false -no-color -backend=false'
+      'tofu -chdir=infra/clusters/nile-valley-infra-k8s init -input=false -no-color -backend=false'
     timeout 300s bash -lc \
       'tofu -chdir=infra/modules/platform_render/examples/full init -input=false -no-color'
 
@@ -606,7 +606,7 @@ Create `scripts/prepare_infra_k8s_inputs.py`:
     # requires-python = ">=3.13"
     # dependencies = ["cyclopts>=2.9", "plumbum"]
     # ///
-    """Prepare wildside-infra-k8s inputs and retrieve secrets from Vault."""
+    """Prepare nile-valley-infra-k8s inputs and retrieve secrets from Vault."""
 
     # (Implementation follows bootstrap-vault-appliance pattern)
 
@@ -632,17 +632,17 @@ Create similar scripts for render, commit, and publish phases.
 
 ### Step 7: Add Terratest coverage
 
-    cd infra/clusters/wildside-infra-k8s/tests && \
-      go mod init wildside/infra/clusters/wildside-infra-k8s/tests && \
+    cd infra/clusters/nile-valley-infra-k8s/tests && \
+      go mod init nile-valley/infra/clusters/nile-valley-infra-k8s/tests && \
       go mod tidy
 
     cd infra/modules/platform_render/tests && \
-      go mod init wildside/infra/modules/platform_render/tests && \
+      go mod init nile-valley/infra/modules/platform_render/tests && \
       go mod tidy
 
 ### Step 8: Create the composite action
 
-Create `.github/actions/wildside-infra-k8s/action.yml` following the structure
+Create `.github/actions/nile-valley-infra-k8s/action.yml` following the structure
 defined in Phase 5.
 
 ### Step 9: Write structural tests
@@ -655,15 +655,15 @@ from `test_bootstrap_vault_action_manifest.py`.
 Add targets to Makefile:
 
     cluster-provision-test:
-    	tofu fmt -check infra/clusters/wildside-infra-k8s
-    	tofu -chdir=infra/clusters/wildside-infra-k8s init -backend=false
-    	tofu -chdir=infra/clusters/wildside-infra-k8s validate
-    	cd infra/clusters/wildside-infra-k8s && tflint --init && tflint --config .tflint.hcl
-    	cd infra/clusters/wildside-infra-k8s/tests && $(GO_TEST_ENV) go test -v
+    	tofu fmt -check infra/clusters/nile-valley-infra-k8s
+    	tofu -chdir=infra/clusters/nile-valley-infra-k8s init -backend=false
+    	tofu -chdir=infra/clusters/nile-valley-infra-k8s validate
+    	cd infra/clusters/nile-valley-infra-k8s && tflint --init && tflint --config .tflint.hcl
+    	cd infra/clusters/nile-valley-infra-k8s/tests && $(GO_TEST_ENV) go test -v
     	$(MAKE) cluster-provision-policy
 
     cluster-provision-policy: conftest tofu
-    	conftest test infra/clusters/wildside-infra-k8s --policy infra/clusters/wildside-infra-k8s/policy --ignore ".terraform"
+    	conftest test infra/clusters/nile-valley-infra-k8s --policy infra/clusters/nile-valley-infra-k8s/policy --ignore ".terraform"
 
     platform-render-test:
     	tofu fmt -check infra/modules/platform_render
@@ -681,43 +681,42 @@ Add all targets to `INFRA_TEST_TARGETS`.
 ### Step 11: Run validation
 
     timeout 300s bash -lc \
-      'set -o pipefail; make lint-actions 2>&1 | tee /tmp/wildside-lint-actions.log'
+      'set -o pipefail; make lint-actions 2>&1 | tee /tmp/nile-valley-lint-actions.log'
 
     timeout 300s bash -lc \
-      'set -o pipefail; make scripts-test 2>&1 | tee /tmp/wildside-scripts-test.log'
+      'set -o pipefail; make scripts-test 2>&1 | tee /tmp/nile-valley-scripts-test.log'
 
     timeout 300s bash -lc \
-      'set -o pipefail; make cluster-provision-test 2>&1 | tee /tmp/wildside-cluster-provision-test.log'
+      'set -o pipefail; make cluster-provision-test 2>&1 | tee /tmp/nile-valley-cluster-provision-test.log'
 
     timeout 300s bash -lc \
-      'set -o pipefail; make platform-render-test 2>&1 | tee /tmp/wildside-platform-render-test.log'
+      'set -o pipefail; make platform-render-test 2>&1 | tee /tmp/nile-valley-platform-render-test.log'
 
 ### Step 12: Run repository-wide gates
 
     timeout 300s bash -lc \
-      'set -o pipefail; make check-fmt 2>&1 | tee /tmp/wildside-check-fmt.log'
+      'set -o pipefail; make check-fmt 2>&1 | tee /tmp/nile-valley-check-fmt.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make typecheck 2>&1 | tee /tmp/wildside-typecheck.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make lint 2>&1 | tee /tmp/wildside-lint.log'
+      'set -o pipefail; make lint 2>&1 | tee /tmp/nile-valley-lint.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make test 2>&1 | tee /tmp/wildside-test.log'
+      'set -o pipefail; make test 2>&1 | tee /tmp/nile-valley-test.log'
 
 ### Step 13: Update roadmap
 
-Edit `docs/ephemeral-previews-roadmap.md` to mark the `wildside-infra-k8s`
+Edit `docs/ephemeral-previews-roadmap.md` to mark the `nile-valley-infra-k8s`
 action entry as done:
 
-    - [x] **Develop the `wildside-infra-k8s` action**
+    - [x] **Develop the `nile-valley-infra-k8s` action**
 
 ## Validation and Acceptance
 
 The work is complete when all of the following are true:
 
-1. `.github/actions/wildside-infra-k8s/action.yml` exists and passes
+1. `.github/actions/nile-valley-infra-k8s/action.yml` exists and passes
    `make lint-actions`.
 
-2. `infra/clusters/wildside-infra-k8s/` exists with root configuration,
+2. `infra/clusters/nile-valley-infra-k8s/` exists with root configuration,
    variables, outputs, backend configuration, policies, and Terratest suites.
 
 3. `infra/modules/platform_render/` exists with module files, README, examples,
@@ -763,15 +762,14 @@ The work is complete when all of the following are true:
     as expected.
 
 12. The design decisions are recorded in
-    `docs/wildside-infra-k8s-action-design.md` and linked from
+    `docs/nile-valley-infra-k8s-action-design.md` and linked from
     `docs/contents.md`.
 
 13. State backend documentation exists in `docs/opentofu-state-backend.md`.
 
-14. The `wildside-infra-k8s` entry in `docs/ephemeral-previews-roadmap.md` is
+14. The `nile-valley-infra-k8s` entry in `docs/ephemeral-previews-roadmap.md` is
     marked done.
 
-15. `make check-fmt`, `make typecheck`, `make lint`, and `make test` all
     succeed.
 
 ## Idempotence and Recovery
@@ -798,7 +796,7 @@ All steps should be re-runnable:
 
 **Expected GitOps repository layout after action runs:**
 
-    wildside-infra/
+    nile-valley-infra/
     ├── clusters/
     │   └── <cluster_name>/
     │       └── kustomization.yaml
@@ -895,6 +893,6 @@ than deploying infrastructure.
 
 ## Revision Note
 
-- 2026-01-16: Initial draft of the wildside-infra-k8s action ExecPlan. Defined
+- 2026-01-16: Initial draft of the nile-valley-infra-k8s action ExecPlan. Defined
   scope, action interface, platform_render orchestration module, Python helper
   scripts, testing strategy, and GitOps layout.

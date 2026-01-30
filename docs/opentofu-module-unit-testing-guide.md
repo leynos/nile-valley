@@ -913,7 +913,7 @@ deploys a simple web server demonstrates Terratest's power.
 
 #### Shared environment helpers
 
-Wildside's Terratest suites share a small `infra/testutil` package to avoid
+Nile Valley's Terratest suites share a small `infra/testutil` package to avoid
 repeating boilerplate such as environment variable setup. The
 `TerraformEnvVars` helper injects `TF_IN_AUTOMATION=1` and merges any test
 specific overrides before handing the map to Terratest. It also accepts the

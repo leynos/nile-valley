@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Constraints`, `Tolerances`,
 `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 No `PLANS.md` file exists in this repository.
 
@@ -92,10 +92,12 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 - [x] (2026-01-30 02:20Z) Renamed infra action/cluster paths and updated
   scripts, OpenTofu modules, defaults, and Go test module paths to use
   Nile Valley naming.
-- [ ] (2026-01-30 02:40Z) Overhaul documentation to remove Wildside-only
-  material and add Nile Valley integration guidance.
-- [ ] Run final audit for remaining Wildside references and re-run all quality
-  gates.
+- [x] (2026-01-30 03:30Z) Overhauled documentation to remove Wildside-only
+  material, add Nile Valley guidance, and add a generic runbook for session
+  key rotation.
+- [x] (2026-01-30 21:00Z) Completed final Wildside reference audit and reran
+  all quality gates; only this ExecPlan retains historical Wildside
+  references.
 
 ## Surprises & Discoveries
 
@@ -129,10 +131,12 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 
 ## Outcomes & Retrospective
 
-Stage B and Stage C are complete. The repository now retains only infra
+Stages B through E are complete. The repository now retains only infra
 automation and an example Helm chart, while automation defaults and tests use
-Nile Valley naming. Documentation still needs a full Nile Valley rewrite and
-final Wildside reference audit.
+Nile Valley naming. Documentation has been overhauled for Nile Valley, with a
+fresh runbook added for session key rotation. Only this ExecPlan retains
+historical Wildside references for audit context, and all quality gates have
+been rerun against the updated documentation set.
 
 ## Context and Orientation
 
@@ -143,10 +147,10 @@ under `deploy/charts/example-app`. Infrastructure automation lives in
 action now at `.github/actions/nile-valley-infra-k8s/action.yml`. The
 infrastructure for ephemeral previews remains described in
 `docs/cloud-native-ephemeral-previews.md` and
-`docs/ephemeral-previews-roadmap.md`, but these documents still carry
-Wildside-specific naming that must be updated. Supporting Python helpers sit
-in `scripts/` (e.g. `scripts/prepare_infra_k8s_inputs.py`), and OpenTofu
-modules and tests are in `infra/`.
+`docs/ephemeral-previews-roadmap.md`, and these documents now use Nile Valley
+naming throughout. Supporting Python helpers sit in `scripts/` (e.g.
+`scripts/prepare_infra_k8s_inputs.py`), and OpenTofu modules and tests are in
+`infra/`.
 
 The goal is to remove Wildside-specific elements so Nile Valley becomes a
 stand-alone infrastructure platform usable by multiple applications, with
@@ -309,6 +313,8 @@ appropriate.
 
 ## Revision note
 
-- 2026-01-30: Updated status to IN PROGRESS, recorded completion of removal
-  and rename work, refreshed context, and added a GitOps defaults decision.
-  Remaining work now focuses on documentation overhaul and final audit.
+- 2026-01-30: Marked the plan COMPLETE, recorded documentation overhaul and
+  runbook additions, and noted the final Wildside audit plus quality gate
+  reruns. Updated progress and outcomes to reflect Stage D/E completion.
+- 2026-01-30: Updated the progress timestamp after re-running the quality
+  gates following markdownlint fixes to tables and wrapped lines.

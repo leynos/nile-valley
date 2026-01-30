@@ -126,7 +126,7 @@ capabilities.
 **Decision:** Expose a `sync_policy_contract` output that bundles secret store
 references and mount paths for downstream workload consumption.
 
-**Rationale:** Provides a stable interface for the `wildside-infra-k8s` action
+**Rationale:** Provides a stable interface for the `nile-valley-infra-k8s` action
 and application modules to reference secret stores without depending on
 internal naming conventions. The contract includes:
 

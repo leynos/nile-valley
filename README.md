@@ -1,99 +1,79 @@
-# wildside
+# nile-valley
 
-Wildside is a mobile “serendipity engine” for urban exploration, generating
-bespoke, narrative-rich walking tours tailored to user interests, time, and
-location. Leveraging OpenStreetMap, Wikidata, and a custom orienteering-based
-algorithm, it optimizes for “interestingness” over efficiency. The MVP will be
-a PWA with a Rust/React stack, self-hosted map/routing services, and a strong
-data-validation pipeline. The strategy emphasises cost control, security-first
-AI integration, and clear differentiation from fitness, hiking, and static tour
-apps.
+Nile Valley is the shared infrastructure for ephemeral preview environments. It
+provisions Kubernetes clusters, renders platform fixtures, and commits GitOps
+manifests so FluxCD can reconcile multiple applications that supply a Helm
+chart.
+
+## Repository layout
+
+- `.github/actions/nile-valley-infra-k8s`: composite action for cluster
+  provisioning and GitOps rendering.
+- `infra/`: OpenTofu modules, policies, and cluster roots.
+- `scripts/`: Python automation for input resolution, provisioning, rendering,
+  and GitOps commits.
+- `deploy/charts/example-app`: example Helm chart showing the contract Nile
+  Valley expects from application charts.
 
 ## Development setup
 
-The workspace manages JavaScript dependencies with pnpm. Enable Corepack so
-that the `pnpm` command is available locally:
+Install Bun and Python tooling, then pull dependencies through the Makefile:
 
 ```bash
-corepack enable
+make deps
 ```
 
-After enabling Corepack, install the workspace dependencies with a frozen
-lockfile:
+The test suite relies on `uv` for isolated Python runs. Ensure `uv` is
+available in your PATH before running `make test`.
 
-```bash
-pnpm install --frozen-lockfile
-```
-
-The Bun toolchain remains in use for runtime scripts and formatting tasks.
-
-## Terraform provider lockfile
+## OpenTofu provider lockfile
 
 OpenTofu pins provider versions in `.terraform.lock.hcl`. Commit this file so
 local and CI environments resolve identical provider builds. When upgrading
 providers with `tofu init -upgrade`, include the updated lockfile in your
 commit.
 
-## Formatting, linting, and type checking
+## Formatting, linting, and tests
 
-Use the Makefile targets to format, lint, and type-check both the Rust backend
-and the TypeScript/JavaScript workspaces:
+Use the Makefile targets for formatting, linting, and tests:
 
 ```bash
-# Format all code (Rust + Biome with write)
+# Format scripts (Biome)
 make fmt
 
-# Lint all code (Clippy + Biome CI)
+# Lint scripts, actions, and infra
 make lint
-
-# Type-check TypeScript workspaces
-make typecheck
 
 # Check formatting only (no writes)
 make check-fmt
+
+# Run Python unit tests for automation scripts
+make test
 ```
 
-Under the hood, Biome runs via Bun (see the Makefile). If you prefer to invoke
-Biome directly:
+Documentation linting and diagram validation:
 
 ```bash
-# Format JS/TS files in-place
-bun x biome format --write
-
-# Lint with CI output for selected packages/paths
-bun x biome ci \
-  frontend-pwa \
-  packages/tokens/src packages/tokens/build \
-  packages/types/src
+make markdownlint
+make nixie
 ```
 
-Notes:
+## Example Helm chart
 
-- Biome respects `.biomeignore` and VCS ignore files (we enable
-  `vcs.useIgnoreFile`), so build artefacts such as any `target/` directory are
-  ignored. There is also an explicit override that disables Biome for
-  `**/target/**`.
-- Run `pnpm install --frozen-lockfile` once in the repo root if dependencies
-  are not already installed.
+The example chart in `deploy/charts/example-app` demonstrates the values Nile
+Valley expects application charts to support.
 
-## Documentation linting
+| Value                     | Default                     | Purpose                                                          |
+| ------------------------- | --------------------------- | ---------------------------------------------------------------- |
+| `existingSecretName`      | `""`                        | Name of a Secret to source environment variables from.           |
+| `secretEnvFromKeys`       | `{}`                        | Map environment variables to keys in `existingSecretName`.       |
+| `allowMissingSecret`      | `true`                      | Permit rendering when the Secret is absent.                      |
+| `sessionSecret.enabled`   | `false`                     | Enable mounting a session signing key from a Secret.             |
+| `sessionSecret.name`      | `"example-app-session-key"` | Secret name for the session signing key.                         |
+| `sessionSecret.keyName`   | `"session_key"`             | Secret key containing the signing key bytes.                     |
+| `sessionSecret.mountPath` | `"/var/run/secrets"`        | Mount path for the session key file.                             |
 
-Ensure documentation and diagrams remain valid:
+## Documentation
 
-```bash
-make markdownlint-docs
-make mermaid-lint
-```
-
-## Helm configuration
-
-The included Helm chart surfaces several values for managing secrets:
-
-| Value                | Default | Purpose                                                             |
-| -------------------- | ------- | ------------------------------------------------------------------- |
-| `existingSecretName` | `""`    | Name of a Secret to source environment variables from.              |
-| `secretEnvFromKeys`  | `{}`    | Map environment variables to keys in `existingSecretName`.          |
-| `allowMissingSecret` | `true`  | Permit rendering when the Secret is absent. Set to `false` to fail. |
-
-Note: Helm client version 3.2.0 or later is required when `secretEnvFromKeys`
-is used, as the chart invokes `lookup` during template rendering.
+Start with the platform overview in `docs/cloud-native-ephemeral-previews.md`
+and the roadmap in `docs/ephemeral-previews-roadmap.md`.

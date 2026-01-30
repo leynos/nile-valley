@@ -9,8 +9,8 @@ policy to follow.
 
 ## Purpose / Big Picture
 
-Deliver the Phase 2.3 cert-manager module so the `wildside-infra-k8s` action
-can render Flux-ready manifests into `wildside-infra` and converge TLS issuance
+Deliver the Phase 2.3 cert-manager module so the `nile-valley-infra-k8s` action
+can render Flux-ready manifests into `nile-valley-infra` and converge TLS issuance
 on every run. Success is visible when the new OpenTofu module can render a
 `platform/cert-manager` tree containing the cert-manager HelmRelease and
 ClusterIssuers for ACME (Automated Certificate Management Environment) and
@@ -29,7 +29,6 @@ bundle material for downstream modules.
   entry for cert-manager.
 - [x] (2025-12-19 21:09Z) Generated provider lock files, ran cert-manager
   tests/policy checks, and reran repo-wide gates (`make check-fmt`,
-  `make typecheck`, `make lint`, `make test`) with captured logs.
 
 ## Surprises & Discoveries
 
@@ -156,7 +155,7 @@ handling, validations, snake case, and `tofu fmt`).
 Expose outputs that downstream modules can consume: issuer names and refs for
 ACME staging and production, issuer name/ref for Vault, secret references for
 ACME account keys and Vault auth, and the CA bundle material (or its Secret
-reference). Keep outputs consistent with `traefik` so the `wildside-infra-k8s`
+reference). Keep outputs consistent with `traefik` so the `nile-valley-infra-k8s`
 action can wire values between modules.
 
 Add examples mirroring existing modules. The apply-mode example must include
@@ -189,14 +188,14 @@ targets, include them in `INFRA_TEST_TARGETS`, and add `tflint` coverage under
 on the existing render-policy scripts.
 
 Finally, update `docs/ephemeral-previews-roadmap.md` to mark the cert-manager
-module entry as done, and run all required format, lint, typecheck, and test
+module entry as done, and run all required format, lint, and test
 commands with log capture. Document any design decisions in the design document
 and update `docs/contents.md` accordingly.
 
 ## Concrete Steps
 
 All commands should be run from
-`/mnt/home/leynos/Projects/wildside.worktrees/infra-phase-2-cert-manager`. Use
+`/mnt/home/leynos/Projects/nile-valley.worktrees/infra-phase-2-cert-manager`. Use
 a 300-second timeout and capture logs with `tee` for any command with long
 output.
 
@@ -233,7 +232,7 @@ output.
 
     timeout 300s bash -lc '
       cd infra/modules/cert_manager/tests
-      go mod init wildside/infra/modules/cert_manager/tests
+      go mod init nile-valley/infra/modules/cert_manager/tests
     '
     timeout 300s bash -lc '
       cd infra/modules/cert_manager/tests
@@ -250,11 +249,11 @@ output.
 8. Run infra checks and policy suites with log capture.
 
     timeout 300s bash -lc \
-      'set -o pipefail; make check-test-deps 2>&1 | tee /tmp/wildside-check-test-deps.log'
+      'set -o pipefail; make check-test-deps 2>&1 | tee /tmp/nile-valley-check-test-deps.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make cert-manager-test 2>&1 | tee /tmp/wildside-cert-manager-test.log'
+      'set -o pipefail; make cert-manager-test 2>&1 | tee /tmp/nile-valley-cert-manager-test.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make cert-manager-policy 2>&1 | tee /tmp/wildside-cert-manager-policy.log'
+      'set -o pipefail; make cert-manager-policy 2>&1 | tee /tmp/nile-valley-cert-manager-policy.log'
 
 9. Run the apply-mode behavioural test in an ephemeral workspace when
    credentials are available. Record the environment variables used in the
@@ -268,27 +267,26 @@ output.
       CERT_MANAGER_VAULT_PKI_PATH=pki/sign/example \
       CERT_MANAGER_VAULT_TOKEN_SECRET_NAME=vault-token \
       CERT_MANAGER_VAULT_CA_BUNDLE_PEM="$$(cat /path/to/vault-ca.pem)" \
-      make cert-manager-test 2>&1 | tee /tmp/wildside-cert-manager-apply.log'
+      make cert-manager-test 2>&1 | tee /tmp/nile-valley-cert-manager-apply.log'
 
 10. If any GitHub Actions files were touched, run the action lint suite and
    (where appropriate) add `act`-driven pytest integration tests following
    `docs/local-validation-of-github-actions-with-act-and-pytest.md`.
 
-    timeout 300s bash -lc 'set -o pipefail; make lint-actions 2>&1 | tee /tmp/wildside-lint-actions.log'
+    timeout 300s bash -lc 'set -o pipefail; make lint-actions 2>&1 | tee /tmp/nile-valley-lint-actions.log'
     timeout 300s bash -lc 'set -o pipefail; uv run pytest \
-      tests/test_workflow_integration.py 2>&1 | tee /tmp/wildside-act-tests.log'
+      tests/test_workflow_integration.py 2>&1 | tee /tmp/nile-valley-act-tests.log'
 
 11. Run documentation formatting and linting after doc changes.
 
-    timeout 300s bash -lc 'set -o pipefail; make fmt 2>&1 | tee /tmp/wildside-fmt.log'
-    timeout 300s bash -lc 'set -o pipefail; make markdownlint 2>&1 | tee /tmp/wildside-markdownlint.log'
+    timeout 300s bash -lc 'set -o pipefail; make fmt 2>&1 | tee /tmp/nile-valley-fmt.log'
+    timeout 300s bash -lc 'set -o pipefail; make markdownlint 2>&1 | tee /tmp/nile-valley-markdownlint.log'
 
 12. Run the required repository-wide gates before completion.
 
-    timeout 300s bash -lc 'set -o pipefail; make check-fmt 2>&1 | tee /tmp/wildside-check-fmt.log'
-    timeout 300s bash -lc 'set -o pipefail; make typecheck 2>&1 | tee /tmp/wildside-typecheck.log'
-    timeout 300s bash -lc 'set -o pipefail; make lint 2>&1 | tee /tmp/wildside-lint.log'
-    timeout 300s bash -lc 'set -o pipefail; make test 2>&1 | tee /tmp/wildside-test.log'
+    timeout 300s bash -lc 'set -o pipefail; make check-fmt 2>&1 | tee /tmp/nile-valley-check-fmt.log'
+    timeout 300s bash -lc 'set -o pipefail; make lint 2>&1 | tee /tmp/nile-valley-lint.log'
+    timeout 300s bash -lc 'set -o pipefail; make test 2>&1 | tee /tmp/nile-valley-test.log'
 
 ## Validation and Acceptance
 
@@ -312,7 +310,6 @@ The work is complete when all of the following are true:
   `docs/contents.md`.
 - The cert-manager module entry in `docs/ephemeral-previews-roadmap.md` is
   marked done.
-- `make check-fmt`, `make typecheck`, `make lint`, and `make test` succeed.
 
 ## Idempotence and Recovery
 
