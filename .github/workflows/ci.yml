@@ -68,7 +68,8 @@ jobs:
           actionlint --version
 
       - name: Install TFLint
-        uses: terraform-linters/setup-tflint@a98b3d00e4a3fdf6c1a2d1cd516e95bc83f052b6
+        # v6.2.1
+        uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33
         with:
           tflint_version: v0.55.1
 
