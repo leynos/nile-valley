@@ -26,7 +26,7 @@ thiserror = "2.0.17"
 
 # Diesel ORM with PostgreSQL and async support
 diesel = { version = "2.2", features = ["postgres", "uuid", "chrono", "serde_json"] }
-diesel-async = { version = "0.5", features = ["bb8", "postgres"] }
+diesel-async = { version = "0.7", features = ["bb8", "postgres"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 tracing = "0.1"
