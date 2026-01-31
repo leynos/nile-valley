@@ -24,13 +24,13 @@ make deps
 ```
 
 The test suite relies on `uv` for isolated Python runs. Ensure `uv` is
-available in your PATH before running `make test`.
+available in the PATH before running `make test`.
 
 ## OpenTofu provider lockfile
 
 OpenTofu pins provider versions in `.terraform.lock.hcl`. Commit this file so
 local and CI environments resolve identical provider builds. When upgrading
-providers with `tofu init -upgrade`, include the updated lockfile in your
+providers with `tofu init -upgrade`, include the updated lockfile in the
 commit.
 
 ## Formatting, linting, and tests

@@ -70,7 +70,6 @@ jobs:
           version="0.3.2"
           go install "github.com/checkmake/checkmake/cmd/checkmake@v${version}"
           gobin="$(go env GOPATH)/bin"
-          echo "$gobin" >> "$GITHUB_PATH"
           "$gobin/checkmake" --version
 
       - name: Install TFLint
