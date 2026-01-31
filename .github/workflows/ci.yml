@@ -38,6 +38,9 @@ jobs:
       - name: Install action-validator
         run: bun install -g action-validator
 
+      - name: Install mbake
+        run: uv tool install mbake==1.4.4
+
       - name: Setup Go
         # v5.0.2
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
