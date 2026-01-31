@@ -136,6 +136,8 @@ INFRA_TEST_TARGETS := \
         valkey-test \
         valkey-policy
 
+.PHONY: $(INFRA_TEST_TARGETS)
+
 $(INFRA_TEST_TARGETS): check-test-deps
 
 check-test-deps:
