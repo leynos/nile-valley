@@ -36,7 +36,13 @@ jobs:
         run: uv tool install yamllint==1.35.1
 
       - name: Install action-validator
-        run: bun install -g action-validator
+        shell: bash
+        run: |
+          set -euxo pipefail
+          url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64"
+          curl -fsSL "$url" -o /usr/local/bin/action-validator
+          chmod +x /usr/local/bin/action-validator
+          /usr/local/bin/action-validator --version
 
       - name: Install mbake
         run: uv tool install mbake==1.4.4
