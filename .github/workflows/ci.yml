@@ -58,7 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          version="0.2.2"
+          version="0.3.2"
           go install "github.com/mrtazz/checkmake@${version}"
           gobin="$(go env GOPATH)/bin"
           echo "$gobin" >> "$GITHUB_PATH"
