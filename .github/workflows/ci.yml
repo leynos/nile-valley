@@ -40,9 +40,21 @@ jobs:
         run: |
           set -euxo pipefail
           url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64"
-          curl -fsSL "$url" -o /usr/local/bin/action-validator
-          chmod +x /usr/local/bin/action-validator
-          /usr/local/bin/action-validator --version
+          checksum_url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64.sha256"
+          local_bin="$HOME/.local/bin"
+          binary_name="action-validator_linux_amd64"
+          tmpdir="$(mktemp -d)"
+          checksum_file="$tmpdir/${binary_name}.sha256"
+          binary_path="$tmpdir/$binary_name"
+
+          mkdir -p "$local_bin"
+          curl -fsSL "$url" -o "$binary_path"
+          curl -fsSL "$checksum_url" -o "$checksum_file"
+          checksum_value="$(awk '{print $1}' "$checksum_file")"
+          (cd "$tmpdir" && printf "%s  %s\n" "$checksum_value" "$binary_name" | sha256sum --check -)
+          install -m 0755 "$binary_path" "$local_bin/action-validator"
+          echo "$local_bin" >> "$GITHUB_PATH"
+          "$local_bin/action-validator" --version
 
       - name: Install mbake
         run: uv tool install mbake==1.4.4
