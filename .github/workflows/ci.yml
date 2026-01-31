@@ -54,6 +54,16 @@ jobs:
           echo "$gobin" >> "$GITHUB_PATH"
           "$gobin/actionlint" -version
 
+      - name: Install checkmake
+        shell: bash
+        run: |
+          set -euxo pipefail
+          version="0.2.2"
+          go install "github.com/mrtazz/checkmake@${version}"
+          gobin="$(go env GOPATH)/bin"
+          echo "$gobin" >> "$GITHUB_PATH"
+          "$gobin/checkmake" --version
+
       - name: Install TFLint
         # v6.2.1
         uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33
