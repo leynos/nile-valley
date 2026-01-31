@@ -10,7 +10,7 @@ variable "should_create_cluster" {
 variable "cluster_name" {
   type        = string
   description = "Name for the DOKS cluster"
-  default     = "wildside-dev"
+  default     = "nile-valley-dev"
 
   validation {
     condition     = length(trimspace(var.cluster_name)) > 0

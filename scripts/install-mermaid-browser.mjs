@@ -14,14 +14,14 @@ import { pathToFileURL } from 'node:url';
 import { executablePath } from 'puppeteer';
 import { downloadBrowsers } from 'puppeteer/lib/esm/puppeteer/node/install.js';
 
-const MISSING_BROWSER_MESSAGE_FRAGMENT = 'Could not find Chrome';
+const missingBrowserMessageFragment = 'Could not find Chrome';
 
 function hasLocalBrowser() {
   try {
     const browserPath = executablePath();
     return Boolean(browserPath) && existsSync(browserPath);
   } catch (error) {
-    if (error instanceof Error && error.message.includes(MISSING_BROWSER_MESSAGE_FRAGMENT)) {
+    if (error instanceof Error && error.message.includes(missingBrowserMessageFragment)) {
       return false;
     }
 
@@ -52,7 +52,8 @@ if (executedScriptUrl === import.meta.url) {
   // Preserve the original side effect for the `make nixie` workflow while
   // allowing other modules to import `main` without triggering a download.
   main().catch((error) => {
-    console.error(error);
+    const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    process.stderr.write(`${message}\n`);
     process.exitCode = 1;
   });
 }

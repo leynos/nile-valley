@@ -36,7 +36,7 @@ def _make_inputs(tmp_path: Path, **overrides: object) -> ProvisionInputs:
                 }
             ]
         ),
-        "spaces_bucket": "wildside-tofu-state",
+        "spaces_bucket": "nile-valley-tofu-state",
         "spaces_region": "nyc3",
         "spaces_access_key": "access",
         "spaces_secret_key": "secret",

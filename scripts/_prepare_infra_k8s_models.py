@@ -1,4 +1,4 @@
-"""Dataclasses for wildside-infra-k8s input resolution."""
+"""Dataclasses for nile-valley-infra-k8s input resolution."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class RawInputs:
     ...     node_pools=None,
     ...     domain="example.test",
     ...     acme_email="admin@example.test",
-    ...     gitops_repository="wildside/wildside-infra",
+    ...     gitops_repository="leynos/nile-valley-infra",
     ...     gitops_branch="main",
     ...     gitops_token="token",
     ...     vault_address="https://vault.example.test:8200",
@@ -138,7 +138,7 @@ class ResolvedInputs:
     ...     node_pools=None,
     ...     domain="example.test",
     ...     acme_email="admin@example.test",
-    ...     gitops_repository="wildside/wildside-infra",
+    ...     gitops_repository="leynos/nile-valley-infra",
     ...     gitops_branch="main",
     ...     gitops_token="token",
     ...     vault_address="https://vault.example.test:8200",

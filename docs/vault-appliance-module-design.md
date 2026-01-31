@@ -1,7 +1,7 @@
 # Vault appliance OpenTofu module design
 
 This document captures the design decisions for the `vault_appliance` module,
-which provisions a DigitalOcean-hosted Vault appliance used by the Wildside
+which provisions a DigitalOcean-hosted Vault appliance used by the Nile Valley
 platform for preview environment secrets management.
 
 ## Overview

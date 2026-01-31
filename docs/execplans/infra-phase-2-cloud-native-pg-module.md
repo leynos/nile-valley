@@ -9,8 +9,8 @@ policy to follow.
 
 ## Purpose / Big Picture
 
-Deliver the Phase 2.3 CloudNativePG (CNPG) module so the `wildside-infra-k8s`
-action can render Flux-ready manifests into `wildside-infra` and converge a
+Deliver the Phase 2.3 CloudNativePG (CNPG) module so the `nile-valley-infra-k8s`
+action can render Flux-ready manifests into `nile-valley-infra` and converge a
 high-availability PostgreSQL cluster on every run. Success is visible when the
 new OpenTofu module can render a `platform/databases` tree containing the CNPG
 operator HelmRelease, PostgreSQL Cluster resources with PostGIS support, S3
@@ -33,8 +33,7 @@ Operator.
 - [x] (Done) Add Terratest coverage with validation and policy tests.
 - [x] (Done) Create render-policy script and Makefile targets.
 - [ ] (Pending) Initialize Go module dependencies and run tests.
-- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make typecheck`,
-  `make lint`, `make test`).
+- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make lint`, and `make test`).
 - [ ] (Pending) Update roadmap entry to mark CloudNativePG as done.
 
 ## Surprises & Discoveries
@@ -44,7 +43,7 @@ Operator.
 ## Decision Log
 
 - Decision: Deploy both CNPG operator AND Cluster resource in single module.
-  Rationale: Simplifies consumption for wildside-infra-k8s action; operator and
+  Rationale: Simplifies consumption for nile-valley-infra-k8s action; operator and
   cluster are tightly coupled and always deployed together. Date/Author:
   2025-12-25 / Claude.
 
@@ -59,7 +58,7 @@ Operator.
   2025-12-25 / Claude.
 
 - Decision: Use PostGIS 16-3.4 image for spatial data support.
-  Rationale: Enables geospatial queries for the Wildside platform; PostGIS is
+  Rationale: Enables geospatial queries for the Nile Valley platform; PostGIS is
   the standard PostgreSQL extension for spatial data. Date/Author: 2025-12-25 /
   Claude.
 
@@ -256,7 +255,6 @@ All commands should be run from the repository root directory.
 
    ```bash
    make check-fmt
-   make typecheck
    make lint
    make test
    ```
@@ -272,7 +270,7 @@ The work is complete when all of the following are true:
   - `platform/databases/namespace-cnpg-system.yaml`
   - `platform/databases/namespace-databases.yaml`
   - `platform/databases/cnpg-operator-helmrelease.yaml`
-  - `platform/databases/wildside-pg-cluster.yaml`
+  - `platform/databases/nile-valley-pg-cluster.yaml`
   - `platform/databases/pdb-cnpg-cluster.yaml` (when instances > 1)
   - `platform/databases/s3-credentials-secret.yaml` (when backup enabled)
   - `platform/databases/scheduled-backup.yaml` (when backup enabled)
@@ -284,7 +282,6 @@ The work is complete when all of the following are true:
 - `make cnpg-test` and `make cnpg-policy` pass locally.
 - The CloudNativePG module entry in `docs/ephemeral-previews-roadmap.md` is
   marked done.
-- `make check-fmt`, `make typecheck`, `make lint`, and `make test` succeed.
 
 ## Rendered Manifests Structure
 
@@ -296,7 +293,7 @@ platform/
     ├── namespace-cnpg-system.yaml      # Operator namespace
     ├── namespace-databases.yaml        # Cluster namespace
     ├── cnpg-operator-helmrelease.yaml  # Operator HelmRelease
-    ├── wildside-pg-cluster.yaml        # CNPG Cluster resource
+    ├── nile-valley-pg-cluster.yaml        # CNPG Cluster resource
     ├── pdb-cnpg-cluster.yaml           # PodDisruptionBudget
     ├── s3-credentials-secret.yaml      # S3 backup credentials
     ├── scheduled-backup.yaml           # Backup schedule
@@ -363,7 +360,7 @@ The module declares the following providers in `versions.tf`:
 
 - `operator_namespace` — namespace for CNPG operator (default: `cnpg-system`).
 - `cluster_namespace` — namespace for PostgreSQL cluster (default: `databases`).
-- `cluster_name` — name of the CNPG Cluster (default: `wildside-pg`).
+- `cluster_name` — name of the CNPG Cluster (default: `nile-valley-pg`).
 - `instances` — number of PostgreSQL instances (default: `3`).
 - `storage_size` — persistent volume size (default: `10Gi`).
 - `storage_class` — storage class name (default: `do-block-storage`).
@@ -388,8 +385,8 @@ The module integrates with:
 1. **vault_eso module** — provides ClusterSecretStore for credential management.
 2. **cert_manager module** — optional Transport Layer Security (TLS) for
    PostgreSQL connections.
-3. **wildside-infra-k8s action** — consumes `rendered_manifests` and commits to
-   GitOps repository.
+3. **nile-valley-infra-k8s action** — consumes `rendered_manifests` and
+   commits to GitOps repository.
 
 ## Revision Note
 

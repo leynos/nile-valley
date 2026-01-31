@@ -31,7 +31,7 @@ provider "digitalocean" {}
 
 module "doks" {
   # Prefer a released tag or a commit SHA for reproducibility
-  source = "git::https://github.com/OWNER/wildside.git//infra/modules/doks?ref=<TAG_OR_SHA>"
+  source = "git::https://github.com/OWNER/nile-valley.git//infra/modules/doks?ref=<TAG_OR_SHA>"
 
   cluster_name       = "example"
   region             = "nyc1"

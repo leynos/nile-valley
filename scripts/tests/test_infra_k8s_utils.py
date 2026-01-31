@@ -1,4 +1,4 @@
-"""Unit tests for shared wildside-infra-k8s helpers."""
+"""Unit tests for shared nile-valley-infra-k8s helpers."""
 
 from __future__ import annotations
 

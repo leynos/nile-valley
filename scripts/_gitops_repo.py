@@ -3,14 +3,14 @@
 This module clones a GitOps repository, applies rendered manifests, and
 commits changes using token-based authentication. It provides a small
 wrapper around git subprocess calls, with validation and error handling
-tailored to the wildside-infra-k8s action.
+tailored to the nile-valley-infra-k8s action.
 
 Examples
 --------
 >>> from pathlib import Path
 >>> from scripts._gitops_inputs import GitOpsInputs
 >>> inputs = GitOpsInputs(
-...     gitops_repository="wildside/wildside-infra",
+...     gitops_repository="leynos/nile-valley-infra",
 ...     gitops_branch="main",
 ...     gitops_token="token",
 ...     cluster_name="preview-1",
@@ -254,8 +254,8 @@ def commit_and_push(
         Commit SHA if changes were pushed, otherwise ``None``.
     """
     # Configure git user for the commit
-    run_git(["config", "user.name", "wildside-infra-k8s-action"], clone_dir)
-    run_git(["config", "user.email", "actions@wildside.dev"], clone_dir)
+    run_git(["config", "user.name", "nile-valley-infra-k8s-action"], clone_dir)
+    run_git(["config", "user.email", "actions@nile-valley.dev"], clone_dir)
 
     # Stage all changes
     run_git(["add", "-A"], clone_dir)

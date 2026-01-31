@@ -9,57 +9,10 @@ jobs:
     runs-on: ubicloud-standard-8
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v4
-      # v4.1.0
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v4
-        with:
-          node-version: '22'
-          corepack: true
-          cache: 'pnpm'
+
       - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2
         with:
-          bun-version: '1.2.21'
-
-      - name: Compute dependency cache keys
-        id: dependency-hashes
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if command -v sha256sum >/dev/null 2>&1; then
-            pnpm_lock_hash=$(sha256sum pnpm-lock.yaml | awk '{print $1}')
-          else
-            pnpm_lock_hash=$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')
-          fi
-
-          frontend_hash=$(cd frontend-pwa && bun pm hash 2>/dev/null || echo 'no-frontend-lock')
-          tokens_hash=$(cd packages/tokens && bun pm hash 2>/dev/null || echo 'no-tokens-lock')
-
-          echo "modules=${pnpm_lock_hash}-${frontend_hash}-${tokens_hash}" >>"$GITHUB_OUTPUT"
-          echo "bun=${frontend_hash}-${tokens_hash}" >>"$GITHUB_OUTPUT"
-
-      - name: Cache workspace node_modules
-        uses: ubicloud/cache@v4
-        with:
-          path: |
-            node_modules
-            node_modules/.pnpm-install-*
-            frontend-pwa/node_modules
-            packages/tokens/node_modules
-          key: ${{ runner.os }}-modules-${{ steps.dependency-hashes.outputs.modules }}
-          restore-keys: ${{ runner.os }}-modules-
-
-      - name: Cache Bun downloads
-        uses: ubicloud/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            ~/.bun/install/global
-          key: ${{ runner.os }}-bun-${{ steps.dependency-hashes.outputs.bun }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - name: Install Rust toolchain
-        uses: leynos/shared-actions/.github/actions/setup-rust@c2b856998a4438bfdaa71c90cde1b03044e5d260
+          bun-version: '1.3.5'
 
       - name: Install uv
         id: setup-uv
@@ -70,40 +23,8 @@ jobs:
             **/pyproject.toml
             **/uv.lock
 
-      - name: Check lockfile consistency
-        run: make lockfile
-      - name: Install dependencies (frozen)
-        run: make deps
-
-      - name: Install Mermaid CLI
-        run: |
-          set -euxo pipefail
-          bun install --global @mermaid-js/mermaid-cli@11.9.0
-          # bun x @puppeteer/browsers browsers install chrome-headless-shell
-          mmdc --version
-
-      - name: Debug Bun and Mermaid
-        run: |
-          set -euxo pipefail
-          which mmdc
-          mmdc --version
-          bun --version
-
-      - name: Audit
-        run: make audit
-
       - name: Install Nixie
         run: uv tool install --from git+https://github.com/leynos/nixie nixie
-
-      - name: Nixie
-        run: make nixie
-
-      - name: Markdown lint
-        uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e  # v20
-        with:
-          globs: |
-            **/*.md
-            !**/node_modules/**
 
       - name: Setup Helm
         # v4.3.1
@@ -115,155 +36,74 @@ jobs:
         run: uv tool install yamllint==1.35.1
 
       - name: Install action-validator
-        run: bun install -g action-validator
-
-      - name: Install OpenTofu
         shell: bash
         run: |
           set -euxo pipefail
+          url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64"
+          checksum_url="https://api.github.com/repos/mpalmer/action-validator/releases/tags/v0.8.0"
+          local_bin="$HOME/.local/bin"
+          binary_name="action-validator_linux_amd64"
+          uv run scripts/install_action_validator.py \
+            --url "$url" \
+            --checksum-url "$checksum_url" \
+            --local-bin "$local_bin" \
+            --binary-name "$binary_name"
+          echo "$local_bin" >> "$GITHUB_PATH"
 
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
+      - name: Install mbake
+        run: uv tool install mbake==1.4.4
 
-          tofu_version="1.7.0"
+      - name: Setup Go
+        # v5.0.2
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
+        with:
+          go-version: '1.22.x'
 
-          arch_raw="$(uname -m)"
-          case "$arch_raw" in
-            x86_64)
-              tofu_arch="amd64"
-              ;;
-            aarch64|arm64)
-              tofu_arch="arm64"
-              ;;
-            *)
-              echo "Unsupported architecture for OpenTofu: ${arch_raw}" >&2
-              exit 1
-              ;;
-          esac
-
-          archive="tofu_${tofu_version}_linux_${tofu_arch}.tar.gz"
-          url="https://github.com/opentofu/opentofu/releases/download/v${tofu_version}/${archive}"
-          sums_url="https://github.com/opentofu/opentofu/releases/download/v${tofu_version}/tofu_${tofu_version}_SHA256SUMS"
-
-          curl -fsSL "$url" -o "$tmpdir/$archive"
-          curl -fsSL "$sums_url" -o "$tmpdir/SHA256SUMS"
-
-          checksum_line="$(awk -v archive="$archive" '$2 == archive { print $1 "  " $2 }' "$tmpdir/SHA256SUMS")"
-          test -n "$checksum_line"
-          printf '%s\n' "$checksum_line" | (cd "$tmpdir" && sha256sum -c -)
-
-          tar --no-same-owner --no-same-permissions -xzf "$tmpdir/$archive" -C "$tmpdir"
-          test -f "$tmpdir/tofu"
-          sudo install -m 0755 "$tmpdir/tofu" /usr/local/bin/tofu
-          tofu version
-
-      - name: Install conftest
+      - name: Install actionlint
         shell: bash
         run: |
           set -euxo pipefail
+          version="1.7.10"
+          go install "github.com/rhysd/actionlint/cmd/actionlint@v${version}"
+          gobin="$(go env GOPATH)/bin"
+          echo "$gobin" >> "$GITHUB_PATH"
+          "$gobin/actionlint" -version
 
-          conftest_version="0.63.0"
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
+      - name: Install checkmake
+        shell: bash
+        run: |
+          set -euxo pipefail
+          version="0.3.2"
+          go install "github.com/checkmake/checkmake/cmd/checkmake@v${version}"
+          gobin="$(go env GOPATH)/bin"
+          "$gobin/checkmake" --version
 
-          arch_raw="$(uname -m)"
-          case "$arch_raw" in
-            x86_64)
-              conftest_arch="x86_64"
-              ;;
-            aarch64|arm64)
-              conftest_arch="arm64"
-              ;;
-            *)
-              echo "Unsupported architecture for conftest: ${arch_raw}" >&2
-              exit 1
-              ;;
-          esac
+      - name: Install TFLint
+        # v6.2.1
+        uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33
+        with:
+          tflint_version: v0.55.1
 
-          archive="conftest_${conftest_version}_Linux_${conftest_arch}.tar.gz"
-          url="https://github.com/open-policy-agent/conftest/releases/download/v${conftest_version}/${archive}"
-          sums_url="https://github.com/open-policy-agent/conftest/releases/download/v${conftest_version}/checksums.txt"
+      - name: Install dependencies
+        run: make deps
 
-          curl -fsSL "$url" -o "$tmpdir/$archive"
-          curl -fsSL "$sums_url" -o "$tmpdir/checksums.txt"
+      - name: Add node_modules/.bin to PATH
+        run: echo "${{ github.workspace }}/node_modules/.bin" >> "$GITHUB_PATH"
 
-          checksum_line="$(awk -v archive="$archive" '$2 == archive { print $1 "  " $2 }' "$tmpdir/checksums.txt")"
-          test -n "$checksum_line"
-          printf '%s\n' "$checksum_line" | (cd "$tmpdir" && sha256sum -c -)
+      - name: Markdown lint
+        run: make markdownlint
 
-          tar --no-same-owner --no-same-permissions -xzf "$tmpdir/$archive" -C "$tmpdir"
-          test -f "$tmpdir/conftest"
-          sudo install -m 0755 "$tmpdir/conftest" /usr/local/bin/conftest
-          conftest --version
-
-      - name: Check infrastructure test dependencies
-        run: make check-test-deps
-
-      - name: Helm lint
-        run: helm lint --strict ./deploy/charts/wildside
+      - name: Nixie
+        run: make nixie
 
       - name: YAML lint
         run: make yamllint
 
-      - name: Type check
-        run: make typecheck
+      - name: Lint
+        run: make lint
 
-      # Backend
-      - name: Cache cargo
-        uses: ubicloud/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.theseus/postgresql
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-      - name: Rust build
-        run: cargo check --manifest-path backend/Cargo.toml --all-targets --all-features
-      - name: Rust fmt check
-        run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
-      - name: Rust clippy
-        run: cargo clippy --manifest-path backend/Cargo.toml --all-targets --all-features -- -D warnings
+      - name: Format check
+        run: make check-fmt
 
-      - name: Install nextest
-        uses: taiki-e/install-action@db22c42b5af88356329b9a8056bb2c2f026d5a10
-        with:
-          tool: nextest@0.9.114
-
-      - name: Build pg_worker binary
-        run: |
-          RUSTFLAGS="-D warnings" cargo build -p backend --bin pg_worker
-          install -m 0755 target/debug/pg_worker target/pg_worker
-
-      - name: Rust tests
-        env:
-          # Increase GitHub API rate limits for postgresql_embedded downloads.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # pg-embed-setup-unpriv v0.4.0 requires the worker binary for privilege
-          # demotion; without it the library cannot bootstrap the test cluster.
-          PG_EMBEDDED_WORKER: ${{ github.workspace }}/target/pg_worker
-        run: |
-          # Clean stale pg-embed directories that may conflict with new runs.
-          find target/ -maxdepth 1 -type d -name 'pg-embed-*' -exec rm -rf {} + 2>/dev/null || true
-          RUSTFLAGS="-D warnings" cargo nextest run --manifest-path backend/Cargo.toml --all-targets --all-features
-
-      # OpenAPI dump (at runtime or via a small bin)
-      - name: Generate OpenAPI specification
-        run: make openapi
-
-      - name: Lint OpenAPI specification
-        run: make lint-openapi
-
-      # Frontend
-      - name: Build tokens
-        working-directory: packages/tokens
-        run: |
-          bun install
-          bun run build
-      - name: Build PWA
-        working-directory: frontend-pwa
-        run: |
-          bun install
-          bun run gen:api
-          bun run build
+      - name: Tests
+        run: make test

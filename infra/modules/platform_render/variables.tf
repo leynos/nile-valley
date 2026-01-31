@@ -248,7 +248,7 @@ variable "cert_manager_vault_enabled" {
 variable "cert_manager_vault_pki_path" {
   description = "Vault PKI signing path for cert-manager"
   type        = string
-  default     = "pki/sign/wildside"
+  default     = "pki/sign/nile-valley"
 }
 
 variable "cert_manager_webhook_enabled" {
@@ -265,7 +265,7 @@ variable "cert_manager_webhook_enabled" {
 variable "cnpg_cluster_name" {
   description = "Name of the CloudNativePG Cluster resource"
   type        = string
-  default     = "wildside-pg-main"
+  default     = "nile-valley-pg-main"
 
   validation {
     condition = (
@@ -312,7 +312,7 @@ variable "cnpg_storage_size" {
 variable "cnpg_database_name" {
   description = "Initial database name for CNPG (PostgreSQL identifier)"
   type        = string
-  default     = "wildside"
+  default     = "nile_valley"
 
   validation {
     condition = (
@@ -330,7 +330,7 @@ variable "cnpg_database_name" {
 variable "cnpg_database_owner" {
   description = "Owner of the initial CNPG database (PostgreSQL identifier)"
   type        = string
-  default     = "wildside_app"
+  default     = "nile_valley_app"
 
   validation {
     condition = (

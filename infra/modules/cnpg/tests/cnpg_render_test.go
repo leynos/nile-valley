@@ -47,7 +47,7 @@ func TestCNPGModuleRenderOutputs(t *testing.T) {
 	require.True(t, ok, "expected platform/sources/cloudnative-pg-repo.yaml output key")
 
 	// Check Cluster
-	cluster, ok := rendered["platform/databases/wildside-pg-cluster.yaml"]
+	cluster, ok := rendered["platform/databases/nile-valley-pg-cluster.yaml"]
 	require.True(t, ok, "expected cluster manifest output")
 	require.True(
 		t,
@@ -88,7 +88,7 @@ func TestCNPGModuleRenderWithBackup(t *testing.T) {
 	require.NotEmpty(t, rendered, "expected rendered_manifests output to be non-empty")
 
 	// Check cluster includes backup configuration
-	cluster, ok := rendered["platform/databases/wildside-pg-cluster.yaml"]
+	cluster, ok := rendered["platform/databases/nile-valley-pg-cluster.yaml"]
 	require.True(t, ok, "expected cluster manifest output")
 	require.True(
 		t,
@@ -159,7 +159,7 @@ func TestCNPGModuleRenderWithESO(t *testing.T) {
 	require.Contains(t, appES, "ExternalSecret", "expected ExternalSecret kind")
 
 	// Verify cluster references the superuser secret
-	cluster, ok := rendered["platform/databases/wildside-pg-cluster.yaml"]
+	cluster, ok := rendered["platform/databases/nile-valley-pg-cluster.yaml"]
 	require.True(t, ok, "expected cluster manifest")
 	require.Contains(t, cluster, "superuserSecret", "cluster should reference superuserSecret when ESO enabled")
 }
@@ -182,7 +182,7 @@ func TestCNPGModuleRenderWithoutESO(t *testing.T) {
 	require.False(t, hasAppES, "should not render external-secret-app.yaml when ESO disabled")
 
 	// Verify cluster does NOT reference superuserSecret when ESO is disabled
-	cluster, ok := rendered["platform/databases/wildside-pg-cluster.yaml"]
+	cluster, ok := rendered["platform/databases/nile-valley-pg-cluster.yaml"]
 	require.True(t, ok, "expected cluster manifest")
 	require.NotContains(t, cluster, "superuserSecret", "cluster should not reference superuserSecret when ESO disabled")
 }

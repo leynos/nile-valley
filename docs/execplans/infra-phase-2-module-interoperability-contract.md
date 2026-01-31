@@ -8,7 +8,7 @@ be kept up to date as work proceeds.
 
 ## Purpose / big picture
 
-The `wildside-infra-k8s` action needs to thread outputs from one OpenTofu
+The `nile-valley-infra-k8s` action needs to thread outputs from one OpenTofu
 module into another's inputs. For example, it passes DNS zone identifiers from
 the `external_dns` module to Traefik, certificate issuer references from
 `cert_manager` to data services, and secret store references from `vault_eso`
@@ -188,7 +188,7 @@ All commands run from repository root.
 
     Add missing READMEs for cnpg and valkey modules following the established
     pattern from vault_eso. Create central interoperability contract document
-    explaining how the wildside-infra-k8s action threads DNS zones, certificate
+    explaining how the nile-valley-infra-k8s action threads DNS zones, certificate
     issuers, and credential handles between modules.
 
     Include documentation accuracy tests that verify README contents match the

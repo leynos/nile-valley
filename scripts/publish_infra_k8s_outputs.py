@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = ["cyclopts>=2.9"]
 # ///
-"""Publish outputs for the wildside-infra-k8s GitHub Action.
+"""Publish outputs for the nile-valley-infra-k8s GitHub Action.
 
 This script resolves action outputs from environment variables, writes them to
 ``GITHUB_OUTPUT``, and performs a final secret masking pass.
@@ -23,7 +23,7 @@ from cyclopts import App, Parameter
 from scripts._input_resolution import InputResolution, resolve_input
 from scripts._infra_k8s import append_github_output, mask_secret
 
-app = App(help="Publish wildside-infra-k8s action outputs.")
+app = App(help="Publish nile-valley-infra-k8s action outputs.")
 
 CLUSTER_NAME_PARAM = Parameter(help="Cluster name output override.")
 CLUSTER_ID_PARAM = Parameter(help="Cluster ID output override.")
@@ -209,7 +209,7 @@ def main(
     rendered_manifest_count: str | None = RENDERED_MANIFEST_COUNT_PARAM,
     github_output: Path | None = GITHUB_OUTPUT_PARAM,
 ) -> int:
-    """Publish outputs for the wildside-infra-k8s action.
+    """Publish outputs for the nile-valley-infra-k8s action.
 
     Parameters
     ----------

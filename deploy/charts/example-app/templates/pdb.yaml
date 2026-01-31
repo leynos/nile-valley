@@ -1,0 +1,24 @@
+{{- if and .Values.pdb.enabled (gt (int (default 1 .Values.replicaCount)) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "example-app.fullname" . }}
+  labels:
+    {{- include "example-app.labels" . | nindent 4 }}
+spec:
+{{- $hasMin := hasKey .Values.pdb "minAvailable" -}}
+{{- $hasMax := hasKey .Values.pdb "maxUnavailable" -}}
+{{- if and $hasMin $hasMax -}}
+  {{- fail "Set only one of pdb.minAvailable or pdb.maxUnavailable" -}}
+{{- end }}
+{{- if $hasMin }}
+  minAvailable: {{ .Values.pdb.minAvailable }}
+{{- else if $hasMax }}
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+{{- else }}
+  minAvailable: 0
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "example-app.selectorLabels" . | nindent 6 }}
+{{- end }}

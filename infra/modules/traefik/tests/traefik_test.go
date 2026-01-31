@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/random"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/require"
-	testutil "wildside/infra/testutil"
+	testutil "nile-valley/infra/testutil"
 )
 
 const exampleKubeconfigError = "Set kubeconfig_path to a readable kubeconfig file before running the example"

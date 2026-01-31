@@ -1,4 +1,4 @@
-"""OpenTofu orchestration helpers for wildside-infra-k8s."""
+"""OpenTofu orchestration helpers for nile-valley-infra-k8s."""
 
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ def tofu_init(
     --------
     >>> from pathlib import Path
     >>> config = SpacesBackendConfig(
-    ...     bucket="wildside-terraform-state",
+    ...     bucket="nile-valley-terraform-state",
     ...     region="nyc3",
     ...     endpoint="https://nyc3.digitaloceanspaces.com",
     ...     access_key="AKIA...",
@@ -217,9 +217,9 @@ def tofu_output(cwd: Path, name: str | None = None) -> object:
     >>> from pathlib import Path
     >>> outputs = tofu_output(Path("infra"))
     >>> outputs["cluster_name"]["value"]
-    'wildside-dev'
+    'nile-valley-dev'
     >>> tofu_output(Path("infra"), "cluster_name")
-    'wildside-dev'
+    'nile-valley-dev'
     """
     args = ["output", "-json"]
     if name:

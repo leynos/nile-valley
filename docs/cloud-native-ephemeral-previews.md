@@ -3,13 +3,13 @@
 ## Executive summary: the GitOps-driven ephemeral environment architecture
 
 This report presents a comprehensive technical blueprint for a fully automated,
-cloud-native platform designed to host the "Project Wildside" web application.
-The architecture's central purpose is to provision and manage on-demand,
-ephemeral preview environments for each feature branch, a practice that
-significantly accelerates development cycles, improves quality assurance, and
-fosters more confident collaboration. The design is founded on a declarative,
-GitOps-centric methodology, ensuring that every component of the infrastructure
-and application lifecycle is reproducible, auditable, and secure.
+cloud-native platform designed to host a representative application. The
+architecture's central purpose is to provision and manage on-demand, ephemeral
+preview environments for each feature branch, a practice that significantly
+accelerates development cycles, improves quality assurance, and fosters more
+confident collaboration. The design is founded on a declarative, GitOps-centric
+methodology, ensuring that every component of the infrastructure and
+application lifecycle is reproducible, auditable, and secure.
 
 The architecture is built upon four key pillars that work in concert to deliver
 a robust and scalable system:
@@ -49,13 +49,15 @@ a robust and scalable system:
   automatically decommissions all associated resources, ensuring a clean and
   cost-effective state.
 
-Two reusable GitHub Actions encode these idempotent operations. Each action is
-implemented as a convergent workflow that reshapes its target GitOps repository
+Two automated workflows encode these idempotent operations. The composite
+action in this repository handles infrastructure convergence, while each
+application repository supplies its own deployment workflow. Each workflow is
+implemented as a convergent process that reshapes its target GitOps repository
 before handing control back to Flux:
 
-- `wildside-infra-k8s` provisions Kubernetes clusters and shared fixtures from
+- `nile-valley-infra-k8s` provisions Kubernetes clusters and shared fixtures from
   the OpenTofu modules in this repository, writing the desired state into the
-  `wildside-infra` GitOps repository that FluxCD watches. Every execution
+  `nile-valley-infra` GitOps repository that FluxCD watches. Every execution
   performs the following steps idempotently:
 
   - Generate and enforce the full GitOps tree layout, including the
@@ -69,9 +71,10 @@ before handing control back to Flux:
   - Commit any drift back to the repository while sourcing secrets from
     HashiCorp Vault for both OpenTofu execution and the rendered manifests.
 
-- `wildside-app` deploys an isolated application instance on an existing
-  cluster. It commits manifests to the `wildside-apps` repository—FluxCD's
-  source of truth for application state—by performing these idempotent steps:
+- An application deployment workflow (implemented per application) deploys an
+  isolated instance on an existing cluster. It commits manifests to the
+  `nile-valley-apps` repository—FluxCD's source of truth for application
+  state—by performing these idempotent steps:
 
   - Guarantee the repository hosts the canonical `base` HelmRelease alongside
     an `overlays` tree containing long-lived environments (`production`,
@@ -163,8 +166,8 @@ Terraform
 ```hcl
 # network.tf
 
-resource "digitalocean_vpc" "wildside_vpc" {
-  name     = "wildside-vpc"
+resource "digitalocean_vpc" "nile_valley_vpc" {
+  name     = "nile-valley-vpc"
   region   = "nyc3"
   ip_range = "10.244.0.0/16"
 }
@@ -186,10 +189,10 @@ data "digitalocean_kubernetes_versions" "latest_stable" {
   version_prefix = "1.28." # Pin to a minor version to avoid breaking changes
 }
 
-resource "digitalocean_kubernetes_cluster" "wildside_cluster" {
-  name    = "wildside-prod-cluster"
+resource "digitalocean_kubernetes_cluster" "nile_valley_cluster" {
+  name    = "nile-valley-prod-cluster"
   region  = "nyc3"
-  vpc_uuid = digitalocean_vpc.wildside_vpc.id
+  vpc_uuid = digitalocean_vpc.nile_valley_vpc.id
   version = data.digitalocean_kubernetes_versions.latest_stable.latest_version
 
   # Configure maintenance and auto-upgrades for security and stability
@@ -238,7 +241,7 @@ Terraform
 # 1. Core Services Node Pool
 # For critical cluster services like ingress, cert-manager, flux, etc.
 resource "digitalocean_kubernetes_node_pool" "core_services_pool" {
-  cluster_id = digitalocean_kubernetes_cluster.wildside_cluster.id
+  cluster_id = digitalocean_kubernetes_cluster.nile_valley_cluster.id
   name       = "core-services-pool"
   size       = "s-4vcpu-8gb" # Sized for platform services
   node_count = 3             # 3 nodes for high availability
@@ -255,7 +258,7 @@ resource "digitalocean_kubernetes_node_pool" "core_services_pool" {
 # 2. Application Node Pool
 # For the main production and staging application workloads
 resource "digitalocean_kubernetes_node_pool" "app_workloads_pool" {
-  cluster_id = digitalocean_kubernetes_cluster.wildside_cluster.id
+  cluster_id = digitalocean_kubernetes_cluster.nile_valley_cluster.id
   name       = "app-workloads-pool"
   size       = "s-4vcpu-8gb"
   tags       = ["app-workloads"]
@@ -269,7 +272,7 @@ resource "digitalocean_kubernetes_node_pool" "app_workloads_pool" {
 # 3. Ephemeral Node Pool
 # For on-demand feature branch environments. Can scale to zero.
 resource "digitalocean_kubernetes_node_pool" "ephemeral_pool" {
-  cluster_id = digitalocean_kubernetes_cluster.wildside_cluster.id
+  cluster_id = digitalocean_kubernetes_cluster.nile_valley_cluster.id
   name       = "ephemeral-pool"
   size       = "s-2vcpu-4gb" # Potentially smaller, more cost-effective nodes
   tags       = ["ephemeral"]
@@ -288,7 +291,7 @@ This configuration creates three distinct pools:
   protecting them from noisy application neighbors.
 
 - **Application:** An auto-scaling pool for the primary `production` and
-  `staging` instances of the Wildside application.
+  `staging` instances of the example application.
 
 - **Ephemeral:** A dedicated auto-scaling pool for the feature branch
   environments. Critically, its `min_nodes` is set to 0, allowing the cluster
@@ -310,27 +313,27 @@ Terraform
 
 # Configure the Kubernetes provider to connect to the new DOKS cluster
 provider "kubernetes" {
-  host  = digitalocean_kubernetes_cluster.wildside_cluster.endpoint
-  token = digitalocean_kubernetes_cluster.wildside_cluster.kube_config.token
+  host  = digitalocean_kubernetes_cluster.nile_valley_cluster.endpoint
+  token = digitalocean_kubernetes_cluster.nile_valley_cluster.kube_config.token
   cluster_ca_certificate = base64decode(
-    digitalocean_kubernetes_cluster.wildside_cluster.kube_config.cluster_ca_certificate
+    digitalocean_kubernetes_cluster.nile_valley_cluster.kube_config.cluster_ca_certificate
   )
 }
 
 # Configure the Helm provider similarly
 provider "helm" {
   kubernetes {
-    host  = digitalocean_kubernetes_cluster.wildside_cluster.endpoint
-    token = digitalocean_kubernetes_cluster.wildside_cluster.kube_config.token
+    host  = digitalocean_kubernetes_cluster.nile_valley_cluster.endpoint
+    token = digitalocean_kubernetes_cluster.nile_valley_cluster.kube_config.token
     cluster_ca_certificate = base64decode(
-      digitalocean_kubernetes_cluster.wildside_cluster.kube_config.cluster_ca_certificate
+      digitalocean_kubernetes_cluster.nile_valley_cluster.kube_config.cluster_ca_certificate
     )
   }
 }
 
 # Output the raw kubeconfig for manual access if needed
 output "kubeconfig" {
-  value     = digitalocean_kubernetes_cluster.wildside_cluster.kube_config.raw_config
+  value     = digitalocean_kubernetes_cluster.nile_valley_cluster.kube_config.raw_config
   sensitive = true
 }
 ```
@@ -358,21 +361,21 @@ and secure architecture separates these concerns into two distinct
 repositories.[^10] This approach is a cornerstone of scalable, multi-team
 GitOps.
 
-- `wildside-infra` **Repository:** This repository serves as the source of
+- `nile-valley-infra` **Repository:** This repository serves as the source of
   truth for the *platform*. It is managed by the platform or DevOps team and
   contains the declarative state for all shared, cluster-wide services. This
   includes the ingress controller, cert-manager, monitoring tools, and database
   operators.
 
-- `wildside-apps` **Repository:** This repository contains the definitions for
-  the *applications* that run on the platform, in this case, the Wildside
-  application. It will house the application's base Helm chart and the
+- `nile-valley-apps` **Repository:** This repository contains the definitions for
+  the *applications* that run on the platform, including the example
+  application. It will house each application's base HelmRelease and the
   Kustomize overlays that define the `production`, `staging`, and ephemeral
   feature branch environments.
 
 This separation allows for distinct access controls and review processes. A
-platform engineer reviews changes to `wildside-infra`, while application
-developers can merge changes to `wildside-apps` without risking the stability
+platform engineer reviews changes to `nile-valley-infra`, while application
+developers can merge changes to `nile-valley-apps` without risking the stability
 of the underlying platform.
 
 ### Bootstrapping FluxCD
@@ -382,7 +385,7 @@ This command not only installs the Flux controllers onto the DOKS cluster but
 also configures them to synchronize with a specified Git repository,
 immediately establishing the GitOps loop.[^2]
 
-The bootstrap process will target the `wildside-infra` repository, making it
+The bootstrap process will target the `nile-valley-infra` repository, making it
 the primary source of truth for the cluster's platform state.
 
 Bash
@@ -392,10 +395,10 @@ Bash
 export GITHUB_TOKEN="<your-personal-access-token>"
 export GITHUB_USER="<your-github-username>"
 
-# Bootstrap Flux, pointing it to the wildside-infra repository
+# Bootstrap Flux, pointing it to the nile-valley-infra repository
 flux bootstrap github \
   --owner=$GITHUB_USER \
-  --repository=wildside-infra \
+  --repository=nile-valley-infra \
   --branch=main \
   --path=./clusters/production \
   --personal
@@ -403,7 +406,7 @@ flux bootstrap github \
 
 This command performs several critical actions 14:
 
-1. Creates the `wildside-infra` repository on GitHub if it doesn't exist.
+1. Creates the `nile-valley-infra` repository on GitHub if it doesn't exist.
 
 2. Adds the manifests for the FluxCD components (e.g., `source-controller`,
    `kustomize-controller`) to the repository under the
@@ -417,7 +420,7 @@ This command performs several critical actions 14:
 
 5. Creates a root `GitRepository` and `Kustomization` object in the cluster
    that tells Flux to monitor the `clusters/production` path in the
-   `wildside-infra` repository.
+   `nile-valley-infra` repository.
 
 ### Structuring the GitOps repositories
 
@@ -428,23 +431,23 @@ the expected manifests.
 
 #### Table 1: GitOps repository structure
 
-| Repository     | Path                     | Purpose                                                                                                                                     |
-| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| wildside-infra | `/`                      | Defines the desired state of the cluster's shared platform infrastructure.                                                                  |
-|                | `clusters/<cluster>/`    | Root directory for a cluster's Flux configuration (e.g., `clusters/dev`, `clusters/prod`).                                                  |
-|                | `modules/`               | Houses reusable OpenTofu modules (DOKS, FluxCD, External Secrets, etc.) consumed by `wildside-infra-k8s`.                                   |
-|                | `platform/sources/`      | GitRepository and HelmRepository definitions for all external sources Flux may pull from (Bitnami Helm repo, wildside-apps Git repo, etc.). |
-|                | `platform/traefik/`      | HelmRelease and supporting manifests for the Traefik ingress controller.                                                                    |
-|                | `platform/cert-manager/` | HelmRelease and issuers for cert-manager-driven TLS automation.                                                                             |
-|                | `platform/external-dns/` | HelmRelease and configuration for ExternalDNS.                                                                                              |
-|                | `platform/vault/`        | HelmReleases plus External Secrets Operator resources for secrets replication from Vault.                                                   |
-|                | `platform/databases/`    | CloudNativePG operator, clusters, and supporting manifests.                                                                                 |
-|                | `platform/redis/`        | Redis-compatible (Valkey) operator, clusters, and supporting manifests.                                                                     |
-| wildside-apps  | `/`                      | Defines the desired state of the Wildside application across all environments.                                                              |
-|                | `base/`                  | Canonical, environment-agnostic HelmRelease manifest for the Wildside application.                                                          |
-|                | `overlays/production/`   | Kustomize overlay with production-specific patches (hostnames, scaling, resources).                                                         |
-|                | `overlays/staging/`      | Kustomize overlay with staging configuration.                                                                                               |
-|                | `overlays/ephemeral/`    | Directory of dynamically generated overlays for each pull request (e.g., `pr-123/`).                                                        |
+| Repository        | Path                     | Purpose                                                                                                                                        |
+| ----------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| nile-valley-infra | `/`                      | Defines the desired state of the cluster's shared platform infrastructure.                                                                     |
+|                   | `clusters/<cluster>/`    | Root directory for a cluster's Flux configuration (e.g., `clusters/dev`, `clusters/prod`).                                                     |
+|                   | `modules/`               | Houses reusable OpenTofu modules (DOKS, FluxCD, External Secrets, etc.) consumed by `nile-valley-infra-k8s`.                                   |
+|                   | `platform/sources/`      | GitRepository and HelmRepository definitions for all external sources Flux may pull from (Bitnami Helm repo, nile-valley-apps Git repo, etc.). |
+|                   | `platform/traefik/`      | HelmRelease and supporting manifests for the Traefik ingress controller.                                                                       |
+|                   | `platform/cert-manager/` | HelmRelease and issuers for cert-manager-driven TLS automation.                                                                                |
+|                   | `platform/external-dns/` | HelmRelease and configuration for ExternalDNS.                                                                                                 |
+|                   | `platform/vault/`        | HelmReleases plus External Secrets Operator resources for secrets replication from Vault.                                                      |
+|                   | `platform/databases/`    | CloudNativePG operator, clusters, and supporting manifests.                                                                                    |
+|                   | `platform/redis/`        | Redis-compatible (Valkey) operator, clusters, and supporting manifests.                                                                        |
+| nile-valley-apps  | `/`                      | Defines the desired state of application deployments across all environments.                                                                  |
+|                   | `base/`                  | Canonical, environment-agnostic HelmRelease manifest for an application.                                                                       |
+|                   | `overlays/production/`   | Kustomize overlay with production-specific patches (hostnames, scaling, resources).                                                            |
+|                   | `overlays/staging/`      | Kustomize overlay with staging configuration.                                                                                                  |
+|                   | `overlays/ephemeral/`    | Directory of dynamically generated overlays for each pull request (e.g., `pr-123/`).                                                           |
 
 This structure provides a clear separation of concerns and a logical hierarchy
 for defining the cluster's state while keeping the repositories ready for the
@@ -452,10 +455,10 @@ idempotent actions to commit updates.[^11]
 
 #### Automating the GitOps tree layout
 
-The GitOps tree is generated, not curated manually. The `wildside-infra-k8s`
+The GitOps tree is generated, not curated manually. The `nile-valley-infra-k8s`
 workflow runs OpenTofu in render mode to produce the `rendered_manifests`
 output maps for each module and then invokes a small Python helper to apply
-those maps to the checked-out `wildside-infra` repository. OpenTofu remains
+those maps to the checked-out `nile-valley-infra` repository. OpenTofu remains
 responsible for infrastructure state and manifest rendering; Python is used for
 filesystem operations because it can deterministically write, normalize, and
 prune files without inflating OpenTofu state. Each platform subdirectory is
@@ -465,7 +468,7 @@ run.
 
 The helper runs the following idempotent steps on every execution:
 
-- Sync `infra/modules/` into `wildside-infra/modules/` using a deterministic
+- Sync `infra/modules/` into `nile-valley-infra/modules/` using a deterministic
   copy, removing files not present in the source so modules stay pinned to the
   same commit as the generated manifests.
 - Merge the `rendered_manifests` maps from the selected modules and ensure the
@@ -484,7 +487,7 @@ drift without manual intervention.
 
 ### Declaring cluster-wide sources
 
-Within the `wildside-infra` repository, `HelmRepository` resources are created
+Within the `nile-valley-infra` repository, `HelmRepository` resources are created
 to tell Flux where to find the Helm charts for the platform components.
 
 YAML
@@ -519,7 +522,7 @@ spec:
   url: https://cloudnative-pg.github.io/charts
 ```
 
-Similarly, a `GitRepository` resource is created to make the `wildside-apps`
+Similarly, a `GitRepository` resource is created to make the `nile-valley-apps`
 repository available as a source within the cluster. This cross-repository
 reference is what enables the platform to deploy applications defined
 elsewhere.[^12]
@@ -531,16 +534,16 @@ YAML
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
-  name: wildside-apps
+  name: nile-valley-apps
   namespace: flux-system
 spec:
   interval: 1m
-  url: https://github.com/<your-github-username>/wildside-apps
+  url: https://github.com/<your-github-username>/nile-valley-apps
   ref:
     branch: main
 ```
 
-These source definitions, once committed to `wildside-infra`, will be
+These source definitions, once committed to `nile-valley-infra`, will be
 reconciled by Flux, making the specified Helm and Git repositories available
 for use by `HelmRelease` and `Kustomization` objects throughout the cluster.
 
@@ -549,8 +552,8 @@ for use by `HelmRelease` and `Kustomization` objects throughout the cluster.
 With the GitOps control plane established, the next step is to deploy the core
 services that provide essential functionality to the cluster, such as ingress,
 DNS, TLS, and data persistence. These services are all deployed declaratively
-via FluxCD, with their manifests stored in the `wildside-infra` repository. The
-`wildside-infra-k8s` action renders and commits these manifests as part of its
+via FluxCD, with their manifests stored in the `nile-valley-infra` repository. The
+`nile-valley-infra-k8s` action renders and commits these manifests as part of its
 idempotent run, guaranteeing the required `platform/*` directories exist before
 Flux reconciles the changes.
 
@@ -629,7 +632,7 @@ middleware or IP allowlisting.
 **Design decision:** The Traefik CRDs must exist before any `IngressRoute`
 resources (including the chart-managed dashboard route) can be applied. This
 repository vendors the CRDs alongside the `infra/modules/traefik` OpenTofu
-module so the `wildside-infra-k8s` action can render and commit a
+module so the `nile-valley-infra-k8s` action can render and commit a
 `platform/traefik/crds/traefik-crds.yaml` manifest together with a
 `platform/traefik/kustomization.yaml` that applies CRDs ahead of the
 `HelmRelease`.
@@ -850,7 +853,7 @@ The implementation involves a three-step process:
 1. **Deploy Vault and ESO:** Both Vault (in a development mode for this
    example) and the External Secrets Operator are deployed to the cluster using
    their respective Helm charts via Flux `HelmRelease` manifests stored in
-   `wildside-infra/platform/vault/`.
+   `nile-valley-infra/platform/vault/`.
 
 2. **Configure a** `ClusterSecretStore`**:** This custom resource tells ESO how
    to connect to and authenticate with the Vault instance. Authentication can
@@ -917,11 +920,11 @@ The implementation involves a three-step process:
    centrally and securely in Vault, with their distribution into the cluster
    being fully automated and auditable.
 
-### Stateful services for "Project Wildside"
+### Stateful services for a sample application
 
-The "Project Wildside" application has specific stateful dependencies: a
-PostGIS-enabled database and a Redis cache.[^21] These are also deployed as
-shared platform services.
+The sample application used in this guide depends on a PostGIS-enabled
+database and a Redis cache.[^21] These are deployed as shared platform
+services.
 
 #### PostGIS with CloudNativePG
 
@@ -959,11 +962,11 @@ cluster.
 YAML
 
 ```yaml
-# platform/databases/wildside-postgres-cluster.yaml
+# platform/databases/nile-valley-pg-cluster.yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: wildside-pg-main
+  name: nile-valley-pg-main
   namespace: databases
 spec:
   instances: 3 # 1 primary, 2 replicas for High Availability
@@ -978,8 +981,8 @@ spec:
   # Bootstrap the cluster and automatically create the required extensions
   bootstrap:
     initdb:
-      database: wildside_prod
-      owner: wildside_user
+      database: nile_valley_prod
+      owner: nile_valley_user
       postInitTemplateSQL:
         - CREATE EXTENSION postgis;
         - CREATE EXTENSION postgis_topology;
@@ -1168,7 +1171,7 @@ YAML
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: wildside-redis-prod
+  name: nile-valley-redis-prod
   namespace: databases
 spec:
   interval: 30m
@@ -1203,8 +1206,8 @@ others, would be managed by ESO and Vault.[^25]
 ## Application delivery strategy: combining Helm and Kustomize
 
 With the platform services in place, the focus shifts to defining a robust and
-scalable strategy for deploying the "Wildside" application itself. The goal is
-to manage configurations across multiple environments (`production`, `staging`,
+scalable strategy for deploying the example application itself. The goal is to
+manage configurations across multiple environments (`production`, `staging`,
 and numerous ephemeral preview environments) without excessive duplication or
 complexity.
 
@@ -1229,17 +1232,17 @@ This approach keeps environment configurations minimal and focused only on the
 differences, making the entire setup more maintainable and declarative.[^27]
 This strategy is implemented within the
 
-`wildside-apps` repository.
+`nile-valley-apps` repository.
 
-### Structuring the `wildside-apps` repository
+### Structuring the `nile-valley-apps` repository
 
-The `wildside-apps` repository is structured to facilitate the
+The `nile-valley-apps` repository is structured to facilitate the
 Helm-plus-Kustomize pattern:
 
 ```text
-wildside-apps/
+nile-valley-apps/
 ├── base/
-│   ├── helmrelease.yaml    # The base HelmRelease for Wildside
+│   ├── helmrelease.yaml    # The base HelmRelease for the example application
 │   └── kustomization.yaml
 └── overlays/
     ├── production/
@@ -1258,38 +1261,38 @@ wildside-apps/
 ### The base `HelmRelease`
 
 The `base/helmrelease.yaml` file defines the canonical deployment of the
-"Wildside" application. It contains all the common configuration and references
+example application. It contains all the common configuration and references
 the application's Helm chart. It uses default values suitable for a
 non-production environment.
 
 YAML
 
 ```yaml
-# wildside-apps/base/helmrelease.yaml
+# nile-valley-apps/base/helmrelease.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: wildside-app
+  name: example-app
   namespace: myapp
 spec:
   interval: 5m
   chart:
     spec:
-      # This assumes the Wildside app's Helm chart is packaged and available
-      # in a Helm repository defined in the wildside-infra repo.
-      chart: wildside
+      # This assumes the application's Helm chart is packaged and available
+      # in a Helm repository defined in the nile-valley-infra repo.
+      chart: example-app
       sourceRef:
         kind: HelmRepository
-        name: wildside-charts
+        name: example-app-charts
         namespace: flux-system
       version: "0.1.0" # Version of the application chart
   # Default values that will be patched by Kustomize overlays
   values:
     replicaCount: 1
     image:
-      repository: your-registry/wildside-app
+      repository: your-registry/example-app
       tag: "latest" # Placeholder tag
-    
+
     resources:
       requests:
         cpu: "250m"
@@ -1305,13 +1308,13 @@ spec:
       tls:
         - hosts:
             - "staging.example.com"
-          secretName: wildside-app-tls # cert-manager will create this
+          secretName: example-app-tls # cert-manager will create this
 
     # Connection details for dependencies
     database:
-      host: "wildside-pg-main-rw.databases.svc.cluster.local"
+      host: "nile-valley-pg-main-rw.databases.svc.cluster.local"
     redis:
-      host: "wildside-redis-prod-master.databases.svc.cluster.local"
+      host: "nile-valley-redis-prod-master.databases.svc.cluster.local"
   ```
 
 Kustomize's `namespace` setting does not affect objects that already declare a
@@ -1330,7 +1333,7 @@ The kustomization.yaml file defines the production environment:
 YAML
 
 ```yaml
-# wildside-apps/overlays/production/kustomization.yaml
+# nile-valley-apps/overlays/production/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -1348,22 +1351,22 @@ count, set production-level resource requests/limits, and update the hostname.
 YAML
 
 ```yaml
-# wildside-apps/overlays/production/patch-namespace.yaml
+# nile-valley-apps/overlays/production/patch-namespace.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: wildside-app
-  namespace: wildside-production
+  name: example-app
+  namespace: example-app-production
 ```
 
 YAML
 
 ```yaml
-# wildside-apps/overlays/production/patch-replicas-resources.yaml
+# nile-valley-apps/overlays/production/patch-replicas-resources.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: wildside-app
+  name: example-app
 spec:
   values:
     replicaCount: 3
@@ -1384,7 +1387,7 @@ dynamically generate these files.
 YAML
 
 ```yaml
-# wildside-apps/overlays/ephemeral/pr-123/kustomization.yaml
+# nile-valley-apps/overlays/ephemeral/pr-123/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -1402,23 +1405,23 @@ for the pull request.
 YAML
 
 ```yaml
-# wildside-apps/overlays/ephemeral/pr-123/patch-namespace.yaml
+# nile-valley-apps/overlays/ephemeral/pr-123/patch-namespace.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: wildside-app
+  name: example-app
   namespace: pr-123-ns # Dedicated namespace for isolation
 ```
 
 YAML
 
 ```yaml
-# wildside-apps/overlays/ephemeral/pr-123/patch-hostname-image.yaml
+# nile-valley-apps/overlays/ephemeral/pr-123/patch-hostname-image.yaml
 # THIS FILE IS GENERATED BY CI
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: wildside-app
+  name: example-app
 spec:
   values:
     image:
@@ -1436,34 +1439,35 @@ manage application deployments across any number of environments.
 
 ## The CI/CD workflow: automating preview environments with GitHub Actions
 
-The GitHub Actions workflow orchestrates two reusable actions,
-`wildside-infra-k8s` and `wildside-app`, to connect code changes in the
-application repository to deployments in the Kubernetes cluster. By committing
-the desired state to the appropriate GitOps repository and sourcing secrets
-from Vault, the workflow automates the entire lifecycle of the ephemeral
-environments, from creation to destruction.
+The GitHub Actions workflow orchestrates the `nile-valley-infra-k8s` action and
+an application deployment workflow to connect code changes in the application
+repository to deployments in the Kubernetes cluster. By committing the desired
+state to the appropriate GitOps repository and sourcing secrets from Vault, the
+workflow automates the entire lifecycle of the ephemeral environments, from
+creation to destruction.
 
 ### Reusable actions
 
-- `wildside-infra-k8s` creates or updates the target cluster and shared
-  infrastructure. It commits the infrastructure state to `wildside-infra` and
+- `nile-valley-infra-k8s` creates or updates the target cluster and shared
+  infrastructure. It commits the infrastructure state to `nile-valley-infra` and
   lays out the repository with `clusters`, `modules`, and `platform`
   directories (`platform/sources`, `platform/traefik`, `platform/cert-manager`,
   `platform/external-dns`, `platform/vault`, `platform/databases`, and
   `platform/redis`). Credentials are obtained from Vault.
 
-- `wildside-app` generates the overlay for an application instance and commits
-  it to `wildside-apps` so FluxCD can reconcile the deployment. It maintains
-  the `base` and `overlays` directories (`production`, `staging`, and dynamic
-  `ephemeral` overlays). Secrets are likewise sourced from Vault.
+- The application deployment workflow generates the overlay for an application
+  instance and commits it to `nile-valley-apps` so FluxCD can reconcile the
+  deployment. It maintains the `base` and `overlays` directories (`production`,
+  `staging`, and dynamic `ephemeral` overlays). Secrets are likewise sourced
+  from Vault.
 
-These actions are idempotent and can safely be run multiple times to converge
-on the specified state.
+These workflows are idempotent and can safely be run multiple times to
+converge on the specified state.
 
 ### Workflow triggers and permissions
 
 The workflow is defined in the application source code repository (e.g.,
-`wildside-app-src`) and is triggered by pull request events.
+`example-app-src`) and is triggered by pull request events.
 
 YAML
 
@@ -1485,18 +1489,18 @@ PR branch) to create or update the environment, and on `closed` (PR merged or
 closed) to tear it down.[^28] It requires permissions to write to a repository
 (the
 
-`wildside-apps` repo) and to comment on the pull request.
+`nile-valley-apps` repo) and to comment on the pull request.
 
 #### Table 2: GitHub Actions workflow secrets & variables
 
-| Name                 | Scope  | Required | Description                                                                                                |
-| -------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------- |
-| DOCKERHUB_USERNAME   | Secret | Yes      | Username for the container registry.                                                                       |
-| DOCKERHUB_TOKEN      | Secret | Yes      | Access token for the container registry.                                                                   |
-| APPS_REPO_PAT        | Secret | Yes      | A GitHub Personal Access Token with repo scope for the wildside-apps repository. Used to commit manifests. |
-| VAULT_ADDR           | Secret | Yes      | Address of the HashiCorp Vault server.                                                                     |
-| VAULT_TOKEN          | Secret | Yes      | Token for authenticating with Vault to store secrets like the Cloudflare API token.                        |
-| CLOUDFLARE_API_TOKEN | Secret | Yes      | API Token for Cloudflare, to be stored in Vault.                                                           |
+| Name                 | Scope  | Required | Description                                                                                                   |
+| -------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------- |
+| DOCKERHUB_USERNAME   | Secret | Yes      | Username for the container registry.                                                                          |
+| DOCKERHUB_TOKEN      | Secret | Yes      | Access token for the container registry.                                                                      |
+| APPS_REPO_PAT        | Secret | Yes      | A GitHub Personal Access Token with repo scope for the nile-valley-apps repository. Used to commit manifests. |
+| VAULT_ADDR           | Secret | Yes      | Address of the HashiCorp Vault server.                                                                        |
+| VAULT_TOKEN          | Secret | Yes      | Token for authenticating with Vault to store secrets like the Cloudflare API token.                           |
+| CLOUDFLARE_API_TOKEN | Secret | Yes      | API Token for Cloudflare, to be stored in Vault.                                                              |
 
 ### Job 1: Build and push Docker image
 
@@ -1531,7 +1535,7 @@ jobs:
             context: .
             file: ./Dockerfile # Path to the application's Dockerfile
             push: true
-            tags: your-registry/wildside-app:${{ github.sha }}
+            tags: your-registry/example-app:${{ github.sha }}
             cache-from: type=gha
             cache-to: type=gha,mode=max
 ```
@@ -1540,14 +1544,13 @@ This job uses official Docker actions to handle login, build, and push
 operations.[^29] The image is tagged with the unique Git commit SHA (
 
 `github.sha`) to ensure immutability. A key optimization is the use of GitHub
-Actions cache (`type=gha`) for Docker layers. For a Rust application, this
-dramatically speeds up subsequent builds by caching the compiled dependencies,
-which is crucial for a fast feedback loop.[^30]
+Actions cache (`type=gha`) for Docker layers, which can dramatically speed up
+subsequent builds and preserve a fast feedback loop.[^30]
 
 ### Job 2: Generate and commit manifests
 
 This job, dependent on the successful build, is responsible for creating the
-Kustomize overlay in the `wildside-apps` repository.
+Kustomize overlay in the `nile-valley-apps` repository.
 
 #### The cross-repository Git operation
 
@@ -1568,14 +1571,14 @@ YAML
       - name: Checkout App Repo (Source)
         uses: actions/checkout@v4
         with:
-          path: wildside-app-src
+          path: example-app-src
 
       - name: Checkout Manifests Repo (Target)
         uses: actions/checkout@v4
         with:
-          repository: <your-github-username>/wildside-apps
+          repository: <your-github-username>/nile-valley-apps
           token: ${{ secrets.APPS_REPO_PAT }}
-          path: wildside-apps
+          path: nile-valley-apps
 
       #... steps to generate manifests...
 ```
@@ -1584,9 +1587,9 @@ YAML
 
 A script step uses standard shell commands and `yq` (a command-line YAML
 processor pre-installed on GitHub runners) to dynamically create the required
-files.[^32] In practice this logic is wrapped inside the reusable
-`wildside-app` action so that every workflow invoking the action benefits from
-the same idempotent overlay generation and repository commit behaviour.
+files.[^32] In practice this logic is wrapped inside a reusable application
+deployment workflow so that every workflow invoking it benefits from the same
+idempotent overlay generation and repository commit behaviour.
 
 YAML
 
@@ -1597,7 +1600,7 @@ YAML
         run: |
           PR_NUMBER=${{ github.event.number }}
           IMAGE_TAG=${{ github.sha }}
-          MANIFESTS_DIR="wildside-apps/overlays/ephemeral/pr-${PR_NUMBER}"
+          MANIFESTS_DIR="nile-valley-apps/overlays/ephemeral/pr-${PR_NUMBER}"
           SUBDOMAIN="pr-${PR_NUMBER}.your-domain.com"
           NAMESPACE="pr-${PR_NUMBER}-ns"
 
@@ -1615,7 +1618,7 @@ YAML
           EOF
 
           # Create patch file using yq
-          yq e '.metadata.name = "wildside-app"' -i ${MANIFESTS_DIR}/patch-main.yaml
+          yq e '.metadata.name = "example-app"' -i ${MANIFESTS_DIR}/patch-main.yaml
           yq e '.apiVersion = "helm.toolkit.fluxcd.io/v2"' -i ${MANIFESTS_DIR}/patch-main.yaml
           yq e '.kind = "HelmRelease"' -i ${MANIFESTS_DIR}/patch-main.yaml
           yq e ".spec.values.image.tag = \"${IMAGE_TAG}\"" -i ${MANIFESTS_DIR}/patch-main.yaml
@@ -1640,7 +1643,7 @@ YAML
 #### Commit and push & feedback loop
 
 The final steps in this job commit the newly generated files to the
-`wildside-apps` repository and post a comment back to the pull request with the
+`nile-valley-apps` repository and post a comment back to the pull request with the
 preview URL.
 
 YAML
@@ -1649,7 +1652,7 @@ YAML
 #.github/workflows/preview-environment.yaml (continued)
       - name: Commit and Push Manifests
         run: |
-          cd wildside-apps
+          cd nile-valley-apps
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add.
@@ -1690,7 +1693,7 @@ YAML
       - name: Checkout Manifests Repo
         uses: actions/checkout@v4
         with:
-          repository: <your-github-username>/wildside-apps
+          repository: <your-github-username>/nile-valley-apps
           token: ${{ secrets.APPS_REPO_PAT }}
 
       - name: Remove Preview Environment Manifests
@@ -1718,44 +1721,45 @@ The following narrative illustrates the end-to-end flow of the system,
 demonstrating how the individual components interact to create a seamless
 automated experience.
 
-1. **Developer Pushes Code:** A developer working on a new feature for
-    "Project Wildside" completes a unit of work, pushes the code to a new
+1. **Developer Pushes Code:** A developer working on a new feature for the
+    example application completes a unit of work, pushes the code to a new
     branch (`feature/new-poi-api`), and opens Pull Request #123 on GitHub.
 
 2. **CI Pipeline Triggers:** The `pull_request` event with type `opened`
     instantly triggers the "Preview Environment" GitHub Actions workflow.
 
 3. **Build & Push:** The `build-and-push` job begins. It checks out the source
-    code, logs into the container registry, and starts building the Rust
-    application's Docker image. Leveraging the Docker layer cache, this build
-    is significantly faster after the first run. The resulting image is tagged
-    with the unique commit SHA (e.g., `sha-a1b2c3d`) and pushed to the registry.
+    code, logs into the container registry, and starts building the
+    application's container image. Leveraging the Docker layer cache, this
+    build is significantly faster after the first run. The resulting image is
+    tagged with the unique commit SHA (e.g., `sha-a1b2c3d`) and pushed to the
+    registry.
 
 4. **Manifest Generation:** Upon successful build, the `deploy-preview` job
     starts. It checks out both the application source code and the
-    `wildside-apps` GitOps repository. The script step executes, creating a new
-    directory `wildside-apps/overlays/ephemeral/pr-123/`. It generates a
+    `nile-valley-apps` GitOps repository. The script step executes, creating a new
+    directory `nile-valley-apps/overlays/ephemeral/pr-123/`. It generates a
     `kustomization.yaml` and a patch file, populating it with the image tag
     `sha-a1b2c3d` and the unique hostname `pr-123.your-domain.com`.
 
 5. **Git Commit:** The workflow commits these new manifest files to the `main`
-    branch of the `wildside-apps` repository with a message like "Deploy
+    branch of the `nile-valley-apps` repository with a message like "Deploy
     preview for PR #123".
 
 6. **FluxCD Reconciliation:** Within a minute, the Flux `source-controller`
-    running in the DOKS cluster detects the new commit in the `wildside-apps`
+    running in the DOKS cluster detects the new commit in the `nile-valley-apps`
     repository. It fetches the changes and updates its internal state.
 
 7. **Kustomize Application:** The Flux `kustomize-controller`, which is
-    watching the `wildside-apps` repository for application definitions,
+    watching the `nile-valley-apps` repository for application definitions,
     discovers the new `Kustomization` for `pr-123`. It reads this file, applies
     the specified patches to the `base/helmrelease.yaml`, and generates the
     final `HelmRelease` manifest in memory.
 
 8. **Helm Deployment:** The Flux `helm-controller` sees the new `HelmRelease`
     object intended for the `pr-123-ns` namespace. It interprets this as a
-    command to install the "Wildside" Helm chart with the values specified in
-    the Kustomized manifest.
+    command to install the application's Helm chart with the values specified
+    in the Kustomized manifest.
 
 9. **Service & Ingress Creation:** The Helm installation proceeds, creating
     the Kubernetes Deployment, Service, and Ingress resources for the `pr-123`
@@ -1786,13 +1790,13 @@ automated experience.
     the feature branch. The `pull_request: synchronize` event re-triggers the
     workflow. A new Docker image is built with a new SHA tag. The
     `deploy-preview` job updates the `patch-main.yaml` file in the
-    `wildside-apps` repo with the new image tag and commits the change. Flux
+    `nile-valley-apps` repo with the new image tag and commits the change. Flux
     detects this and performs a rolling update on the existing `pr-123`
     deployment, deploying the new code with zero downtime.
 
 13. **Destruction:** The pull request is approved and merged into the main
     branch. The `pull_request: closed` event triggers the `teardown-preview`
-    job. This job checks out the `wildside-apps` repository, executes
+    job. This job checks out the `nile-valley-apps` repository, executes
     `git rm -r overlays/ephemeral/pr-123/`, and commits the deletion. Flux
     detects that the `Kustomization` for `pr-123` has been removed. Because
     `prune: true` is enabled, the `kustomize-controller` deletes the
@@ -1812,7 +1816,7 @@ sequenceDiagram
   participant Dev as Developer
   participant GH as GitHub Actions
   participant Reg as Container Registry
-  participant GitOps as wildside-apps repo
+  participant GitOps as nile-valley-apps repo
   participant Src as Flux source-controller
   participant Kust as Flux kustomize-controller
   participant Helm as Flux helm-controller
@@ -1864,8 +1868,8 @@ The diagram depicts the following high-level steps:
 This report has detailed a robust, secure, and highly automated architecture
 for deploying on-demand ephemeral preview environments. By leveraging a modern,
 cloud-native toolchain centered around GitOps principles, the proposed system
-directly addresses the user's requirements for the "Project Wildside"
-application, establishing a state-of-the-art development lifecycle.
+directly addresses the requirements for an example application, establishing a
+state-of-the-art development lifecycle.
 
 ### Summary of benefits
 
@@ -1901,7 +1905,7 @@ operational practices are recommended:
 - **Monitoring and Observability:** Deploy the Prometheus Operator and Grafana
   stack via a Flux `HelmRelease`. Configure Prometheus to scrape metrics from
   all key cluster components, including the Traefik Ingress Controller,
-  `cert-manager`, CloudNativePG, and the Wildside application pods themselves.
+  `cert-manager`, CloudNativePG, and the application pods themselves.
   Create Grafana dashboards to visualize key performance indicators (KPIs) such
   as request latency, error rates, database connection pooling, and resource
   utilization. Configure Alertmanager to send notifications for critical
@@ -1928,7 +1932,7 @@ project's needs.
 - **Multi-Cluster Management:** As the application scales, it may become
   necessary to have separate, dedicated clusters for development, staging, and
   production. The dual-repository GitOps model is perfectly suited for this.
-  The `wildside-infra` repository can be extended to define multiple clusters,
+  The `nile-valley-infra` repository can be extended to define multiple clusters,
   and Flux can manage all of them from the same sources of truth, enabling
   consistent deployments across the entire fleet.[^33]
 
@@ -1940,9 +1944,9 @@ project's needs.
   provisioning speed.
 
 By adhering to the principles and implementing the configurations detailed in
-this document, the "Project Wildside" team can build a powerful and efficient
-development platform that will serve as a significant competitive advantage,
-enabling them to innovate and deliver features more rapidly and reliably.
+this document, a platform team can build a powerful and efficient development
+platform that will serve as a significant competitive advantage, enabling them
+to innovate and deliver features more rapidly and reliably.
 
 ## Works cited
 
@@ -2018,7 +2022,7 @@ enabling them to innovate and deliver features more rapidly and reliably.
     August 12, 2025,
     <https://medium.com/@topahadzi/external-secret-operator-with-vault-a781be1048a1>
 
-[^21]: Wildside App: Design Document Expansion.
+[^21]: Example application: design document expansion.
 
 [^22]: CloudNativePG is an open source operator designed to manage PostgreSQL
     workloads on any supported Kubernetes cluster running in private, public,

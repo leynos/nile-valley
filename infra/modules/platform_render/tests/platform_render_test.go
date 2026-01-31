@@ -12,7 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/require"
-	testutil "wildside/infra/testutil"
+	testutil "nile-valley/infra/testutil"
 )
 
 // testVars returns minimal valid inputs for the platform_render module.

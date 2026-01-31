@@ -1,4 +1,4 @@
-module wildside/infra/testutil
+module nile-valley/infra/testutil
 
 go 1.21
 

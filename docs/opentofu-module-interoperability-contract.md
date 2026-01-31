@@ -2,7 +2,7 @@
 
 This document defines how the OpenTofu modules in `infra/modules/` interconnect
 through shared variables and outputs. It serves as a reference for the
-`wildside-infra-k8s` action to thread DNS zones, certificate issuers, and
+`nile-valley-infra-k8s` action to thread DNS zones, certificate issuers, and
 credential handles between modules.
 
 ## Module dependency graph
@@ -69,8 +69,8 @@ output "rendered_manifests" {
 }
 ```
 
-The `wildside-infra-k8s` action uses render mode to generate manifests that it
-commits to the `wildside-infra` repository for FluxCD to reconcile.
+The `nile-valley-infra-k8s` action uses render mode to generate manifests that it
+commits to the `nile-valley-infra` repository for FluxCD to reconcile.
 
 ### Apply mode
 

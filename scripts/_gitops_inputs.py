@@ -10,13 +10,13 @@ Examples
 >>> from scripts._gitops_inputs import RawGitOpsInputs, resolve_gitops_inputs
 >>> inputs = resolve_gitops_inputs(
 ...     RawGitOpsInputs(
-...         gitops_repository="wildside/wildside-infra",
+...         gitops_repository="leynos/nile-valley-infra",
 ...         gitops_token="token",
 ...         cluster_name="preview-1",
 ...     )
 ... )
 >>> inputs.gitops_repository
-'wildside/wildside-infra'
+'leynos/nile-valley-infra'
 """
 
 from __future__ import annotations

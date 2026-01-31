@@ -2,7 +2,7 @@
 
 This document describes the architecture and design decisions for the Valkey
 OpenTofu module, which provides Redis-compatible key-value storage for the
-Wildside ephemeral preview infrastructure.
+Nile Valley ephemeral preview infrastructure.
 
 ## Overview
 

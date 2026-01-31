@@ -43,7 +43,7 @@ retain the standard `terraform` block syntax.
    provider "digitalocean" {}
 
    module "vault_appliance" {
-     source = "git::https://github.com/OWNER/wildside.git//infra/modules/vault_appliance?ref=<TAG_OR_SHA>"
+     source = "git::https://github.com/OWNER/nile-valley.git//infra/modules/vault_appliance?ref=<TAG_OR_SHA>"
 
      name                     = "vault-appliance"
      region                   = "nyc1"

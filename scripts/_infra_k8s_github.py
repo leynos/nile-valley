@@ -1,4 +1,4 @@
-"""GitHub Actions helpers for wildside-infra-k8s workflows.
+"""GitHub Actions helpers for nile-valley-infra-k8s workflows.
 
 This module centralizes parsing and file-writing helpers that mirror GitHub
 Actions behaviour for ``GITHUB_ENV`` and ``GITHUB_OUTPUT`` files.

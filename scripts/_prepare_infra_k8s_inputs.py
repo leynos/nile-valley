@@ -1,7 +1,7 @@
-"""Resolve and prepare inputs for the wildside-infra-k8s action.
+"""Resolve and prepare inputs for the nile-valley-infra-k8s action.
 
 This module centralizes input resolution, validation, and GITHUB_ENV exports
-for the wildside-infra-k8s GitHub Action.
+for the nile-valley-infra-k8s GitHub Action.
 
 Examples
 --------
@@ -15,7 +15,7 @@ Resolve inputs and export them for downstream steps:
 ...     node_pools=None,
 ...     domain="example.test",
 ...     acme_email="admin@example.test",
-...     gitops_repository="wildside/wildside-infra",
+...     gitops_repository="leynos/nile-valley-infra",
 ...     gitops_branch="main",
 ...     gitops_token="token",
 ...     vault_address="https://vault.example.test:8200",
@@ -382,7 +382,7 @@ def prepare_inputs(inputs: ResolvedInputs, mask: Mask = mask_secret) -> None:
     ...     region="nyc1",
     ...     domain="example.test",
     ...     acme_email="admin@example.test",
-    ...     gitops_repository="wildside/wildside-infra",
+    ...     gitops_repository="leynos/nile-valley-infra",
     ...     gitops_token="token",
     ...     vault_address="https://vault.example.test:8200",
     ...     vault_role_id="role",

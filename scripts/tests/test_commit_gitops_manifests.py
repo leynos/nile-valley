@@ -21,7 +21,7 @@ from scripts.commit_gitops_manifests import (
 def _make_inputs(tmp_path: Path, **overrides: object) -> GitOpsInputs:
     token = _dummy_token()
     defaults: dict[str, object] = {
-        "gitops_repository": "wildside/wildside-infra",
+        "gitops_repository": "leynos/nile-valley-infra",
         "gitops_branch": "main",
         "gitops_token": token,
         "cluster_name": "preview-1",
@@ -39,7 +39,7 @@ def _dummy_token() -> str:
 
 def test_resolve_gitops_inputs_cli_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     token = _dummy_token()
-    monkeypatch.setenv("GITOPS_REPOSITORY", "wildside/env")
+    monkeypatch.setenv("GITOPS_REPOSITORY", "leynos/env")
     monkeypatch.setenv("GITOPS_TOKEN", token)
     monkeypatch.setenv("CLUSTER_NAME", "env")
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))

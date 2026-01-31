@@ -1,0 +1,106 @@
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/acme/myapp-backend
+  tag: ""
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+pdb:
+  enabled: true
+  minAvailable: 0
+
+service:
+  type: ClusterIP
+  portName: http
+  port: 80
+  targetPort: http
+  annotations: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  behavior: {}
+
+ingress:
+  enabled: false
+  className: ""
+  hostname: ""
+  tlsSecretName: ""
+  annotations: {}
+
+# Non-secret configuration. Keys become environment variables via a ConfigMap.
+config:
+  APP_ENV: "development"
+
+# Reference an externally managed Secret; map environment variables to keys.
+existingSecretName: ""
+# Allow rendering to proceed even if the Secret is missing; set to false to fail.
+allowMissingSecret: true
+secretEnvFromKeys: {}
+
+# Session signing key secret configuration for zero-downtime key rotation.
+# When enabled, the secret is mounted as a file at mountPath/session_key.
+# See docs/runbooks/session-key-rotation.md for the rotation procedure.
+sessionSecret:
+  enabled: false
+  # Name of the Kubernetes Secret containing the session signing key.
+  name: "example-app-session-key"
+  # Key within the Secret that holds the 64+ byte signing key.
+  keyName: "session_key"
+  # Mount path for the session key file.
+  mountPath: "/var/run/secrets"
+
+affinity: {}
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+container:
+  livenessProbe:
+    httpGet:
+      path: /health/live
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health/ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  startupProbe:
+    httpGet:
+      path: /health/ready
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 12

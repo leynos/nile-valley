@@ -37,7 +37,7 @@ module "cert_manager" {
 ### Render mode (Flux manifests)
 
 When `mode = "render"`, the module returns a `rendered_manifests` map, keyed by
-the intended GitOps path inside `wildside-infra`.
+the intended GitOps path inside `nile-valley-infra`.
 
 ```hcl
 module "cert_manager" {

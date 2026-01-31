@@ -26,92 +26,30 @@ define exec_or_bunx
 	fi
 endef
 
-RUSTFLAGS_STRICT := -D warnings
-RUST_FLAGS ?= $(RUSTFLAGS_STRICT)
-RUST_FLAGS_ENV := RUSTFLAGS="$(RUST_FLAGS)"
-RUSTDOC_FLAGS ?= --cfg docsrs -D warnings
-
-ASYNCAPI_CLI_VERSION ?= 3.4.2
-REDOCLY_CLI_VERSION ?= 2.1.0
-ORVAL_VERSION ?= 7.18.0
 BIOME_VERSION ?= 2.3.1
-TSC_VERSION ?= 5.9.2
 MARKDOWNLINT_CLI2_VERSION ?= 0.14.0
-OPENAPI_SPEC ?= spec/openapi.json
 
 GO_CACHE_ROOT ?= $(HOME)/.cache/go
 GO_TEST_ENV := GOPATH=$(GO_CACHE_ROOT) GOMODCACHE=$(GO_CACHE_ROOT)/pkg/mod GOCACHE=$(GO_CACHE_ROOT)/build
 
 # Place one consolidated PHONY declaration near the top of the file
-.PHONY: all clean be fe fe-build openapi gen docker-up docker-down fmt lint test typecheck deps lockfile \
-        check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie yamllint audit \
-        lint-asyncapi lint-openapi lint-makefile lint-actions lint-infra conftest tofu doks-test doks-policy fluxcd-test fluxcd-policy \
-        vault-appliance-test vault-appliance-policy dev-cluster-test cluster-provision-test workspace-sync scripts-test traefik-test traefik-policy traefik-e2e lint-architecture \
+.PHONY: all clean fmt lint test deps \
+        check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie yamllint \
+        lint-makefile lint-actions lint-infra conftest tofu doks-test doks-policy fluxcd-test fluxcd-policy \
+        vault-appliance-test vault-appliance-policy dev-cluster-test cluster-provision-test scripts-test traefik-test traefik-policy traefik-e2e \
         external-dns-test external-dns-policy vault-eso-test vault-eso-policy cnpg-test cnpg-policy valkey-test valkey-policy platform-render-test
-
-workspace-sync:
-	./scripts/sync_workspace_members.py
 
 all: check-fmt lint test
 
 clean:
-	cargo clean --manifest-path backend/Cargo.toml
-	rm -rf frontend-pwa/node_modules packages/tokens/node_modules
+	rm -rf node_modules .uv-cache
 
-be:
-	cargo run --manifest-path backend/Cargo.toml
+fmt:
+	$(call exec_or_bunx,biome,format --write scripts,@biomejs/biome@$(BIOME_VERSION))
 
-fe:
-	# Long-running dev server
-	cd frontend-pwa && bun dev
-
-fe-build:
-	pushd frontend-pwa && bun install && popd
-	cd frontend-pwa && bun run build
-
-openapi: workspace-sync
-	$(call ensure_tool,jq)
-	mkdir -p $(dir $(OPENAPI_SPEC))
-	./scripts/generate_openapi.sh $(OPENAPI_SPEC)
-
-gen: openapi
-	cd frontend-pwa && $(call exec_or_bunx,orval,--config orval.config.cjs,orval@$(ORVAL_VERSION))
-
-docker-up:
-	cd deploy && docker compose up --build -d
-
-docker-down:
-	cd deploy && docker compose down
-
-fmt: workspace-sync
-	cargo fmt --all
-	$(call exec_or_bunx,biome,format --write frontend-pwa packages,@biomejs/biome@$(BIOME_VERSION))
-
-lint: workspace-sync
-	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" cargo doc --workspace --no-deps
-	cargo clippy --workspace --all-targets --all-features -- $(RUST_FLAGS)
-	$(MAKE) lint-architecture
-	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github frontend-pwa packages,@biomejs/biome@$(BIOME_VERSION))
-	$(MAKE) lint-asyncapi lint-openapi lint-makefile lint-actions lint-infra
-
-lint-architecture:
-	$(RUST_FLAGS_ENV) cargo run -p architecture-lint --quiet
-
-# Lint AsyncAPI spec if present. Split to keep `lint` target concise per checkmake rules.
-lint-asyncapi:
-	if [ -f spec/asyncapi.yaml ]; then \
-	  bun x --package=@asyncapi/cli@$(ASYNCAPI_CLI_VERSION) asyncapi validate spec/asyncapi.yaml; \
-	fi
-
-# Lint OpenAPI spec with Redocly CLI
-lint-openapi:
-	$(call ensure_tool,python3)
-	@if ! grep -F -q "$(OPENAPI_SPEC):" .redocly.lint-ignore.yaml; then \
-		echo "OpenAPI ignore file missing entry for $(OPENAPI_SPEC)" >&2; \
-		exit 1; \
-	fi
-	@python3 scripts/check_redoc_ignore.py
-	bun x --package=@redocly/cli@$(REDOCLY_CLI_VERSION) redocly lint $(OPENAPI_SPEC)
+lint:
+	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))
+	$(MAKE) lint-makefile lint-actions lint-infra
 
 # Validate Makefile style and structure
 lint-makefile:
@@ -145,7 +83,7 @@ lint-infra:
 	$(call ensure_tool,uvx)
 	cd infra/modules/doks && tflint --init && tflint --config .tflint.hcl
 	cd infra/clusters/dev && tflint --init && tflint --config .tflint.hcl
-	cd infra/clusters/wildside-infra-k8s && tflint --init && tflint --config .tflint.hcl
+	cd infra/clusters/nile-valley-infra-k8s && tflint --init && tflint --config .tflint.hcl
 	cd infra/modules/fluxcd && tflint --init && tflint --config .tflint.hcl
 	cd infra/modules/vault_appliance && tflint --init && tflint --config .tflint.hcl
 	cd infra/modules/traefik && tflint --init && tflint --config .tflint.hcl
@@ -157,18 +95,7 @@ lint-infra:
 	mkdir -p .uv-cache
 	UV_CACHE_DIR=$(CURDIR)/.uv-cache uvx checkov -d infra
 
-PG_WORKER_PATH ?= $(CURDIR)/target/pg_worker
-
-test: workspace-sync deps typecheck prepare-pg-worker
-	PG_EMBEDDED_WORKER=$(PG_WORKER_PATH) $(RUST_FLAGS_ENV) cargo nextest run --workspace --all-targets --all-features
-	pnpm -r --if-present --silent run test
-	$(MAKE) scripts-test
-
-.PHONY: prepare-pg-worker
-prepare-pg-worker:
-	$(RUST_FLAGS_ENV) cargo build -p backend --bin pg_worker
-	install -m 0755 target/debug/pg_worker $(PG_WORKER_PATH)
-	find $(dir $(PG_WORKER_PATH)) -maxdepth 1 -type d -name 'pg-embed-*' -exec rm -rf {} +
+test: scripts-test
 
 scripts-test:
 	$(call ensure_tool,uv)
@@ -180,46 +107,11 @@ scripts-test:
 		--with "cmd-mox==0.2.0" \
 		pytest scripts/tests
 
-TS_WORKSPACES := frontend-pwa packages/tokens packages/types
-PNPM_LOCK_FILE := pnpm-lock.yaml
-PNPM_LOCK_HASH := $(shell \
-  if [ -f $(PNPM_LOCK_FILE) ]; then \
-    if command -v sha256sum >/dev/null 2>&1; then \
-      sha256sum $(PNPM_LOCK_FILE) | awk '{print $$1}'; \
-    else \
-      shasum -a 256 $(PNPM_LOCK_FILE) | awk '{print $$1}'; \
-    fi; \
-  else \
-    echo "MISSING_LOCKFILE"; \
-  fi)
-NODE_MODULES_STAMP := node_modules/.pnpm-install-$(PNPM_LOCK_HASH)
-
-deps: $(NODE_MODULES_STAMP)
-
-$(NODE_MODULES_STAMP): $(PNPM_LOCK_FILE) package.json
-	@[ -f $(PNPM_LOCK_FILE) ] || { echo "Error: pnpm-lock.yaml missing. Generate it locally (pnpm i) and commit it."; exit 1; }
-	pnpm install --frozen-lockfile
-	@rm -f node_modules/.pnpm-install-*
-	@touch $@
-
-typecheck: deps ; for dir in $(TS_WORKSPACES); do $(call exec_or_bunx,tsc,--noEmit -p $$dir/tsconfig.json,typescript@$(TSC_VERSION)) || exit 1; done
-
-audit: deps
-	pnpm -r install
-	pnpm -r --if-present run audit
-	pnpm run audit
-
-lockfile:
-	pnpm install --lockfile-only
-	git diff --exit-code pnpm-lock.yaml
+deps:
+	bun install
 
 check-fmt:
-	@if cargo fmt --help | grep -q -- '--workspace'; then \
-		cargo fmt --workspace --all -- --check; \
-	else \
-		cargo fmt --all -- --check; \
-	fi
-	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github frontend-pwa packages,@biomejs/biome@$(BIOME_VERSION))
+	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))
 
 INFRA_TEST_TARGETS := \
         doks-test \
@@ -244,6 +136,8 @@ INFRA_TEST_TARGETS := \
         valkey-test \
         valkey-policy
 
+.PHONY: $(INFRA_TEST_TARGETS)
+
 $(INFRA_TEST_TARGETS): check-test-deps
 
 check-test-deps:
@@ -260,10 +154,8 @@ nixie:
 	nixie --no-sandbox
 
 yamllint:
-	command -v helm >/dev/null && command -v yamllint >/dev/null && command -v yq >/dev/null
-	set -o pipefail; helm template wildside ./deploy/charts/wildside --kube-version $(KUBE_VERSION) | yamllint -f parsable -
-	[ ! -f deploy/k8s/overlays/production/patch-helmrelease-values.yaml ] || \
-	(set -o pipefail; helm template wildside ./deploy/charts/wildside -f <(yq e '.spec.values' deploy/k8s/overlays/production/patch-helmrelease-values.yaml) --kube-version $(KUBE_VERSION) | yamllint -f parsable -)
+	command -v helm >/dev/null && command -v yamllint >/dev/null
+	set -o pipefail; helm template example-app ./deploy/charts/example-app --kube-version $(KUBE_VERSION) | yamllint -f parsable -
 
 conftest:
 	$(call ensure_tool,conftest)
@@ -302,8 +194,8 @@ dev-cluster-test: conftest tofu
 	DOKS_KUBERNETES_VERSION=$(DOKS_KUBERNETES_VERSION) ./scripts/dev-cluster-test.sh
 
 cluster-provision-test:
-	@echo "Running wildside-infra-k8s cluster tests..."
-	cd infra/clusters/wildside-infra-k8s/tests && $(GO_TEST_ENV) go test -v -timeout 30m ./...
+	@echo "Running nile-valley-infra-k8s cluster tests..."
+	cd infra/clusters/nile-valley-infra-k8s/tests && $(GO_TEST_ENV) go test -v -timeout 30m ./...
 
 fluxcd-test:
 	tofu fmt -check infra/modules/fluxcd

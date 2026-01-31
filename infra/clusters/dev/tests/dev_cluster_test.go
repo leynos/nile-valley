@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/require"
-	testutil "wildside/infra/testutil"
+	testutil "nile-valley/infra/testutil"
 )
 
 func defaultFluxConfig() map[string]interface{} {
@@ -76,7 +76,7 @@ users:
 func testVars(t *testing.T) map[string]interface{} {
 	vars := map[string]interface{}{
 		"should_create_cluster": true,
-		"cluster_name":          "wildside-dev",
+		"cluster_name":          "nile-valley-dev",
 		"region":                "nyc1",
 		"node_pools": []map[string]interface{}{
 			{

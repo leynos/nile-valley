@@ -1,4 +1,4 @@
-"""Data models for wildside-infra-k8s orchestration.
+"""Data models for nile-valley-infra-k8s orchestration.
 
 These models provide a small, typed contract shared by the OpenTofu and action
 helpers, keeping data flow explicit across module boundaries.
@@ -37,7 +37,7 @@ class SpacesBackendConfig:
     Examples
     --------
     >>> config = SpacesBackendConfig(
-    ...     bucket="wildside-terraform-state",
+    ...     bucket="nile-valley-terraform-state",
     ...     region="nyc3",
     ...     endpoint="https://nyc3.digitaloceanspaces.com",
     ...     access_key="AKIA...",

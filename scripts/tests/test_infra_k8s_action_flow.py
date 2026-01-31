@@ -1,4 +1,4 @@
-"""Exercise the wildside-infra-k8s action flow end to end.
+"""Exercise the nile-valley-infra-k8s action flow end to end.
 
 These behavioural tests wire the action entrypoints together using GitHub-style
 env and output files so the composite action contract is validated locally.
@@ -136,7 +136,7 @@ def _set_base_env(monkeypatch: pytest.MonkeyPatch, paths: FlowPaths) -> None:
         "INPUT_DOMAIN": "example.test",
         "INPUT_ACME_EMAIL": "admin@example.test",
         "INPUT_NODE_POOLS": "[]",
-        "INPUT_GITOPS_REPOSITORY": "wildside/wildside-infra",
+        "INPUT_GITOPS_REPOSITORY": "leynos/nile-valley-infra",
         "INPUT_GITOPS_TOKEN": token,
         "INPUT_VAULT_ADDRESS": "https://vault.example.test:8200",
         "INPUT_VAULT_ROLE_ID": _dummy_token(),

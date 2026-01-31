@@ -11,7 +11,7 @@
 # The access_key, secret_key, and key values are passed at runtime to avoid
 # storing credentials in version control.
 
-bucket                      = "wildside-tofu-state"
+bucket                      = "nile-valley-tofu-state"
 region                      = "nyc3"
 endpoint                    = "nyc3.digitaloceanspaces.com"
 skip_credentials_validation = true

@@ -10,8 +10,8 @@ policy to follow.
 ## Purpose / Big Picture
 
 Deliver the Phase 2.3 Vault + External Secrets Operator (ESO) module so the
-`wildside-infra-k8s` action can render Flux-ready manifests into
-`wildside-infra` and converge secrets synchronization on every run. Success is
+`nile-valley-infra-k8s` action can render Flux-ready manifests into
+`nile-valley-infra` and converge secrets synchronization on every run. Success is
 visible when the new OpenTofu module can render a `platform/vault` tree
 containing the ESO HelmRelease, ClusterSecretStore resources connected to the
 existing Vault appliance, and when its outputs expose secret store names and
@@ -32,8 +32,7 @@ Kubernetes cluster via ESO.
   policy script, and README updates.
 - [ ] (Pending) Update Makefile targets, lint coverage, and roadmap entry.
 - [ ] (Pending) Generate provider lock files and run module-specific tests.
-- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make typecheck`,
-  `make lint`, `make test`).
+- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make lint`, and `make test`).
 
 ## Surprises & Discoveries
 
@@ -336,7 +335,7 @@ timeout and capture logs with `tee` for any command with long output.
 
    ```bash
    timeout 300s bash -lc \
-     'cd infra/modules/vault_eso/tests && go mod init wildside/infra/modules/vault_eso/tests'
+     'cd infra/modules/vault_eso/tests && go mod init nile-valley/infra/modules/vault_eso/tests'
    timeout 300s bash -lc \
      'cd infra/modules/vault_eso/tests && go mod tidy'
    ```
@@ -355,11 +354,11 @@ timeout and capture logs with `tee` for any command with long output.
 
    ```bash
    timeout 300s bash -lc \
-     'set -o pipefail; make check-test-deps 2>&1 | tee /tmp/wildside-check-test-deps.log'
+     'set -o pipefail; make check-test-deps 2>&1 | tee /tmp/nile-valley-check-test-deps.log'
    timeout 300s bash -lc \
-     'set -o pipefail; make vault-eso-test 2>&1 | tee /tmp/wildside-vault-eso-test.log'
+     'set -o pipefail; make vault-eso-test 2>&1 | tee /tmp/nile-valley-vault-eso-test.log'
    timeout 300s bash -lc \
-     'set -o pipefail; make vault-eso-policy 2>&1 | tee /tmp/wildside-vault-eso-policy.log'
+     'set -o pipefail; make vault-eso-policy 2>&1 | tee /tmp/nile-valley-vault-eso-policy.log'
    ```
 
 9. Run the apply-mode behavioural test in an ephemeral workspace when
@@ -373,7 +372,7 @@ timeout and capture logs with `tee` for any command with long output.
      VAULT_ESO_APPROLE_ROLE_ID=<role_id> \
      VAULT_ESO_APPROLE_SECRET_ID=<secret_id> \
      VAULT_ESO_VAULT_CA_BUNDLE_PEM="$$(cat /path/to/vault-ca.pem)" \
-     make vault-eso-test 2>&1 | tee /tmp/wildside-vault-eso-apply.log'
+     make vault-eso-test 2>&1 | tee /tmp/nile-valley-vault-eso-apply.log'
    ```
 
 10. Validate any GitHub Actions files touched using action lint suite. Since
@@ -382,29 +381,28 @@ timeout and capture logs with `tee` for any command with long output.
 
     ```bash
     timeout 300s bash -lc \
-      'set -o pipefail; make lint-actions 2>&1 | tee /tmp/wildside-lint-actions.log'
+      'set -o pipefail; make lint-actions 2>&1 | tee /tmp/nile-valley-lint-actions.log'
     ```
 
 11. Run documentation formatting and linting after doc changes.
 
     ```bash
     timeout 300s bash -lc \
-      'set -o pipefail; make fmt 2>&1 | tee /tmp/wildside-fmt.log'
+      'set -o pipefail; make fmt 2>&1 | tee /tmp/nile-valley-fmt.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make markdownlint 2>&1 | tee /tmp/wildside-markdownlint.log'
+      'set -o pipefail; make markdownlint 2>&1 | tee /tmp/nile-valley-markdownlint.log'
     ```
 
 12. Run the required repository-wide gates before completion.
 
     ```bash
     timeout 300s bash -lc \
-      'set -o pipefail; make check-fmt 2>&1 | tee /tmp/wildside-check-fmt.log'
+      'set -o pipefail; make check-fmt 2>&1 | tee /tmp/nile-valley-check-fmt.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make typecheck 2>&1 | tee /tmp/wildside-typecheck.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make lint 2>&1 | tee /tmp/wildside-lint.log'
+      'set -o pipefail; make lint 2>&1 | tee /tmp/nile-valley-lint.log'
     timeout 300s bash -lc \
-      'set -o pipefail; make test 2>&1 | tee /tmp/wildside-test.log'
+      'set -o pipefail; make test 2>&1 | tee /tmp/nile-valley-test.log'
     ```
 
 ## Validation and Acceptance
@@ -436,7 +434,6 @@ The work is complete when all of the following are true:
   `docs/contents.md`.
 - The Vault + ESO module entry in `docs/ephemeral-previews-roadmap.md` is marked
   done.
-- `make check-fmt`, `make typecheck`, `make lint`, and `make test` succeed.
 
 ## Idempotence and Recovery
 
@@ -526,7 +523,7 @@ The module integrates with:
 3. **cert_manager module** — optional integration where cert-manager can issue
    certificates via Vault PKI through the ClusterIssuer, while ESO handles
    secret synchronization.
-4. **wildside-infra-k8s action** — consumes the `rendered_manifests` output and
+4. **nile-valley-infra-k8s action** — consumes the `rendered_manifests` output and
    commits to the GitOps repository.
 
 ## GitHub Actions Validation (if applicable)

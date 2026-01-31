@@ -13,18 +13,6 @@ updates:
       time: "02:00"
       timezone: "Etc/UTC"
 
-  # Enable version updates for Cargo
-  - package-ecosystem: "cargo"
-    directory: "/backend"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "cargo"
-    schedule:
-      interval: "daily"
-      time: "02:00"
-      timezone: "Etc/UTC"
-
   # Enable version updates for npm at the repository root
   - package-ecosystem: "npm"
     directory: "/"
@@ -45,69 +33,9 @@ updates:
           - "minor"
           - "patch"
 
-  # Enable version updates for npm in the frontend PWA
-  - package-ecosystem: "npm"
-    directory: "/frontend-pwa"
-    open-pull-requests-limit: 2
-    labels:
-      - "dependencies"
-      - "npm"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "02:20"
-      timezone: "Etc/UTC"
-    groups:
-      npm-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
-  # Enable version updates for npm in the tokens package
-  - package-ecosystem: "npm"
-    directory: "/packages/tokens"
-    open-pull-requests-limit: 2
-    labels:
-      - "dependencies"
-      - "npm"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "02:30"
-      timezone: "Etc/UTC"
-    groups:
-      npm-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
-  # Enable version updates for npm in the types package
-  - package-ecosystem: "npm"
-    directory: "/packages/types"
-    open-pull-requests-limit: 2
-    labels:
-      - "dependencies"
-      - "npm"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "02:40"
-      timezone: "Etc/UTC"
-    groups:
-      npm-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
   # Enable version updates for Helm charts
   - package-ecosystem: "helm"
-    directory: "/deploy/charts/wildside"
+    directory: "/deploy/charts/example-app"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"

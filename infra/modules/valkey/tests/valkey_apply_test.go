@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/require"
-	testutil "wildside/infra/testutil"
+	testutil "nile-valley/infra/testutil"
 )
 
 const (
