@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euxo pipefail
           url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64"
-          checksum_url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64.sha256"
+          checksum_url="https://api.github.com/repos/mpalmer/action-validator/releases/tags/v0.8.0"
           local_bin="$HOME/.local/bin"
           binary_name="action-validator_linux_amd64"
           tmpdir="$(mktemp -d)"
@@ -50,7 +50,30 @@ jobs:
           mkdir -p "$local_bin"
           curl -fsSL "$url" -o "$binary_path"
           curl -fsSL "$checksum_url" -o "$checksum_file"
-          checksum_value="$(awk '{print $1}' "$checksum_file")"
+          checksum_value="$(
+            CHECKSUM_FILE="$checksum_file" BINARY_NAME="$binary_name" \
+            sed 's/^          //' <<'PY' | python
+          import json
+          import os
+
+          checksum_file = os.environ["CHECKSUM_FILE"]
+          asset_name = os.environ["BINARY_NAME"]
+
+          with open(checksum_file, encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          assets = payload.get("assets", [])
+          digest = next(
+              (asset.get("digest", "") for asset in assets if asset.get("name") == asset_name),
+              "",
+          )
+
+          if not digest.startswith("sha256:"):
+              raise SystemExit(f"No SHA256 digest found for {asset_name}")
+
+          print(digest.split(":", 1)[1])
+          PY
+          )"
           (cd "$tmpdir" && printf "%s  %s\n" "$checksum_value" "$binary_name" | sha256sum --check -)
           install -m 0755 "$binary_path" "$local_bin/action-validator"
           echo "$local_bin" >> "$GITHUB_PATH"
