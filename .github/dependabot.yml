@@ -12,14 +12,18 @@ updates:
       day: "sunday"
       time: "02:00"
       timezone: "Etc/UTC"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
-  # Enable version updates for npm at the repository root
-  - package-ecosystem: "npm"
+  # Enable version updates for the Bun-managed package.json at the
+  # repository root (bun.lock is the lockfile)
+  - package-ecosystem: "bun"
     directory: "/"
     open-pull-requests-limit: 2
     labels:
       - "dependencies"
-      - "npm"
+      - "bun"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -32,6 +36,9 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   # Enable version updates for Helm charts
   - package-ecosystem: "helm"
@@ -45,3 +52,32 @@ updates:
       day: "sunday"
       time: "03:00"
       timezone: "Etc/UTC"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+
+  # Enable version updates for Go modules under infra
+  - package-ecosystem: "gomod"
+    directories:
+      - "/infra/testutil"
+      - "/infra/clusters/nile-valley-infra-k8s/tests"
+      - "/infra/clusters/dev/tests"
+      - "/infra/modules/cert_manager/tests"
+      - "/infra/modules/cnpg/tests"
+      - "/infra/modules/doks/tests"
+      - "/infra/modules/external_dns/tests"
+      - "/infra/modules/fluxcd/tests"
+      - "/infra/modules/platform_render/tests"
+      - "/infra/modules/traefik/tests"
+      - "/infra/modules/valkey/tests"
+      - "/infra/modules/vault_appliance/tests"
+      - "/infra/modules/vault_eso/tests"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
