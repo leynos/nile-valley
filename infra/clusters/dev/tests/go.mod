@@ -6,7 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/gruntwork-io/terratest v0.46.5
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.11.1
 	nile-valley/infra/testutil v0.0.0
 )
 
