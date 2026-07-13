@@ -24,7 +24,7 @@ jobs:
             **/uv.lock
 
       - name: Install Nixie
-        run: uv tool install --from git+https://github.com/leynos/nixie nixie
+        run: uv tool install nixie-cli==1.0.0
 
       - name: Setup Helm
         # v4.3.1
