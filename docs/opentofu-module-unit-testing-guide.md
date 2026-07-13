@@ -44,7 +44,7 @@ coverage with an efficient feedback loop.8
 
 Static analysis is the first and most fundamental layer of testing, performed
 on the code itself without executing it or deploying any infrastructure.9 This
-layer acts as a rapid, low-cost first line of defense, catching a wide range of
+layer acts as a rapid, low-cost first line of defence, catching a wide range of
 issues before they enter the main development branch or a CI/CD pipeline.
 
 - **Formatting and Syntax Validation**: The most basic checks ensure that the
@@ -633,7 +633,7 @@ run "validate_multiple_buckets_creation" {
 ```
 
 This test suite effectively validates the module's iterative and conditional
-logic against the plan, providing high confidence in its behavior without
+logic against the plan, providing high confidence in its behaviour without
 deploying any infrastructure.36
 
 ### 3.2 Validating Complex Conditional Logic
@@ -641,7 +641,7 @@ deploying any infrastructure.36
 Modules frequently employ conditional expressions
 (`condition? true_val : false_val`) to create optional resources or modify
 configurations based on input variables.39 Thoroughly testing this logic is
-essential to prevent unexpected behavior. The key strategy is to create a
+essential to prevent unexpected behaviour. The key strategy is to create a
 dedicated
 
 `run` block for each significant conditional path your module can take.
@@ -836,7 +836,7 @@ and Kubernetes configurations.16
 
 #### Philosophy and Core Concepts
 
-Terratest's philosophy is centered on writing integration and end-to-end tests
+Terratest's philosophy is centred on writing integration and end-to-end tests
 that validate real infrastructure in a real environment. The core pattern of a
 Terratest test is a sequence of actions orchestrated by Go code 48:
 
@@ -951,7 +951,7 @@ OpenTofu as a drop-in replacement for Terraform.50 By default, Terratest will
 look for a
 
 `terraform` binary in the system's `PATH`. If it's not found, it will
-automatically look for a `tofu` binary. This behavior ensures that existing
+automatically look for a `tofu` binary. This behaviour ensures that existing
 test suites can be migrated to OpenTofu with minimal to no changes. For
 explicit control, the binary can be specified in the `terraform.Options`
 struct.50
@@ -985,8 +985,8 @@ sandbox environment and then run compliance and validation tests against it.16
 However, with the advent of robust native testing in OpenTofu/Terraform and the
 widespread adoption of the more flexible Terratest framework, Kitchen-Terraform
 is now largely considered a legacy tool. The project itself has been deprecated
-in favor of the native test framework, and while it was a valuable part of the
-ecosystem's history, new projects should favor `tofu test` or Terratest for
+in favour of the native test framework, and while it was a valuable part of the
+ecosystem's history, new projects should favour `tofu test` or Terratest for
 their testing needs.54
 
 ## Part 5: Architectural Best Practices for Testable OpenTofu Modules
@@ -1376,7 +1376,7 @@ these layers:
    `tofu test` or Terratest. These tests should be plan-based, leveraging mocks
    and overrides to validate module logic, conditional paths, and input
    handling in complete isolation. Running these on every PR ensures that the
-   core behavior of every module is verified before it is merged.
+   core behaviour of every module is verified before it is merged.
 
 3. **Integration Tests in a Dedicated Environment**: After a change is merged,
    integration tests should be run in a dedicated, ephemeral test environment.
@@ -1396,7 +1396,7 @@ infrastructure changes while optimizing for developer productivity.8
 The emergence of powerful, native testing frameworks like `tofu test` and
 sophisticated third-party libraries like Terratest marks a significant
 maturation point for Infrastructure as Code. IaC is no longer just a scripting
-practice; it is a formal engineering discipline that demands the same rigor and
+practice; it is a formal engineering discipline that demands the same rigour and
 quality assurance as application development.
 
 The future of IaC testing will likely see this trend continue and accelerate.

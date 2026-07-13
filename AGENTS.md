@@ -171,7 +171,7 @@ project:
 - Write unit and behavioural tests for new functionality. Run both before and
   after making any change.
 - Use `rstest` fixtures for shared setup.
-- Replace duplicated tests with `#[rstest(...)]` parameterised cases.
+- Replace duplicated tests with `#[rstest(...)]` parameterized cases.
 - Prefer `mockall` for mocks/stubs.
 - Mock non-deterministic dependencies (e.g., environment variables and the
   system clock) using dependency injection with the `mockable` crate (traits
@@ -205,7 +205,11 @@ project:
 
 ## Markdown Guidance
 
-- Validate Markdown files using `make markdownlint`.
+- Validate Markdown files using `make markdownlint`. This target also runs the
+  pinned `typos` spelling gate for en-GB-oxendict prose.
+- Run `make spelling` to check spelling directly. Generate `typos.toml` with
+  `scripts/generate_typos_config.py`; never edit generated entries by hand.
+  Add narrow repository exceptions to `typos.local.toml` instead.
 - Run `make fmt` after any documentation changes to format all Markdown
   files and fix table markup.
 - Validate Mermaid diagrams in Markdown files by running `make nixie`.
@@ -347,7 +351,7 @@ Keep docs close to code.
   tests parallel‑safe and deterministic.
 - **Fixtures**: Use factories/builders for component props and server
   responses. Avoid ad hoc object literals in tests.
-- **Parameterised tests**: Prefer table‑driven cases via `test.each` /
+- **Parameterized tests**: Prefer table‑driven cases via `test.each` /
   `it.each`.
 - **Mocking**: Use `vi.mock` for module boundaries. Inject adapters for
   env/time/storage/fetch; do not monkey‑patch globals in product code.
@@ -391,7 +395,7 @@ Keep docs close to code.
   Avoid `refetchOnWindowFocus` unless the data truly needs it.
 - **Async**: Avoid `await` inside loops; batch with `Promise.allSettled`. Use
   `async` iterables/streams for large data.
-- **Rendering**: Enable React StrictMode in dev; memoise expensive components;
+- **Rendering**: Enable React StrictMode in dev; memoize expensive components;
   prefer derived data via selectors.
 - **Stability**: Keep JSON stable (deterministic key order) for snapshots and
   client‑side caches.
@@ -400,7 +404,7 @@ Keep docs close to code.
 
 - **CSP**: Ship a Content Security Policy where deployment allows it. For SPA
   hosting, prefer hashed scripts and forbid `eval`/`new Function`.
-- **Trusted Types**: If embedding third‑party HTML, gate through a sanitiser
+- **Trusted Types**: If embedding third‑party HTML, gate through a sanitizer
   and (where supported) Trusted Types policies.
 - **Secrets**: Never hard‑code secrets in client bundles. Use public,
   least‑privilege tokens only; treat everything as public.
@@ -439,7 +443,7 @@ Keep docs close to code.
 - **Router** (if used): Code‑split per route; prefetch data on navigation where
   it improves perceived performance. Handle not‑found/unauthorised with typed
   loaders.
-- **Table** (if used): Keep row models pure; virtualise for large sets; memoise
+- **Table** (if used): Keep row models pure; virtualize for large sets; memoize
   column defs.
 - **State**: Encapsulate server state with TanStack Query and model complex
   local state with reducers or state machines inside custom hooks.

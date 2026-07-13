@@ -19,7 +19,7 @@ infrastructure. OpenTofu, as an Infrastructure as Code (IaC) tool, reads this
 declarative configuration and takes on the responsibility of figuring out how
 to achieve that state.
 
-This approach is centered on the concept of state reconciliation. OpenTofu
+This approach is centred on the concept of state reconciliation. OpenTofu
 maintains a state file (by default, `terraform.tfstate`) that records the
 real-world resources it manages. When a configuration is applied, OpenTofu
 compares the desired state defined in the HCL files with the current state
@@ -624,7 +624,7 @@ provider's API.2 A data source is declared using a
 
 `data` block.
 
-#### Syntax and Behavior
+#### Syntax and Behaviour
 
 The syntax is `data "<PROVIDER>_<TYPE>" "<NAME>" {... }`.25
 
@@ -764,7 +764,7 @@ of the resource or module.5
 
 - **Syntax**: `count = <WHOLE_NUMBER>`
 
-- **Behavior**: It is best suited for creating multiple copies of a resource
+- **Behaviour**: It is best suited for creating multiple copies of a resource
   that are identical or vary only in ways that can be derived from a simple
   numeric index.
 
@@ -826,7 +826,7 @@ in the collection.29
 
 - **Syntax**: `for_each = <MAP_OR_SET_OF_STRINGS>`
 
-- **Behavior**: It creates a more stable association between the configuration
+- **Behaviour**: It creates a more stable association between the configuration
   and the real-world resource. Each instance is tracked by the map key or set
   value, not by a transient numeric index.
 
@@ -1004,7 +1004,7 @@ of operations for creating, updating, and destroying resources.
   dependencies is implicitly. When one resource's argument references an
   attribute of another resource (e.g., `subnet_id = aws_vpc.main.id`), OpenTofu
   automatically infers that the VPC must be created before the subnet. It
-  analyzes all such references to build the dependency graph.19
+  analyses all such references to build the dependency graph.19
 
 - **Explicit Dependencies with** `depends_on`: In some rare cases, a dependency
   exists that cannot be inferred from expression references. This typically

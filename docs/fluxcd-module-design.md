@@ -19,14 +19,14 @@ module.
   custom resources created via the Kubernetes provider.
 - **Declarative GitOps bootstrap.** The module defines a Flux `GitRepository`
   and `Kustomization` resource. This mirrors the `flux bootstrap` workflow
-  without shelling out to the Flux CLI. The resources are parameterised so the
+  without shelling out to the Flux CLI. The resources are parameterized so the
   Git URL, branch, and repository path are supplied by callers.
 - **Safe defaults.** Reconciliation runs every minute, pruning is enabled, and
   the module prevents suspended Kustomizations or absolute repository paths via
   input validation and OPA policies. Optional inputs allow callers to supply a
   Kubernetes secret for private repositories.
 - **Helm overrides as inputs.** The `helm_values` and `helm_values_files`
-  variables expose Flux chart customisation without forcing consumers to wrap
+  variables expose Flux chart customization without forcing consumers to wrap
   the module or fork the Helm release configuration.
 - **Dual authentication paths.** The parent configuration may either provide a
   kubeconfig path or allow the module to derive credentials from the DOKS API.
@@ -62,4 +62,4 @@ module.
 - Surface additional Flux configuration (notification controllers, image
   automation) as optional inputs once the GitOps tree is fully modelled.
 - Expand policy coverage to assert tighter reconciliation SLAs or enforce
-  multi-tenancy lockdown once platform requirements are finalised.
+  multi-tenancy lockdown once platform requirements are finalized.

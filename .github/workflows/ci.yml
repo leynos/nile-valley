@@ -24,7 +24,15 @@ jobs:
             **/uv.lock
 
       - name: Install Nixie
-        run: uv tool install --from git+https://github.com/leynos/nixie nixie
+        run: uv tool install nixie-cli==1.1.0
+
+      - name: Setup Rust for Merman
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # master
+        with:
+          toolchain: '1.95.0'
+
+      - name: Install Merman CLI
+        run: cargo install merman-cli --version '=0.7.0' --locked
 
       - name: Setup Helm
         # v4.3.1
@@ -89,6 +97,9 @@ jobs:
 
       - name: Add node_modules/.bin to PATH
         run: echo "${{ github.workspace }}/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Spelling
+        run: make spelling
 
       - name: Markdown lint
         run: make markdownlint

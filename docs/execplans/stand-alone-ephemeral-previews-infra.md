@@ -24,7 +24,7 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 
 - Keep the infrastructure automation functional and idempotent. The composite
   action that provisions clusters and renders GitOps manifests must still run
-  end-to-end after renaming and generalisation.
+  end-to-end after renaming and generalization.
 - Retain a single example Helm chart, but remove all Wildside application
   code and assets outside that example.
 - Maintain en-GB spelling in documentation and comments.
@@ -184,7 +184,7 @@ Stage B: Repository pruning and structural updates.
 - Update Go module paths under `infra/` to remove the `wildside/...` prefix and
   use a Nile Valley naming convention.
 
-Stage C: Rename and generalise infrastructure automation.
+Stage C: Rename and generalize infrastructure automation.
 
 - Rename `.github/actions/wildside-infra-k8s` to a Nile Valley name and update
   action metadata, inputs, outputs, and documentation references.
@@ -194,7 +194,7 @@ Stage C: Rename and generalise infrastructure automation.
   domains so they become generic placeholders or required inputs.
 - Update OpenTofu modules and defaults that embed Wildside names (e.g.
   `infra/modules/platform_render/variables.tf`, `infra/modules/cnpg/*`,
-  `infra/backend-config/spaces.tfbackend`) with neutral or parameterised
+  `infra/backend-config/spaces.tfbackend`) with neutral or parameterized
   values.
 - Update infra tests to match new naming and module paths. Ensure Go test
   imports and module replacements are aligned with the updated module paths.
@@ -227,13 +227,13 @@ Stage E: Validation and audit.
 
 ## Concrete Steps
 
-1. Inventory Wildside references and categorise them.
+1. Inventory Wildside references and categorize them.
 
    - Run:
      rg -n "wildside" . | tee \
        /tmp/inventory-nile-valley-$(git branch --show).out
 
-   - Summarise the output into a short, categorised list in this ExecPlan
+   - Summarize the output into a short, categorized list in this ExecPlan
      (append under `Surprises & Discoveries` or a new sub-section).
 
 2. Decide and document the repository boundary.
@@ -249,7 +249,7 @@ Stage E: Validation and audit.
    - Commit the change after `make lint`, `make check-fmt`, and `make test`
      pass.
 
-4. Rename and generalise infra automation.
+4. Rename and generalize infra automation.
 
    - Rename `.github/actions/wildside-infra-k8s` directory and update action
      metadata to match new naming.

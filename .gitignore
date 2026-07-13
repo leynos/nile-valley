@@ -50,6 +50,9 @@ bun.lockb
 **/__pycache__/
 *.py[cod]
 .uv-cache/
+.uv-tools/
+.typos-oxendict-base.json
+.typos-oxendict-base.toml
 spec/*.tmp.*
 
 # Environment

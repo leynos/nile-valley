@@ -199,7 +199,7 @@ CPU-intensive task like code compilation is substantially slower than native
 execution.[^6] While functionally correct, a QEMU-based multi-architecture
 build can take dramatically longer than a native build. This performance
 bottleneck is a primary driver for the emergence of specialized build
-acceleration services, which will be analyzed in Part III of this report.
+acceleration services, which will be analysed in Part III of this report.
 
 The following workflow demonstrates a complete, multi-architecture build
 pipeline, incorporating all the necessary setup steps:
@@ -617,7 +617,7 @@ syntax of the CI provider).[^15]
 - **Best Practice 2: Minimize Platform-Specific Actions:** A pipeline that
   heavily relies on a rich ecosystem of third-party, platform-specific actions
   becomes difficult to migrate. Each action represents a dependency that must
-  be replaced. A vendor-agnostic approach favors using native command-line
+  be replaced. A vendor-agnostic approach favours using native command-line
   tools (`docker`, `kubectl`, `sed`) within scripts over platform-specific
   abstractions, unless an action provides irreplaceable value (e.g.,
   `actions/checkout` for efficiently fetching source code).[^15]

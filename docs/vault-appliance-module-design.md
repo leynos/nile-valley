@@ -29,13 +29,13 @@ material required to bootstrap Vault in a deterministic, GitOps-friendly way.
   certificate are generated with the TLS provider. The server keypair is
   uploaded to DigitalOcean as a custom certificate and exposed via outputs so
   the bootstrap helper can install the same bundle on the droplets. The module
-  sanitises DNS names, trims whitespace, and validates IP Subject Alternative
+  sanitizes DNS names, trims whitespace, and validates IP Subject Alternative
   Names by round-tripping them through `cidrhost`, ensuring malformed IPv4 or
   IPv6 literals never reach the certificate request. The CA certificate is
   returned for callers to trust the load balancer endpoint.
 - **Recovery material baked in.** Recovery keys are modelled as
   `random_password` resources. Callers can tune share count, threshold, and key
-  length, and the generated shares include special characters to maximise
+  length, and the generated shares include special characters to maximize
   entropy. This enables the bootstrap workflow to unseal Vault without manual
   intervention. The keys are emitted as sensitive outputs to encourage storage
   in a secure backend.
@@ -151,7 +151,7 @@ flowchart TD
 - Extend the module to template droplet user data for automatic volume mounts
   and Vault configuration scaffolding.
 - Publish metrics (load balancer health, droplet monitoring) to a central
-  observability stack once platform monitoring is formalised.
+  observability stack once platform monitoring is formalized.
 - Support BYO certificate chains for teams that integrate Vault with an
   external PKI, while retaining the default self-signed path for rapid
   bootstrap.

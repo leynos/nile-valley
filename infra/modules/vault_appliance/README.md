@@ -68,7 +68,7 @@ retain the standard `terraform` block syntax.
    }
    ```
 
-   The placeholder `OWNER` must be set to the GitHub organisation or account
+   The placeholder `OWNER` must be set to the GitHub organization or account
    name. Pin `ref=<TAG_OR_SHA>` to a released tag or commit for reproducibility.
 
 3. Initialize, plan, and apply the workspace:

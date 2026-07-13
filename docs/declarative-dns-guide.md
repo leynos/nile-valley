@@ -38,7 +38,7 @@ auditable, and collaborative.[^2]
 
 This automated DNS architecture is composed of five distinct but synergistic
 components. The power of the system derives not from any single tool, but from
-their carefully orchestrated interplay, where each component fulfills a
+their carefully orchestrated interplay, where each component fulfils a
 specific, well-defined role.
 
 - **Kubernetes:** At the core of the ecosystem, Kubernetes serves as the
@@ -722,7 +722,7 @@ SPF), are always present and correctly configured.[^11]
 
 The combination of OpenTofu and ExternalDNS creates a powerful, two-tiered
 management system that aligns with the different operational cadences and
-responsibilities within a modern engineering organisation.
+responsibilities within a modern engineering organization.
 
 - **OpenTofu’s Responsibility (The Platform Layer):** OpenTofu is used by the
   Platform or Infrastructure team to manage the core, stable infrastructure.
@@ -744,13 +744,13 @@ responsibilities within a modern engineering organisation.
 - Changes at this layer are frequent, automated, and self-service, enabling
   high development velocity.
 
-This clear demarcation prevents tooling conflicts and organisational
+This clear demarcation prevents tooling conflicts and organizational
 bottlenecks. The platform team provides a stable foundation (the zone) and a
 safe, automated tool (ExternalDNS, constrained by `domainFilters` and
 `txtOwnerId`). Application teams can then operate with autonomy within these
 established guardrails, managing their own DNS needs as part of their standard
 development workflow. This model is not just a technical architecture; it is an
-effective organisational pattern that balances central control with delegated
+effective organizational pattern that balances central control with delegated
 authority, optimizing for both stability and agility.
 
 ## Part 6: Operational Excellence and Advanced Strategies

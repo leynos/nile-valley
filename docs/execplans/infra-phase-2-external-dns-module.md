@@ -111,7 +111,7 @@ All inputs must include:
 
 Structure:
 
-1. **Locals block**: Normalise inputs with `trimspace()`, construct Helm values
+1. **Locals block**: Normalize inputs with `trimspace()`, construct Helm values
 2. **Mode flags**: `local.is_apply_mode`, `local.is_render_mode`
 3. **Common labels**: `app.kubernetes.io/managed-by = "opentofu"`
 4. **Default Helm values map**: Provider config, domain filters, policy, sources

@@ -78,6 +78,6 @@ tofu output kustomization_name
 
 The [Flux documentation](https://fluxcd.io/docs/) outlines options such as
 multi-tenancy lockdown and image automation. Supply chart overrides using the
-`helm_values` and `helm_values_files` inputs when additional customisation is
+`helm_values` and `helm_values_files` inputs when additional customization is
 required. Values files are read with `file(...)`, so relative paths should be
 anchored with `path.module`.
