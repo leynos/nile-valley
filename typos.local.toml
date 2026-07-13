@@ -1,0 +1,23 @@
+# Repository-specific identifiers, quotations and deliberate fixtures.
+
+schema = 1
+
+[oxford]
+stems = []
+
+[words]
+# Official names and acronyms: HashiCorp, Azure Kubernetes Service and
+# Azure Architecture Center.
+accepted = ["AKS", "Hashi"]
+
+[words.corrections]
+
+[patterns]
+# Preserve the complete formal name and the OpenTofu command-line option.
+ignore = [
+  "Azure Architecture\\s+Center\\s+\\|\\s+Microsoft Learn",
+  "-no-color",
+]
+
+[files]
+exclude = []

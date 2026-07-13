@@ -63,7 +63,7 @@ output "kubeconfig" {
 > <https://docs.digitalocean.com/products/kubernetes/details/supported-releases/>.
 >
 > Caution: Sensitive outputs persist in state. Store state in an encrypted,
-> access‑controlled backend and restrict state access to authorised
+> access‑controlled backend and restrict state access to authorized
 > principals. Rotate the DigitalOcean token and cluster credentials if state
 > exposure is suspected.
 

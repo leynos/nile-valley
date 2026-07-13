@@ -288,7 +288,7 @@ This configuration creates three distinct pools:
 - **Core Services:** A fixed-size, 3-node pool for high availability of
   essential platform services. It is "tainted" to ensure only pods with a
   corresponding "toleration" (like the ingress controller) can run here,
-  protecting them from noisy application neighbors.
+  protecting them from noisy application neighbours.
 
 - **Application:** An auto-scaling pool for the primary `production` and
   `staging` instances of the example application.
@@ -783,7 +783,7 @@ ExternalDNS, it references the
 `cloudflare-api-token` secret for authentication. This single secret, managed
 securely, provides credentials for both DNS and TLS automation.
 
-### Centralised, secure credentials with External Secrets Operator (ESO) and Vault
+### Centralized, secure credentials with External Secrets Operator (ESO) and Vault
 
 Storing sensitive credentials like the Cloudflare API token directly in a Git
 repository, even a private one, poses a significant security risk. DigitalOcean
@@ -991,7 +991,7 @@ spec:
 This manifest defines a 3-node HA PostgreSQL cluster. The `imageName` is
 explicitly set to a version that includes PostGIS[^23]. The
 `postInitTemplateSQL` block is a powerful feature that runs the specified SQL
-commands after the cluster is initialised, automatically creating the necessary
+commands after the cluster is initialized, automatically creating the necessary
 PostGIS extensions in the `template1` database so they are available to all
 databases created in the cluster.
 
@@ -1867,7 +1867,7 @@ The diagram depicts the following high-level steps:
 
 This report has detailed a robust, secure, and highly automated architecture
 for deploying on-demand ephemeral preview environments. By leveraging a modern,
-cloud-native toolchain centered around GitOps principles, the proposed system
+cloud-native toolchain centred around GitOps principles, the proposed system
 directly addresses the requirements for an example application, establishing a
 state-of-the-art development lifecycle.
 

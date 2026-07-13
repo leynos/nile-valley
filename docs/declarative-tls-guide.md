@@ -475,7 +475,7 @@ resources:
 Cert-manager's core distribution does not include a DNS-01 solver for
 Namecheap. To integrate with Namecheap, a third-party webhook solver is
 required. This webhook is an external service that cert-manager calls to
-fulfill the DNS-01 challenge by creating and deleting the necessary TXT records
+fulfil the DNS-01 challenge by creating and deleting the necessary TXT records
 via the Namecheap API.[^16]
 
 A critical security assessment of the available community-provided webhooks is

@@ -28,18 +28,23 @@ endef
 
 BIOME_VERSION ?= 2.3.1
 MARKDOWNLINT_CLI2_VERSION ?= 0.14.0
+RUFF_VERSION ?= 0.15.12
+TYPOS_VERSION ?= 1.48.0
+UV ?= uv
+UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 
 GO_CACHE_ROOT ?= $(HOME)/.cache/go
 GO_TEST_ENV := GOPATH=$(GO_CACHE_ROOT) GOMODCACHE=$(GO_CACHE_ROOT)/pkg/mod GOCACHE=$(GO_CACHE_ROOT)/build
 
 # Place one consolidated PHONY declaration near the top of the file
 .PHONY: all clean fmt lint test deps \
-        check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie yamllint \
+        check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie spelling \
+        spelling-helper-test yamllint \
         lint-makefile lint-actions lint-infra conftest tofu doks-test doks-policy fluxcd-test fluxcd-policy \
         vault-appliance-test vault-appliance-policy dev-cluster-test cluster-provision-test scripts-test traefik-test traefik-policy traefik-e2e \
         external-dns-test external-dns-policy vault-eso-test vault-eso-policy cnpg-test cnpg-policy valkey-test valkey-policy platform-render-test
 
-all: check-fmt lint test
+all: check-fmt lint test spelling
 
 clean:
 	rm -rf node_modules .uv-cache
@@ -143,8 +148,40 @@ $(INFRA_TEST_TARGETS): check-test-deps
 check-test-deps:
 	./scripts/check_test_dependencies.py
 
-markdownlint:
+markdownlint: spelling
 	$(call exec_or_bunx,markdownlint-cli2,'**/*.md',markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION))
+
+spelling: spelling-helper-test
+	@$(UV_ENV) $(UV) run scripts/generate_typos_config.py
+	@git ls-files --error-unmatch typos.toml >/dev/null
+	@git diff --exit-code -- typos.toml
+	@git ls-files -z '*.md' | \
+		xargs -0 -r env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION) \
+		--config typos.toml --force-exclude
+
+spelling-helper-test:
+	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) format --isolated \
+		--target-version py313 --check scripts/generate_typos_config.py \
+		scripts/typos_rollout.py scripts/typos_rollout_cache.py \
+		scripts/typos_rollout_http.py scripts/tests/test_typos_rollout.py \
+		scripts/tests/test_typos_rollout_hardening.py \
+		scripts/tests/test_typos_rollout_refresh.py \
+		scripts/tests/conftest.py \
+		scripts/tests/typos_rollout_test_support.py
+	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) check --isolated \
+		--target-version py313 scripts/generate_typos_config.py \
+		scripts/typos_rollout.py scripts/typos_rollout_cache.py \
+		scripts/typos_rollout_http.py scripts/tests/test_typos_rollout.py \
+		scripts/tests/test_typos_rollout_hardening.py \
+		scripts/tests/test_typos_rollout_refresh.py \
+		scripts/tests/conftest.py \
+		scripts/tests/typos_rollout_test_support.py
+	@PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project --python 3.13 \
+		--with pytest==9.0.2 --with pytest-cov==7.0.0 \
+		python -m pytest scripts/tests/test_typos_rollout*.py \
+		-c /dev/null --rootdir=. -p no:cacheprovider \
+		--cov=generate_typos_config --cov=typos_rollout \
+		--cov=typos_rollout_cache --cov=typos_rollout_http --cov-fail-under=90
 
 nixie:
 	bun install

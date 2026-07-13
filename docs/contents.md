@@ -63,6 +63,8 @@
 
 ## Developer guidelines and tooling
 
+- [Developers' guide](developers-guide.md) – repository-wide development and
+  validation practices. *Audience: all contributors.*
 - [Documentation style guide](documentation-style-guide.md) – conventions for
   clear, consistent docs. *Audience: all contributors.*
 - [Scripting standards](scripting-standards.md) – Python-first automation

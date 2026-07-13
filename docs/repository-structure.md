@@ -1,7 +1,7 @@
 # Repository design guide
 
 This guide describes how the Nile Valley infrastructure repository is
-organised and how the automation flows between directories. The intent is to
+organized and how the automation flows between directories. The intent is to
 help new contributors find the right place to make changes.
 
 ## Top-level layout
@@ -9,7 +9,7 @@ help new contributors find the right place to make changes.
 - `.github/actions/`
   - `nile-valley-infra-k8s/`: Composite action that provisions a cluster and
     renders GitOps manifests.
-  - `bootstrap-vault-appliance/`: Composite action that initialises the Vault
+  - `bootstrap-vault-appliance/`: Composite action that initializes the Vault
     appliance for secrets management.
 - `infra/`
   - `clusters/`: OpenTofu roots for concrete clusters (e.g. `dev/`,
