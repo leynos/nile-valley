@@ -4,7 +4,7 @@ This document outlines the roadmap for building the cloud-native infrastructure
 required to support ephemeral preview environments for the Nile Valley project.
 The plan is divided into distinct phases, each with a set of measurable tasks.
 
-## Phase 1: Application delivery and GitOps strategy (To do)
+## 1. Application delivery and GitOps strategy (To do)
 
 This phase covers the design and setup of the repositories that will manage the
 application and infrastructure deployments via GitOps.
@@ -14,12 +14,12 @@ application and infrastructure deployments via GitOps.
   - [x] **Decision**: Combine Helm for templating with Kustomize for
     environment-specific configuration.
 
-## Phase 2: Foundational infrastructure (To do)
+## 2. Foundational infrastructure (To do)
 
 This phase focuses on provisioning the core infrastructure using the OpenTofu
 modules defined in the nile-valley-infra repository.
 
-### 2.1: DigitalOcean Kubernetes cluster
+### 2.1. DigitalOcean Kubernetes cluster
 
 - [x] **Create a `doks` OpenTofu module**: This module will be responsible for
   provisioning the Kubernetes cluster.
@@ -38,7 +38,7 @@ modules defined in the nile-valley-infra repository.
 - [ ] **Initialize and apply**: Run `tofu init` and `tofu apply` to create the
   cluster.
 
-### 2.2: GitOps control plane
+### 2.2. GitOps control plane
 
 - [x] **Create a `fluxcd` OpenTofu module**: This module will install FluxCD on
   the Kubernetes cluster.
@@ -51,7 +51,7 @@ modules defined in the nile-valley-infra repository.
 
 - [ ] **Apply the changes**: Run `tofu apply` to install FluxCD.
 
-### 2.3: Core cluster services
+### 2.3. Core cluster services
 
 These tasks deliver the shared fixtures that `nile-valley-infra-k8s` converges on
 each time it runs. The action consumes OpenTofu modules from the `infra`
@@ -99,7 +99,7 @@ repository and commits Flux-ready manifests into `nile-valley-infra`.
   Vault. Rerunning the action must reconcile the repository state without
   manual `tofu apply` steps.
 
-### 2.4: Vault appliance bootstrap
+### 2.4. Vault appliance bootstrap
 
 - [x] **Author an OpenTofu `vault_appliance` module**: Provision a dedicated
   DigitalOcean Droplet (or HA pair) with firewall rules, block storage, and
@@ -119,13 +119,13 @@ repository and commits Flux-ready manifests into `nile-valley-infra`.
   identifiers, Vault seal key secrets, and DigitalOcean credentials, and must
   be idempotent so re-runs verify rather than recreate the appliance.
 
-## Phase 3: CI/CD workflow (In progress)
+## 3. CI/CD workflow (In progress)
 
 This phase focuses on automating the lifecycle of the ephemeral preview
 environments by updating the nile-valley-apps repository, which is then actioned
 by FluxCD.
 
-### 3.1: Reusable idempotent actions
+### 3.1. Reusable idempotent actions
 
 These actions converge repository state idempotently, committing changes to
 their respective GitOps repositories while sourcing secrets from a shared
@@ -166,7 +166,7 @@ HashiCorp Vault instance.
   - [ ] Fetch application secrets from HashiCorp Vault and reference them in
     the rendered manifests.
 
-### 3.2: Ephemeral environment automation (GitHub Actions)
+### 3.2. Ephemeral environment automation (GitHub Actions)
 
 - [ ] **Develop an `ephemeral-environment` reusable workflow**: This workflow
   will be triggered by pull requests in the application repository.
@@ -217,7 +217,7 @@ HashiCorp Vault instance.
   - [ ] It will commit and push the removal, triggering FluxCD to decommission
     the environment's resources.
 
-### 3.3: Monitoring and observability
+### 3.3. Monitoring and observability
 
 - [ ] **Deploy Prometheus and Grafana**: Set up a monitoring stack to scrape
   metrics from all key cluster components.
@@ -227,7 +227,7 @@ HashiCorp Vault instance.
 
 - [ ] **Configure Alertmanager**: Set up alerts for critical events.
 
-## Phase 4: Future scalability (Not started)
+## 4. Future scalability (Not started)
 
 This phase includes long-term goals for enhancing the platform's capabilities.
 
