@@ -1,5 +1,8 @@
 # nile-valley
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](
+https://deepwiki.com/leynos/nile-valley)
+
 Nile Valley is the shared infrastructure for ephemeral preview environments. It
 provisions Kubernetes clusters, renders platform fixtures, and commits GitOps
 manifests so FluxCD can reconcile multiple applications that supply a Helm
