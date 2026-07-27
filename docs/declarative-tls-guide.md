@@ -25,12 +25,12 @@ and untrusted by clients until a valid TLS certificate is in place.
 This report details a comprehensive, production-grade architecture for
 achieving "TLS-as-Code." By integrating cert-manager, the de-facto standard for
 certificate automation in Kubernetes, into the existing GitOps ecosystem, we
-can complete the application exposure pipeline.[^2] The architectural vision
-is to enable a seamless, end-to-end workflow where a single `git push` of a
+can complete the application exposure pipeline.[^2] The architectural vision is
+to enable a seamless, end-to-end workflow where a single `git push` of a
 standard Kubernetes Ingress manifest triggers a chain of automated events:
 FluxCD applies the manifest, ExternalDNS creates the necessary public DNS
-record, and cert-manager provisions a valid, trusted TLS certificate from
-Let's Encrypt. The result is a fully secure, publicly accessible application
+record, and cert-manager provisions a valid, trusted TLS certificate from Let's
+Encrypt. The result is a fully secure, publicly accessible application
 endpoint, brought online in minutes with zero manual intervention.
 
 This solution leverages a synergistic stack of components, each with a
@@ -377,8 +377,8 @@ the chart's defaults. For a production deployment, it is crucial to configure
 for high availability by increasing the replica counts for the controller and
 webhook components.[^15]
 
-`HelmRelease`**for cert-manager
-(**`infrastructure/controllers/cert-manager.yaml`**):**
+`HelmRelease`**for cert-manager (**
+`infrastructure/controllers/cert-manager.yaml`**):**
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -474,9 +474,9 @@ resources:
 
 Cert-manager's core distribution does not include a DNS-01 solver for
 Namecheap. To integrate with Namecheap, a third-party webhook solver is
-required. This webhook is an external service that cert-manager calls to
-fulfil the DNS-01 challenge by creating and deleting the necessary TXT records
-via the Namecheap API.[^16]
+required. This webhook is an external service that cert-manager calls to fulfil
+the DNS-01 challenge by creating and deleting the necessary TXT records via the
+Namecheap API.[^16]
 
 A critical security assessment of the available community-provided webhooks is
 necessary. The options available on public repositories like ArtifactHub and
@@ -504,8 +504,8 @@ This process mitigates the risk of running potentially compromised or outdated
 code in the cluster. The following `HelmRelease` example assumes such a private
 chart has been created.
 
-`HelmRelease`**for Namecheap Webhook
-(**`infrastructure/controllers/namecheap-webhook.yaml`**):**
+`HelmRelease`**for Namecheap Webhook (**
+`infrastructure/controllers/namecheap-webhook.yaml`**):**
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -554,8 +554,8 @@ application developers only need to reference the name of the `ClusterIssuer`
 without needing to know any of the underlying details about DNS providers, API
 keys, or challenge mechanisms.
 
-**Staging **`ClusterIssuer`**
-(**`infrastructure/issuers/staging-issuer.yaml`**):**
+**Staging **`ClusterIssuer`** (**`infrastructure/issuers/staging-issuer.yaml`
+**):**
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -585,8 +585,8 @@ spec:
 
 ```
 
-**Production **`ClusterIssuer`**
-(**`infrastructure/issuers/production-issuer.yaml`**):**
+**Production **`ClusterIssuer`** (**
+`infrastructure/issuers/production-issuer.yaml`**):**
 
 ```yaml
 apiVersion: cert-manager.io/v1

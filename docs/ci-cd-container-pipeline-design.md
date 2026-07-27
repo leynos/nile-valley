@@ -17,8 +17,8 @@ strategies.
 
 The GitHub Container Registry (GHCR) offers significant advantages by
 co-locating container images with the source code, enabling fine-grained,
-repository-level permissions, and integrating seamlessly with the broader
-GitHub ecosystem.[^1] Secure and efficient authentication is the first step in
+repository-level permissions, and integrating seamlessly with the broader GitHub
+ecosystem.[^1] Secure and efficient authentication is the first step in
 leveraging this registry.
 
 The most secure and recommended method for authenticating to GHCR within a
@@ -40,10 +40,10 @@ allow the `actions/checkout` step to access the repository's source code.[^1]
 Neglecting to configure these permissions can lead to failed jobs and
 represents a common oversight in basic pipeline configurations.
 
-The implementation of this authentication process is streamlined by the
-official `docker/login-action`. This action handles the necessary Docker login
-command, using the `GITHUB_TOKEN` for the password and the `github.actor`
-context variable (the user or app that initiated the workflow) for the username.
+The implementation of this authentication process is streamlined by the official
+`docker/login-action`. This action handles the necessary Docker login command,
+using the `GITHUB_TOKEN` for the password and the `github.actor` context
+variable (the user or app that initiated the workflow) for the username.
 
 The following YAML snippet demonstrates a secure login step within a GitHub
 Actions job:
@@ -514,8 +514,8 @@ with high single‑core performance, directly addressing the compute limitations
 of standard runners.[^11]
 
 The integration model for Blacksmith is that of a "drop-in" runner replacement.
-A user migrates by simply changing the `runs-on` key in their workflow YAML
-from `ubuntu-latest` to a Blacksmith-provided label.[^11] This approach is
+A user migrates by simply changing the `runs-on` key in their workflow YAML from
+`ubuntu-latest` to a Blacksmith-provided label.[^11] This approach is
 horizontal; it accelerates every step within the job—checkout, setup, testing,
 and building—by providing a more powerful underlying machine.
 

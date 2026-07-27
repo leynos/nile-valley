@@ -181,8 +181,8 @@ project:
 ### Dependency Management (Rust)
 
 - **Mandate caret requirements for all dependencies.** All crate versions
-  specified in `Cargo.toml` must use SemVer-compatible caret requirements
-  (e.g., `some-crate = "1.2.3"`). This is Cargo's default and allows for safe,
+  specified in `Cargo.toml` must use SemVer-compatible caret requirements (e.g.,
+  `some-crate = "1.2.3"`). This is Cargo's default and allows for safe,
   non-breaking updates to minor and patch versions while preventing breaking
   changes from new major versions. This approach is critical for ensuring build
   stability and reproducibility.
@@ -208,8 +208,8 @@ project:
 - Validate Markdown files using `make markdownlint`. This target also runs the
   pinned `typos` spelling gate for en-GB-oxendict prose.
 - Run `make spelling` to check spelling directly. Generate `typos.toml` with
-  `scripts/generate_typos_config.py`; never edit generated entries by hand.
-  Add narrow repository exceptions to `typos.local.toml` instead.
+  `scripts/generate_typos_config.py`; never edit generated entries by hand. Add
+  narrow repository exceptions to `typos.local.toml` instead.
 - Run `make fmt` after any documentation changes to format all Markdown
   files and fix table markup.
 - Validate Mermaid diagrams in Markdown files by running `make nixie`.

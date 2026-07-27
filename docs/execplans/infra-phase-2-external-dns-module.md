@@ -15,14 +15,14 @@ Deliver a reusable OpenTofu module under `infra/modules/external_dns/` that:
 
 ## Implementation Status
 
-| Requirement                               | Status       | Details                                                   |
-| ----------------------------------------- | ------------ | --------------------------------------------------------- |
-| Multi-zone providers                      | ✅ Complete  | Cloudflare with multiple zones via `domain_filters`       |
-| Accept DNS zone mappings                  | ✅ Complete  | `zone_id_filter` variable maps domains to zone IDs        |
-| Emit managed zone IDs                     | ✅ Complete  | `zone_id_filter` and `managed_zones` outputs              |
-| Dual modes                                | ✅ Complete  | `apply` and `render` modes implemented                    |
-| Terratest coverage                        | ✅ Complete  | Zone ID validation, output, and Helm values tests         |
-| Open Policy Agent (OPA)/Conftest policies | ✅ Complete  | Plan policy warns on zone-id-filter without domainFilters |
+| Requirement                               | Status      | Details                                                   |
+| ----------------------------------------- | ----------- | --------------------------------------------------------- |
+| Multi-zone providers                      | ✅ Complete | Cloudflare with multiple zones via `domain_filters`       |
+| Accept DNS zone mappings                  | ✅ Complete | `zone_id_filter` variable maps domains to zone IDs        |
+| Emit managed zone IDs                     | ✅ Complete | `zone_id_filter` and `managed_zones` outputs              |
+| Dual modes                                | ✅ Complete | `apply` and `render` modes implemented                    |
+| Terratest coverage                        | ✅ Complete | Zone ID validation, output, and Helm values tests         |
+| Open Policy Agent (OPA)/Conftest policies | ✅ Complete | Plan policy warns on zone-id-filter without domainFilters |
 
 ## File Structure
 
@@ -361,12 +361,11 @@ Modified files:
    (`vault_appliance`).
 
 2. **Provider**: Focus on Cloudflare as primary provider per project
-   requirements.
-   The module structure supports future extension to other providers.
+   requirements. The module structure supports future extension to other
+   providers.
 
 3. **Mode switching**: Follow Traefik pattern with `mode = "render"` (default)
-   and
-   `mode = "apply"` for consistency.
+   and `mode = "apply"` for consistency.
 
 4. **Helm chart source**: Use official `kubernetes-sigs` chart repository for
    ExternalDNS.

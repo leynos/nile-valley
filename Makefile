@@ -50,7 +50,7 @@ clean:
 	rm -rf node_modules .uv-cache
 
 fmt:
-	$(call exec_or_bunx,biome,format --write scripts,@biomejs/biome@$(BIOME_VERSION))
+	mdformat-all
 
 lint:
 	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))

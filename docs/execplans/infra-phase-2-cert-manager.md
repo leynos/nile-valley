@@ -10,10 +10,10 @@ policy to follow.
 ## Purpose / Big Picture
 
 Deliver the Phase 2.3 cert-manager module so the `nile-valley-infra-k8s` action
-can render Flux-ready manifests into `nile-valley-infra` and converge TLS issuance
-on every run. Success is visible when the new OpenTofu module can render a
-`platform/cert-manager` tree containing the cert-manager HelmRelease and
-ClusterIssuers for ACME (Automated Certificate Management Environment) and
+can render Flux-ready manifests into `nile-valley-infra` and converge TLS
+issuance on every run. Success is visible when the new OpenTofu module can
+render a `platform/cert-manager` tree containing the cert-manager HelmRelease
+and ClusterIssuers for ACME (Automated Certificate Management Environment) and
 Vault, and when its outputs expose issuer names, secret references, and CA
 bundle material for downstream modules.
 
@@ -155,8 +155,8 @@ handling, validations, snake case, and `tofu fmt`).
 Expose outputs that downstream modules can consume: issuer names and refs for
 ACME staging and production, issuer name/ref for Vault, secret references for
 ACME account keys and Vault auth, and the CA bundle material (or its Secret
-reference). Keep outputs consistent with `traefik` so the `nile-valley-infra-k8s`
-action can wire values between modules.
+reference). Keep outputs consistent with `traefik` so the
+`nile-valley-infra-k8s` action can wire values between modules.
 
 Add examples mirroring existing modules. The apply-mode example must include
 provider configuration and `kubeconfig_path` validation. The render example
@@ -188,15 +188,15 @@ targets, include them in `INFRA_TEST_TARGETS`, and add `tflint` coverage under
 on the existing render-policy scripts.
 
 Finally, update `docs/ephemeral-previews-roadmap.md` to mark the cert-manager
-module entry as done, and run all required format, lint, and test
-commands with log capture. Document any design decisions in the design document
-and update `docs/contents.md` accordingly.
+module entry as done, and run all required format, lint, and test commands with
+log capture. Document any design decisions in the design document and update
+`docs/contents.md` accordingly.
 
 ## Concrete Steps
 
 All commands should be run from
-`/mnt/home/leynos/Projects/nile-valley.worktrees/infra-phase-2-cert-manager`. Use
-a 300-second timeout and capture logs with `tee` for any command with long
+`/mnt/home/leynos/Projects/nile-valley.worktrees/infra-phase-2-cert-manager`.
+Use a 300-second timeout and capture logs with `tee` for any command with long
 output.
 
 1. Create the module and policy scaffolding.

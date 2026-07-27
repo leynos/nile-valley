@@ -69,8 +69,8 @@ output "rendered_manifests" {
 }
 ```
 
-The `nile-valley-infra-k8s` action uses render mode to generate manifests that it
-commits to the `nile-valley-infra` repository for FluxCD to reconcile.
+The `nile-valley-infra-k8s` action uses render mode to generate manifests that
+it commits to the `nile-valley-infra` repository for FluxCD to reconcile.
 
 ### Apply mode
 

@@ -9,13 +9,14 @@ policy to follow.
 
 ## Purpose / Big Picture
 
-Deliver the Phase 2.3 CloudNativePG (CNPG) module so the `nile-valley-infra-k8s`
-action can render Flux-ready manifests into `nile-valley-infra` and converge a
-high-availability PostgreSQL cluster on every run. Success is visible when the
-new OpenTofu module can render a `platform/databases` tree containing the CNPG
-operator HelmRelease, PostgreSQL Cluster resources with PostGIS support, S3
-backup configuration, and when its outputs expose connection endpoints and sync
-policy contracts for downstream applications.
+Deliver the Phase 2.3 CloudNativePG (CNPG) module so the
+`nile-valley-infra-k8s` action can render Flux-ready manifests into
+`nile-valley-infra` and converge a high-availability PostgreSQL cluster on
+every run. Success is visible when the new OpenTofu module can render a
+`platform/databases` tree containing the CNPG operator HelmRelease, PostgreSQL
+Cluster resources with PostGIS support, S3 backup configuration, and when its
+outputs expose connection endpoints and sync policy contracts for downstream
+applications.
 
 The module deploys both the CloudNativePG operator (via Flux HelmRelease) and
 the CNPG Cluster CustomResourceDefinition (CRD) for PostgreSQL. It integrates
@@ -33,7 +34,8 @@ Operator.
 - [x] (Done) Add Terratest coverage with validation and policy tests.
 - [x] (Done) Create render-policy script and Makefile targets.
 - [ ] (Pending) Initialize Go module dependencies and run tests.
-- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make lint`, and `make test`).
+- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make lint`, and
+      `make test`).
 - [ ] (Pending) Update roadmap entry to mark CloudNativePG as done.
 
 ## Surprises & Discoveries
@@ -43,8 +45,8 @@ Operator.
 ## Decision Log
 
 - Decision: Deploy both CNPG operator AND Cluster resource in single module.
-  Rationale: Simplifies consumption for nile-valley-infra-k8s action; operator and
-  cluster are tightly coupled and always deployed together. Date/Author:
+  Rationale: Simplifies consumption for nile-valley-infra-k8s action; operator
+  and cluster are tightly coupled and always deployed together. Date/Author:
   2025-12-25 / Claude.
 
 - Decision: Use S3-compatible storage (DigitalOcean Spaces) for backups.
@@ -58,9 +60,9 @@ Operator.
   2025-12-25 / Claude.
 
 - Decision: Use PostGIS 16-3.4 image for spatial data support.
-  Rationale: Enables geospatial queries for the Nile Valley platform; PostGIS is
-  the standard PostgreSQL extension for spatial data. Date/Author: 2025-12-25 /
-  Claude.
+  Rationale: Enables geospatial queries for the Nile Valley platform; PostGIS
+  is the standard PostgreSQL extension for spatial data. Date/Author:
+  2025-12-25 / Claude.
 
 - Decision: Default to 3-instance HA cluster with PodDisruptionBudget.
   Rationale: Provides high availability with automatic failover; PDB ensures

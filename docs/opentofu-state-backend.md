@@ -69,8 +69,8 @@ from Vault using the AppRole authentication method.
 
 ## State Locking
 
-DigitalOcean Spaces does not natively support DynamoDB-style state locking.
-To prevent concurrent modifications:
+DigitalOcean Spaces does not natively support DynamoDB-style state locking. To
+prevent concurrent modifications:
 
 1. The action should run serially per cluster (enforced by GitHub Actions
    concurrency groups).

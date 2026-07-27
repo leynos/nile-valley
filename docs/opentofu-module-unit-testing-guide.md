@@ -1396,8 +1396,8 @@ infrastructure changes while optimizing for developer productivity.8
 The emergence of powerful, native testing frameworks like `tofu test` and
 sophisticated third-party libraries like Terratest marks a significant
 maturation point for Infrastructure as Code. IaC is no longer just a scripting
-practice; it is a formal engineering discipline that demands the same rigour and
-quality assurance as application development.
+practice; it is a formal engineering discipline that demands the same rigour
+and quality assurance as application development.
 
 The future of IaC testing will likely see this trend continue and accelerate.
 We can anticipate even tighter integration of testing tools within IDEs,

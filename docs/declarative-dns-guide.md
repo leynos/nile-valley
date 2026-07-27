@@ -313,8 +313,8 @@ spec:
 ```
 
 Once this file is committed and pushed, FluxCD will apply it, making the charts
-from the `kubernetes-sigs` repository available for `HelmRelease` resources.
-The `bitnami` repository is another common source for the ExternalDNS chart.[^3]
+from the `kubernetes-sigs` repository available for `HelmRelease` resources. The
+`bitnami` repository is another common source for the ExternalDNS chart.[^3]
 
 ### 3.2 Crafting the ExternalDNS HelmRelease
 

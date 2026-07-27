@@ -53,8 +53,8 @@ modules defined in the nile-valley-infra repository.
 
 ### 2.3: Core cluster services
 
-These tasks deliver the shared fixtures that `nile-valley-infra-k8s` converges on
-each time it runs. The action consumes OpenTofu modules from the `infra`
+These tasks deliver the shared fixtures that `nile-valley-infra-k8s` converges
+on each time it runs. The action consumes OpenTofu modules from the `infra`
 repository and commits Flux-ready manifests into `nile-valley-infra`.
 
 - [ ] **Publish reusable OpenTofu modules**: Deliver composable modules under
@@ -85,7 +85,8 @@ repository and commits Flux-ready manifests into `nile-valley-infra`.
     outputs in module READMEs so the `nile-valley-infra-k8s` action can thread DNS
     zones, issuers, and credential handles between modules.
 
-- [ ] **Lay out the `nile-valley-infra` GitOps tree**: Ensure the repository hosts
+- [ ] **Lay out the `nile-valley-infra` GitOps tree**: Ensure the repository
+      hosts
   `clusters/<cluster>/`, a `modules/` directory synced from `infra/modules/`,
   and a `platform` directory with subdirectories for `sources`, `traefik`,
   `cert-manager`, `external-dns`, `vault`, `databases` (CloudNativePG), and
@@ -96,8 +97,8 @@ repository and commits Flux-ready manifests into `nile-valley-infra`.
 - [ ] **Extend `nile-valley-infra-k8s` for fixtures**: Update the action so it
   applies the new modules, writes resulting manifests into the `platform/*`
   directories, commits any drift, and sources required secrets from HashiCorp
-  Vault. Rerunning the action must reconcile the repository state without
-  manual `tofu apply` steps.
+  Vault. Rerunning the action must reconcile the repository state without manual
+  `tofu apply` steps.
 
 ### 2.4: Vault appliance bootstrap
 
@@ -115,15 +116,16 @@ repository and commits Flux-ready manifests into `nile-valley-infra`.
 
 - [x] **Publish a `bootstrap-vault-appliance` GitHub Action**: Wrap the Python
   helper in a composite action that the manual DOKS workflow and the
-  `nile-valley-infra-k8s` pipeline can reuse. The action should accept environment
-  identifiers, Vault seal key secrets, and DigitalOcean credentials, and must
-  be idempotent so re-runs verify rather than recreate the appliance.
+  `nile-valley-infra-k8s` pipeline can reuse. The action should accept
+  environment identifiers, Vault seal key secrets, and DigitalOcean
+  credentials, and must be idempotent so re-runs verify rather than recreate
+  the appliance.
 
 ## Phase 3: CI/CD workflow (In progress)
 
 This phase focuses on automating the lifecycle of the ephemeral preview
-environments by updating the nile-valley-apps repository, which is then actioned
-by FluxCD.
+environments by updating the nile-valley-apps repository, which is then
+actioned by FluxCD.
 
 ### 3.1: Reusable idempotent actions
 

@@ -13,9 +13,9 @@ policy to follow.
 
 Deliver the `nile-valley-infra-k8s` GitHub Action (Phase 3.1 of the ephemeral
 previews roadmap) so that Kubernetes clusters and shared fixtures can be
-assembled from the OpenTofu modules in the Nile Valley repository and
-persisted in the `nile-valley-infra` GitOps repository for Flux Continuous
-Delivery (FluxCD) to reconcile. Success is visible when:
+assembled from the OpenTofu modules in the Nile Valley repository and persisted
+in the `nile-valley-infra` GitOps repository for Flux Continuous Delivery
+(FluxCD) to reconcile. Success is visible when:
 
 1. The action can be invoked with cluster identifiers, Vault credentials, and
    GitOps repository details.
@@ -71,52 +71,39 @@ Thresholds that trigger escalation when breached:
 ## Risks
 
 - Risk: Vault authentication may fail if AppRole credentials are not correctly
-  provisioned.
-  Severity: high
-  Likelihood: low
-  Mitigation: The `bootstrap-vault-appliance` action already provisions the
-  AppRole; reuse the same credential flow and add validation tests.
+  provisioned. Severity: high Likelihood: low Mitigation: The
+  `bootstrap-vault-appliance` action already provisions the AppRole; reuse the
+  same credential flow and add validation tests.
 
 - Risk: OpenTofu modules may produce conflicting manifest paths.
-  Severity: medium
-  Likelihood: low
-  Mitigation: Create a platform_render orchestration module that merges outputs
-  and validates path uniqueness; add Conftest policies.
+  Severity: medium Likelihood: low Mitigation: Create a platform_render
+  orchestration module that merges outputs and validates path uniqueness; add
+  Conftest policies.
 
 - Risk: GitOps commit conflicts if multiple action runs target the same branch
-  concurrently.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: Document that the action should run serially per branch; consider
-  adding a lock mechanism or retry logic in future iterations.
+  concurrently. Severity: medium Likelihood: medium Mitigation: Document that
+  the action should run serially per branch; consider adding a lock mechanism
+  or retry logic in future iterations.
 
 - Risk: End-to-end (E2E) tests require real Vault, DigitalOcean, and GitOps
-  credentials.
-  Severity: low
-  Likelihood: high
-  Mitigation: Provide mock modes for continuous integration (CI); run full E2E
-  tests only in protected environments with explicit opt-in.
+  credentials. Severity: low Likelihood: high Mitigation: Provide mock modes
+  for continuous integration (CI); run full E2E tests only in protected
+  environments with explicit opt-in.
 
 - Risk: Cluster provisioning may fail due to DigitalOcean API rate limits or
-  resource quota exhaustion.
-  Severity: high
-  Likelihood: low
-  Mitigation: Add retry logic with exponential backoff; document quota
-  requirements; surface clear error messages.
+  resource quota exhaustion. Severity: high Likelihood: low Mitigation: Add
+  retry logic with exponential backoff; document quota requirements; surface
+  clear error messages.
 
 - Risk: OpenTofu state may become corrupted or lost if the backend is
-  unavailable.
-  Severity: high
-  Likelihood: low
-  Mitigation: Use DigitalOcean Spaces with versioning enabled; implement state
-  locking to prevent concurrent modifications.
+  unavailable. Severity: high Likelihood: low Mitigation: Use DigitalOcean
+  Spaces with versioning enabled; implement state locking to prevent concurrent
+  modifications.
 
 - Risk: Accidental cluster deletion if action is misconfigured or state is
-  corrupted.
-  Severity: critical
-  Likelihood: low
-  Mitigation: Use `prevent_destroy` lifecycle rule on the cluster resource;
-  require explicit `allow_destroy` input for teardown operations.
+  corrupted. Severity: critical Likelihood: low Mitigation: Use
+  `prevent_destroy` lifecycle rule on the cluster resource; require explicit
+  `allow_destroy` input for teardown operations.
 
 ## Progress
 
@@ -149,10 +136,9 @@ Thresholds that trigger escalation when breached:
 ## Surprises & discoveries
 
 - Observation: The valkey module uses different provider versions (helm
-  ~> 3.1.1, kubernetes ~> 3.0.1) than other platform modules (~> 2.13.0 and
-  ~> 2.25.0).
-  Evidence: tofu init failed with "no available releases match the given
-  constraints" when attempting to include valkey in platform_render.
+  ~> 3.1.1, kubernetes ~> 3.0.1) than other platform modules (~> 2.13.0 and ~>
+  2.25.0). Evidence: tofu init failed with "no available releases match the
+  given constraints" when attempting to include valkey in platform_render.
   Impact: Valkey is temporarily excluded from platform_render until provider
   versions are unified across all modules. A future task should upgrade all
   modules to helm 3.x and kubernetes 3.x.
@@ -160,59 +146,51 @@ Thresholds that trigger escalation when breached:
 ## Decision log
 
 - Decision: Exclude valkey from platform_render module until provider versions
-  are unified.
-  Rationale: The valkey module requires helm ~> 3.1.1 and kubernetes ~> 3.0.1,
-  while other modules use ~> 2.13.0 and ~> 2.25.0 respectively. OpenTofu cannot
-  resolve conflicting provider versions. Upgrading all modules to 3.x would
-  require testing and potential code changes across the codebase.
-  Date/Author: 2026-01-16 / Claude.
+  are unified. Rationale: The valkey module requires helm ~> 3.1.1 and
+  kubernetes ~> 3.0.1, while other modules use ~> 2.13.0 and ~> 2.25.0
+  respectively. OpenTofu cannot resolve conflicting provider versions.
+  Upgrading all modules to 3.x would require testing and potential code changes
+  across the codebase. Date/Author: 2026-01-16 / Claude.
 
 Initial anticipated decisions below:
 
 - Decision: (Pending) Use composite action pattern with Python scripts.
   Rationale: Matches the established `bootstrap-vault-appliance` pattern;
-  enables pytest/cmd-mox testing without container builds.
-  Date/Author: Pending.
+  enables pytest/cmd-mox testing without container builds. Date/Author: Pending.
 
 - Decision: (Pending) Use DigitalOcean Spaces as the OpenTofu state backend.
   Rationale: Provides S3-compatible storage within DigitalOcean ecosystem;
   supports versioning and state locking via DynamoDB-compatible API.
   Date/Author: Pending.
 
-- Decision: (Pending) Provision clusters via the DOKS module in apply mode before
-  rendering platform fixtures.
-  Rationale: Ensures the cluster exists and is healthy before attempting to
-  configure platform services; enables retrieval of kubeconfig for subsequent
-  FluxCD bootstrap.
-  Date/Author: Pending.
+- Decision: (Pending) Provision clusters via the DOKS module in apply mode
+  before
+  rendering platform fixtures. Rationale: Ensures the cluster exists and is
+  healthy before attempting to configure platform services; enables retrieval
+  of kubeconfig for subsequent FluxCD bootstrap. Date/Author: Pending.
 
 - Decision: (Pending) Create a platform_render OpenTofu module to orchestrate
-  all platform modules in render mode.
-  Rationale: Centralizes module wiring logic; enables validation of merged
-  outputs before committing to GitOps.
+  all platform modules in render mode. Rationale: Centralizes module wiring
+  logic; enables validation of merged outputs before committing to GitOps.
   Date/Author: Pending.
 
 - Decision: (Pending) Support feature flags for enabling/disabling individual
-  platform components.
-  Rationale: Not all clusters require all services; ephemeral previews may use a
-  subset.
-  Date/Author: Pending.
+  platform components. Rationale: Not all clusters require all services;
+  ephemeral previews may use a subset. Date/Author: Pending.
 
 - Decision: (Pending) Sync infra/modules/ to nile-valley-infra/modules/ as
-  part of the commit workflow.
-  Rationale: Keeps the GitOps repository self-contained; enables FluxCD to
-  reference modules for cluster-specific overrides.
-  Date/Author: Pending.
+  part of the commit workflow. Rationale: Keeps the GitOps repository
+  self-contained; enables FluxCD to reference modules for cluster-specific
+  overrides. Date/Author: Pending.
 
 - Decision: (Pending) Use `prevent_destroy` lifecycle rule on cluster resources.
   Rationale: Prevents accidental cluster deletion; requires explicit action
-  input to enable teardown operations.
-  Date/Author: Pending.
+  input to enable teardown operations. Date/Author: Pending.
 
 - Decision: (Pending) Store kubeconfig in Vault after cluster provisioning.
   Rationale: Enables secure retrieval by subsequent actions and local
-  development; avoids exposing credentials in action outputs.
-  Date/Author: Pending.
+  development; avoids exposing credentials in action outputs. Date/Author:
+  Pending.
 
 ## Outcomes & retrospective
 
@@ -220,10 +198,10 @@ Initial anticipated decisions below:
 
 ## Context and orientation
 
-The `nile-valley-infra-k8s` action is part of Phase 3.1 of the ephemeral previews
-roadmap. It consumes the OpenTofu modules created in Phase 2.3 (traefik,
-cert-manager, external-dns, vault-eso, cnpg, valkey) and orchestrates them to
-produce a coherent set of Flux-ready manifests.
+The `nile-valley-infra-k8s` action is part of Phase 3.1 of the ephemeral
+previews roadmap. It consumes the OpenTofu modules created in Phase 2.3
+(traefik, cert-manager, external-dns, vault-eso, cnpg, valkey) and orchestrates
+them to produce a coherent set of Flux-ready manifests.
 
 Key paths and references:
 
@@ -282,8 +260,8 @@ Files to create:
 
 ### Phase 2: Cluster Provisioning Configuration
 
-Create `infra/clusters/nile-valley-infra-k8s/` as the OpenTofu root configuration
-that provisions clusters via the DOKS module:
+Create `infra/clusters/nile-valley-infra-k8s/` as the OpenTofu root
+configuration that provisions clusters via the DOKS module:
 
 1. Define the root configuration that invokes the DOKS module.
 2. Add the fluxcd module to bootstrap FluxCD on the provisioned cluster.
@@ -303,8 +281,8 @@ Files to create:
 
 ### Phase 3: Platform Render Orchestration Module
 
-Create `infra/modules/platform_render/` to wire all platform modules together in
-render mode. This module:
+Create `infra/modules/platform_render/` to wire all platform modules together
+in render mode. This module:
 
 1. Accepts cluster/environment identifiers, domain, ACME email, and feature
    flags.
@@ -498,7 +476,8 @@ Add the following targets:
 - Create `docs/nile-valley-infra-k8s-action-design.md` with design decisions.
 - Create `docs/opentofu-state-backend.md` with state management documentation.
 - Update `docs/contents.md` to include the new design documents.
-- Update `docs/ephemeral-previews-roadmap.md` to mark the `nile-valley-infra-k8s`
+- Update `docs/ephemeral-previews-roadmap.md` to mark the
+  `nile-valley-infra-k8s`
   entry as done.
 - Create `.github/actions/nile-valley-infra-k8s/README.md` with usage examples.
 
@@ -642,8 +621,8 @@ Create similar scripts for render, commit, and publish phases.
 
 ### Step 8: Create the composite action
 
-Create `.github/actions/nile-valley-infra-k8s/action.yml` following the structure
-defined in Phase 5.
+Create `.github/actions/nile-valley-infra-k8s/action.yml` following the
+structure defined in Phase 5.
 
 ### Step 9: Write structural tests
 
@@ -893,6 +872,7 @@ than deploying infrastructure.
 
 ## Revision Note
 
-- 2026-01-16: Initial draft of the nile-valley-infra-k8s action ExecPlan. Defined
+- 2026-01-16: Initial draft of the nile-valley-infra-k8s action ExecPlan.
+  Defined
   scope, action interface, platform_render orchestration module, Python helper
   scripts, testing strategy, and GitOps layout.

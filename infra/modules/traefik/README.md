@@ -111,8 +111,8 @@ module "traefik" {
 }
 ```
 
-When `dashboard_enabled` is true, the module configures the Traefik Helm
-chart's `ingressRoute.dashboard.matchRule` using `dashboard_hostname`.
+When `dashboard_enabled` is true, the module configures the Traefik Helm chart's
+`ingressRoute.dashboard.matchRule` using `dashboard_hostname`.
 
 ## ACME Staging
 

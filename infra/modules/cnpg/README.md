@@ -302,4 +302,4 @@ When `mode = "apply"`, the module creates:
 
 See
 [docs/execplans/infra-phase-2-cloud-native-pg-module.md](../../../docs/execplans/infra-phase-2-cloud-native-pg-module.md)
- for detailed design decisions and rationale.
+for detailed design decisions and rationale.

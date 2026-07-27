@@ -11,8 +11,8 @@ policy to follow.
 
 Deliver the Phase 2.3 Vault + External Secrets Operator (ESO) module so the
 `nile-valley-infra-k8s` action can render Flux-ready manifests into
-`nile-valley-infra` and converge secrets synchronization on every run. Success is
-visible when the new OpenTofu module can render a `platform/vault` tree
+`nile-valley-infra` and converge secrets synchronization on every run. Success
+is visible when the new OpenTofu module can render a `platform/vault` tree
 containing the ESO HelmRelease, ClusterSecretStore resources connected to the
 existing Vault appliance, and when its outputs expose secret store names and
 sync policy contracts for downstream workloads.
@@ -32,7 +32,8 @@ Kubernetes cluster via ESO.
   policy script, and README updates.
 - [ ] (Pending) Update Makefile targets, lint coverage, and roadmap entry.
 - [ ] (Pending) Generate provider lock files and run module-specific tests.
-- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make lint`, and `make test`).
+- [ ] (Pending) Run repo-wide gates (`make check-fmt`, `make lint`, and
+      `make test`).
 
 ## Surprises & Discoveries
 
@@ -523,7 +524,8 @@ The module integrates with:
 3. **cert_manager module** — optional integration where cert-manager can issue
    certificates via Vault PKI through the ClusterIssuer, while ESO handles
    secret synchronization.
-4. **nile-valley-infra-k8s action** — consumes the `rendered_manifests` output and
+4. **nile-valley-infra-k8s action** — consumes the `rendered_manifests` output
+   and
    commits to the GitOps repository.
 
 ## GitHub Actions Validation (if applicable)

@@ -33,8 +33,7 @@ available in the PATH before running `make test`.
 
 OpenTofu pins provider versions in `.terraform.lock.hcl`. Commit this file so
 local and CI environments resolve identical provider builds. When upgrading
-providers with `tofu init -upgrade`, include the updated lockfile in the
-commit.
+providers with `tofu init -upgrade`, include the updated lockfile in the commit.
 
 ## Formatting, linting, and tests
 
@@ -66,15 +65,15 @@ make nixie
 The example chart in `deploy/charts/example-app` demonstrates the values Nile
 Valley expects application charts to support.
 
-| Value                     | Default                     | Purpose                                                          |
-| ------------------------- | --------------------------- | ---------------------------------------------------------------- |
-| `existingSecretName`      | `""`                        | Name of a Secret to source environment variables from.           |
-| `secretEnvFromKeys`       | `{}`                        | Map environment variables to keys in `existingSecretName`.       |
-| `allowMissingSecret`      | `true`                      | Permit rendering when the Secret is absent.                      |
-| `sessionSecret.enabled`   | `false`                     | Enable mounting a session signing key from a Secret.             |
-| `sessionSecret.name`      | `"example-app-session-key"` | Secret name for the session signing key.                         |
-| `sessionSecret.keyName`   | `"session_key"`             | Secret key containing the signing key bytes.                     |
-| `sessionSecret.mountPath` | `"/var/run/secrets"`        | Mount path for the session key file.                             |
+| Value                     | Default                     | Purpose                                                    |
+| ------------------------- | --------------------------- | ---------------------------------------------------------- |
+| `existingSecretName`      | `""`                        | Name of a Secret to source environment variables from.     |
+| `secretEnvFromKeys`       | `{}`                        | Map environment variables to keys in `existingSecretName`. |
+| `allowMissingSecret`      | `true`                      | Permit rendering when the Secret is absent.                |
+| `sessionSecret.enabled`   | `false`                     | Enable mounting a session signing key from a Secret.       |
+| `sessionSecret.name`      | `"example-app-session-key"` | Secret name for the session signing key.                   |
+| `sessionSecret.keyName`   | `"session_key"`             | Secret key containing the signing key bytes.               |
+| `sessionSecret.mountPath` | `"/var/run/secrets"`        | Mount path for the session key file.                       |
 
 ## Documentation
 

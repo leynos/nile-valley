@@ -1,8 +1,8 @@
 # Repository design guide
 
-This guide describes how the Nile Valley infrastructure repository is
-organized and how the automation flows between directories. The intent is to
-help new contributors find the right place to make changes.
+This guide describes how the Nile Valley infrastructure repository is organized
+and how the automation flows between directories. The intent is to help new
+contributors find the right place to make changes.
 
 ## Top-level layout
 

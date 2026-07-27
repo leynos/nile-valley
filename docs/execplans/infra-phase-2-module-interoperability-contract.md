@@ -77,9 +77,9 @@ All modules support dual operational modes:
 - **`mode = "render"`** (default): Outputs `rendered_manifests` map for GitOps
 - **`mode = "apply"`**: Applies resources directly via Kubernetes/Helm providers
 
-Three modules expose a `sync_policy_contract` output for downstream
-consumption: `vault_eso`, `cnpg`, and `valkey`. This structured object provides
-all information workloads need to consume the service.
+Three modules expose a `sync_policy_contract` output for downstream consumption:
+`vault_eso`, `cnpg`, and `valkey`. This structured object provides all
+information workloads need to consume the service.
 
 ## Plan of work
 

@@ -77,9 +77,9 @@ This work must also:
   was removed and the test suite updated.
 
 - Observation: Terratest’s `CopyTerraformFolderToTemp` did not remove its
-  temporary directories, eventually filling `/tmp` and breaking `tofu init`
-  with `no space left on device`. Evidence: `/tmp` reached 100% usage and
-  provider installs failed until temporary directories were cleaned up.
+  temporary directories, eventually filling `/tmp` and breaking `tofu init` with
+  `no space left on device`. Evidence: `/tmp` reached 100% usage and provider
+  installs failed until temporary directories were cleaned up.
 
 ## Decision Log
 

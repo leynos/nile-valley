@@ -55,7 +55,8 @@ application repository supplies its own deployment workflow. Each workflow is
 implemented as a convergent process that reshapes its target GitOps repository
 before handing control back to Flux:
 
-- `nile-valley-infra-k8s` provisions Kubernetes clusters and shared fixtures from
+- `nile-valley-infra-k8s` provisions Kubernetes clusters and shared fixtures
+  from
   the OpenTofu modules in this repository, writing the desired state into the
   `nile-valley-infra` GitOps repository that FluxCD watches. Every execution
   performs the following steps idempotently:
@@ -367,7 +368,8 @@ GitOps.
   includes the ingress controller, cert-manager, monitoring tools, and database
   operators.
 
-- `nile-valley-apps` **Repository:** This repository contains the definitions for
+- `nile-valley-apps` **Repository:** This repository contains the definitions
+  for
   the *applications* that run on the platform, including the example
   application. It will house each application's base HelmRelease and the
   Kustomize overlays that define the `production`, `staging`, and ephemeral
@@ -375,8 +377,8 @@ GitOps.
 
 This separation allows for distinct access controls and review processes. A
 platform engineer reviews changes to `nile-valley-infra`, while application
-developers can merge changes to `nile-valley-apps` without risking the stability
-of the underlying platform.
+developers can merge changes to `nile-valley-apps` without risking the
+stability of the underlying platform.
 
 ### Bootstrapping FluxCD
 
@@ -487,8 +489,8 @@ drift without manual intervention.
 
 ### Declaring cluster-wide sources
 
-Within the `nile-valley-infra` repository, `HelmRepository` resources are created
-to tell Flux where to find the Helm charts for the platform components.
+Within the `nile-valley-infra` repository, `HelmRepository` resources are
+created to tell Flux where to find the Helm charts for the platform components.
 
 YAML
 
@@ -552,10 +554,10 @@ for use by `HelmRelease` and `Kustomization` objects throughout the cluster.
 With the GitOps control plane established, the next step is to deploy the core
 services that provide essential functionality to the cluster, such as ingress,
 DNS, TLS, and data persistence. These services are all deployed declaratively
-via FluxCD, with their manifests stored in the `nile-valley-infra` repository. The
-`nile-valley-infra-k8s` action renders and commits these manifests as part of its
-idempotent run, guaranteeing the required `platform/*` directories exist before
-Flux reconciles the changes.
+via FluxCD, with their manifests stored in the `nile-valley-infra` repository.
+The `nile-valley-infra-k8s` action renders and commits these manifests as part
+of its idempotent run, guaranteeing the required `platform/*` directories exist
+before Flux reconciles the changes.
 
 ### Ingress controller: Traefik
 
@@ -922,9 +924,8 @@ The implementation involves a three-step process:
 
 ### Stateful services for a sample application
 
-The sample application used in this guide depends on a PostGIS-enabled
-database and a Redis cache.[^21] These are deployed as shared platform
-services.
+The sample application used in this guide depends on a PostGIS-enabled database
+and a Redis cache.[^21] These are deployed as shared platform services.
 
 #### PostGIS with CloudNativePG
 
@@ -1449,8 +1450,8 @@ creation to destruction.
 ### Reusable actions
 
 - `nile-valley-infra-k8s` creates or updates the target cluster and shared
-  infrastructure. It commits the infrastructure state to `nile-valley-infra` and
-  lays out the repository with `clusters`, `modules`, and `platform`
+  infrastructure. It commits the infrastructure state to `nile-valley-infra`
+  and lays out the repository with `clusters`, `modules`, and `platform`
   directories (`platform/sources`, `platform/traefik`, `platform/cert-manager`,
   `platform/external-dns`, `platform/vault`, `platform/databases`, and
   `platform/redis`). Credentials are obtained from Vault.
@@ -1461,8 +1462,8 @@ creation to destruction.
   `staging`, and dynamic `ephemeral` overlays). Secrets are likewise sourced
   from Vault.
 
-These workflows are idempotent and can safely be run multiple times to
-converge on the specified state.
+These workflows are idempotent and can safely be run multiple times to converge
+on the specified state.
 
 ### Workflow triggers and permissions
 
@@ -1643,8 +1644,8 @@ YAML
 #### Commit and push & feedback loop
 
 The final steps in this job commit the newly generated files to the
-`nile-valley-apps` repository and post a comment back to the pull request with the
-preview URL.
+`nile-valley-apps` repository and post a comment back to the pull request with
+the preview URL.
 
 YAML
 
@@ -1905,16 +1906,16 @@ operational practices are recommended:
 - **Monitoring and Observability:** Deploy the Prometheus Operator and Grafana
   stack via a Flux `HelmRelease`. Configure Prometheus to scrape metrics from
   all key cluster components, including the Traefik Ingress Controller,
-  `cert-manager`, CloudNativePG, and the application pods themselves.
-  Create Grafana dashboards to visualize key performance indicators (KPIs) such
-  as request latency, error rates, database connection pooling, and resource
+  `cert-manager`, CloudNativePG, and the application pods themselves. Create
+  Grafana dashboards to visualize key performance indicators (KPIs) such as
+  request latency, error rates, database connection pooling, and resource
   utilization. Configure Alertmanager to send notifications for critical
   events, such as high error rates or failing Flux reconciliations.
 
 - **Cost Management:** While the ephemeral node pool's ability to scale to zero
   is a primary cost-saving measure, it is crucial to enforce resource
-  management best practices across all workloads. Define sensible `requests`
-  and `limits` for CPU and memory in all Helm charts, as recommended by
+  management best practices across all workloads. Define sensible `requests` and
+  `limits` for CPU and memory in all Helm charts, as recommended by
   DigitalOcean.[^7] This allows the Kubernetes scheduler to efficiently pack
   pods onto nodes and prevents resource contention or starvation.
 
@@ -1931,8 +1932,8 @@ project's needs.
 
 - **Multi-Cluster Management:** As the application scales, it may become
   necessary to have separate, dedicated clusters for development, staging, and
-  production. The dual-repository GitOps model is perfectly suited for this.
-  The `nile-valley-infra` repository can be extended to define multiple clusters,
+  production. The dual-repository GitOps model is perfectly suited for this. The
+  `nile-valley-infra` repository can be extended to define multiple clusters,
   and Flux can manage all of them from the same sources of truth, enabling
   consistent deployments across the entire fleet.[^33]
 

@@ -1,9 +1,9 @@
 # Scripting standards
 
-Nile Valley scripts favour clarity, reproducibility, and testability. The baseline
-tooling is Python and the [`uv`](https://github.com/astral-sh/uv) launcher so
-that scripts remain dependency-self-contained and easy to execute in Continuous
-Integration (CI) or locally.
+Nile Valley scripts favour clarity, reproducibility, and testability. The
+baseline tooling is Python and the [`uv`](https://github.com/astral-sh/uv)
+launcher so that scripts remain dependency-self-contained and easy to execute
+in Continuous Integration (CI) or locally.
 
 ## Language and runtime
 

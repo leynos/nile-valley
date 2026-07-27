@@ -23,8 +23,8 @@
   design decisions for the Vault infrastructure module. *Audience:
   infrastructure developers.*
 - [Vault External Secrets Operator (ESO) OpenTofu module design](vault-eso-module-design.md)
-  – design decisions for the ESO integration module. *Audience:
-  infrastructure developers.*
+  – design decisions for the ESO integration module. *Audience: infrastructure
+  developers.*
 - [Valkey OpenTofu module design](valkey-module-design.md) – design decisions
   for the Valkey (Redis-compatible) module. *Audience: infrastructure
   developers.*

@@ -16,9 +16,9 @@ applications that provide a suitable Helm chart. Success is visible when the
 repo contains only platform and delivery infrastructure, documentation and
 scripts reference Nile Valley rather than Wildside, and validation passes for
 infrastructure tooling without depending on removed application code. A new
-application should be able to adopt the platform by following the updated
-Nile Valley documentation and supplying its own Helm chart from another repo
-(e.g. `../ghillie`, `../wildside`).
+application should be able to adopt the platform by following the updated Nile
+Valley documentation and supplying its own Helm chart from another repo (e.g.
+`../ghillie`, `../wildside`).
 
 ## Constraints
 
@@ -39,8 +39,7 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 ## Tolerances (Exception Triggers)
 
 - Scope: if removing Wildside elements requires edits across more than 200
-  files or a net change above 8,000 lines, stop and escalate before
-  proceeding.
+  files or a net change above 8,000 lines, stop and escalate before proceeding.
 - Interfaces: if a public action interface must change without a backwards
   compatibility story (name, inputs, outputs), stop and confirm the intended
   breaking strategy.
@@ -54,30 +53,24 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 ## Risks
 
 - Risk: Removing application code may break Makefile targets and CI workflows.
-  Severity: high
-  Likelihood: medium
-  Mitigation: update Makefile and workflows in the same commit as removals;
-  adjust quality gates to align with the new infra-only scope.
+  Severity: high Likelihood: medium Mitigation: update Makefile and workflows
+  in the same commit as removals; adjust quality gates to align with the new
+  infra-only scope.
 
 - Risk: Renaming actions and modules may leave stale references in docs,
-  scripts, or tests.
-  Severity: high
-  Likelihood: medium
-  Mitigation: run an exhaustive search for `wildside` references, define an
-  allowed list, and enforce via a final audit step.
+  scripts, or tests. Severity: high Likelihood: medium Mitigation: run an
+  exhaustive search for `wildside` references, define an allowed list, and
+  enforce via a final audit step.
 
 - Risk: The platform docs are large and tightly coupled to Wildside examples.
-  Severity: medium
-  Likelihood: high
-  Mitigation: plan a structured documentation rewrite with clear placeholders
-  and a short "How to integrate a new app" section.
+  Severity: medium Likelihood: high Mitigation: plan a structured documentation
+  rewrite with clear placeholders and a short "How to integrate a new app"
+  section.
 
 - Risk: External repositories or workflows may still depend on the old action
-  names or paths.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: document the rename and provide a migration note in README and
-  docs, plus a compatibility mapping table.
+  names or paths. Severity: medium Likelihood: medium Mitigation: document the
+  rename and provide a migration note in README and docs, plus a compatibility
+  mapping table.
 
 ## Progress
 
@@ -90,43 +83,38 @@ Nile Valley documentation and supplying its own Helm chart from another repo
 - [x] (2026-01-30 01:10Z) Removed Wildside application code and updated
   Makefile/CI/dependencies to align with infra-only scope.
 - [x] (2026-01-30 02:20Z) Renamed infra action/cluster paths and updated
-  scripts, OpenTofu modules, defaults, and Go test module paths to use
-  Nile Valley naming.
+  scripts, OpenTofu modules, defaults, and Go test module paths to use Nile
+  Valley naming.
 - [x] (2026-01-30 03:30Z) Overhauled documentation to remove Wildside-only
-  material, add Nile Valley guidance, and add a generic runbook for session
-  key rotation.
+  material, add Nile Valley guidance, and add a generic runbook for session key
+  rotation.
 - [x] (2026-01-30 21:00Z) Completed final Wildside reference audit and reran
-  all quality gates; only this ExecPlan retains historical Wildside
-  references.
+  all quality gates; only this ExecPlan retains historical Wildside references.
 
 ## Surprises & Discoveries
 
 - Observation: Wildside-specific references are pervasive in infra scripts,
   OpenTofu modules, GitHub Actions, and Helm charts, not only documentation.
-  Evidence: `rg -n "wildside"` across infra, scripts, and deploy paths.
-  Impact: The removal plan must include code and test updates, not just docs.
+  Evidence: `rg -n "wildside"` across infra, scripts, and deploy paths. Impact:
+  The removal plan must include code and test updates, not just docs.
 
 ## Decision Log
 
 - Decision: Use this ExecPlan to guide the removal of Wildside-specific
-  elements before any implementation.
-  Rationale: The change spans infra, scripts, docs, and CI; a controlled plan
-  reduces risk.
-  Date/Author: 2026-01-30 / Codex
+  elements before any implementation. Rationale: The change spans infra,
+  scripts, docs, and CI; a controlled plan reduces risk. Date/Author:
+  2026-01-30 / Codex
 - Decision: Remove Wildside application code but keep a single example Helm
-  chart for integration guidance.
-  Rationale: The repo is now infrastructure-focused, yet needs a concrete
-  chart reference for adopters.
+  chart for integration guidance. Rationale: The repo is now
+  infrastructure-focused, yet needs a concrete chart reference for adopters.
   Date/Author: 2026-01-30 / Codex
 - Decision: Use `nile-valley` as the naming convention for actions, repos,
-  and defaults.
-  Rationale: Aligns with the new project identity and avoids Wildside naming.
-  Date/Author: 2026-01-30 / Codex
+  and defaults. Rationale: Aligns with the new project identity and avoids
+  Wildside naming. Date/Author: 2026-01-30 / Codex
 - Decision: Use `leynos/nile-valley-infra` as the default GitOps repository
   example in scripts/tests, while keeping module README sources in
-  `OWNER/nile-valley` form.
-  Rationale: Keeps scripts/tests aligned with the current repo owner but
-  preserves portable documentation examples.
+  `OWNER/nile-valley` form. Rationale: Keeps scripts/tests aligned with the
+  current repo owner but preserves portable documentation examples.
   Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
@@ -140,12 +128,12 @@ been rerun against the updated documentation set.
 
 ## Context and Orientation
 
-This repository now focuses on Nile Valley infrastructure. Wildside
-application code has been removed and a single example Helm chart is retained
-under `deploy/charts/example-app`. Infrastructure automation lives in
-`infra/`, `scripts/`, and `.github/actions/`, with the primary composite
-action now at `.github/actions/nile-valley-infra-k8s/action.yml`. The
-infrastructure for ephemeral previews remains described in
+This repository now focuses on Nile Valley infrastructure. Wildside application
+code has been removed and a single example Helm chart is retained under
+`deploy/charts/example-app`. Infrastructure automation lives in `infra/`,
+`scripts/`, and `.github/actions/`, with the primary composite action now at
+`.github/actions/nile-valley-infra-k8s/action.yml`. The infrastructure for
+ephemeral previews remains described in
 `docs/cloud-native-ephemeral-previews.md` and
 `docs/ephemeral-previews-roadmap.md`, and these documents now use Nile Valley
 naming throughout. Supporting Python helpers sit in `scripts/` (e.g.
@@ -174,10 +162,10 @@ Stage A: Define scope and inventory (no code changes).
 Stage B: Repository pruning and structural updates.
 
 - Remove Wildside application components so the repo contains only
-  infrastructure-related code. This likely includes `backend/`,
-  `frontend-pwa/`, `packages/`, `crates/`, `spec/`, and Kustomize overlays
-  under `deploy/`, while retaining a single example Helm chart under a neutral
-  name (e.g. `deploy/charts/example-app`).
+  infrastructure-related code. This likely includes `backend/`, `frontend-pwa/`,
+  `packages/`, `crates/`, `spec/`, and Kustomize overlays under `deploy/`,
+  while retaining a single example Helm chart under a neutral name (e.g.
+  `deploy/charts/example-app`).
 - Update the Makefile, CI workflows, and dependency manifests to align with
   the reduced scope. Remove steps that build or test the deleted application
   code. Preserve infra test and lint targets.
@@ -194,8 +182,7 @@ Stage C: Rename and generalize infrastructure automation.
   domains so they become generic placeholders or required inputs.
 - Update OpenTofu modules and defaults that embed Wildside names (e.g.
   `infra/modules/platform_render/variables.tf`, `infra/modules/cnpg/*`,
-  `infra/backend-config/spaces.tfbackend`) with neutral or parameterized
-  values.
+  `infra/backend-config/spaces.tfbackend`) with neutral or parameterized values.
 - Update infra tests to match new naming and module paths. Ensure Go test
   imports and module replacements are aligned with the updated module paths.
 
