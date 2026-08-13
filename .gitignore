@@ -98,3 +98,8 @@ deploy/k8s/backend/secret.env
 
 # Grepai index
 .grepai/
+.vtcode/
+.claude/
+.memdb/
+*.swo
+*~
