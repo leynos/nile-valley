@@ -23,16 +23,11 @@ jobs:
             **/pyproject.toml
             **/uv.lock
 
-      - name: Install Nixie
-        run: uv tool install nixie-cli==1.1.0
-
-      - name: Setup Rust for Merman
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # master
-        with:
-          toolchain: '1.95.0'
-
       - name: Install Merman CLI
-        run: cargo install merman-cli --version '=0.7.0' --locked
+        run: cargo binstall --no-confirm --locked merman-cli@0.7.0
+
+      - name: Install Nixie
+        run: uv tool install --python 3.14 "nixie-cli==1.1.0"
 
       - name: Setup Helm
         # v4.3.1
@@ -112,6 +107,9 @@ jobs:
 
       - name: Lint
         run: make lint
+
+      - name: Type check
+        run: make typecheck
 
       - name: Format check
         run: make check-fmt
