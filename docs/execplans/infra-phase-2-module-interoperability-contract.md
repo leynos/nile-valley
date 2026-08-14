@@ -337,7 +337,7 @@ All acceptance criteria met:
 6. **Roadmap updated**: Line 83 of `docs/ephemeral-previews-roadmap.md` now
    shows `[x]`.
 
-## Artifacts and notes
+## Artefacts and notes
 
 ### Source files for CNPG inputs
 
