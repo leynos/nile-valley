@@ -23,11 +23,7 @@ jobs:
             **/pyproject.toml
             **/uv.lock
 
-      - name: Install Merman CLI
-        run: cargo binstall --no-confirm --locked merman-cli@0.7.0
-
-      - name: Install Nixie
-        run: uv tool install --python 3.14 "nixie-cli==1.1.0"
+      - uses: leynos/shared-actions/.github/actions/install-nixie@main
 
       - name: Setup Helm
         # v4.3.1
