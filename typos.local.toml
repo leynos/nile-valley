@@ -13,10 +13,12 @@ accepted = ["AKS", "Hashi"]
 [words.corrections]
 
 [patterns]
-# Preserve the complete formal name and the OpenTofu command-line option.
+# Preserve formal names, command-line options and literal code identifiers.
 ignore = [
   "Azure Architecture\\s+Center\\s+\\|\\s+Microsoft Learn",
+  "\\bArtifact(?:Hub| Hub)\\b",
   "-no-color",
+  "`[^`\\n]+`",
 ]
 
 [files]

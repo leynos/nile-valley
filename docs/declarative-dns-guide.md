@@ -112,10 +112,10 @@ orchestrated by the integrated components:
 3. **Git Repository Reconciliation:** FluxCD’s `source-controller`, which is
    configured to monitor the Git repository, detects the new commit within its
    configured interval.[^7] It fetches the latest revision and stores it as an
-   artifact within the cluster.
+   artefact within the cluster.
 4. **Cluster State Synchronization:** FluxCD’s `kustomize-controller`, which is
    subscribed to changes from the `source-controller`, detects the new
-   artifact. It applies the `Ingress` manifest to the Kubernetes cluster,
+   artefact. It applies the `Ingress` manifest to the Kubernetes cluster,
    creating the Ingress resource via the Kubernetes API server.[^7]
 5. **DNS Controller Detection:** The ExternalDNS controller, which is
    continuously watching the Kubernetes API for changes to `Ingress` resources,
@@ -294,7 +294,7 @@ controller.
 The first step is to inform FluxCD where to find the ExternalDNS Helm chart.
 This is accomplished by creating a `HelmRepository` resource. This manifest
 tells Flux’s `source-controller` to periodically fetch the index from a
-specified Helm repository URL and make its charts available as artifacts within
+specified Helm repository URL and make its charts available as artefacts within
 the cluster.[^3]
 
 Create a file in the GitOps repository (e.g.,

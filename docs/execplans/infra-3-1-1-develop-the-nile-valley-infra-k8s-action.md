@@ -771,7 +771,7 @@ All steps should be re-runnable:
   required for platform_render. For cluster provisioning failures, verify state
   is consistent before retrying.
 
-## Artifacts and Notes
+## Artefacts and Notes
 
 **Expected GitOps repository layout after action runs:**
 

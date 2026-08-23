@@ -33,6 +33,7 @@ extend-ignore-re = [
     "(?s)```.*?```",
     "-no-color",
     "Azure Architecture\\s+Center\\s+\\|\\s+Microsoft Learn",
+    "\\bArtifact(?:Hub| Hub)\\b",
     "\\brust-analyzer\\b",
     "`[^`\\n]+`",
 ]
@@ -161,8 +162,6 @@ extend-ignore-re = [
 "apologizers" = "apologizers"
 "apologizes" = "apologizes"
 "apologizing" = "apologizing"
-"artifact" = "artifact"
-"artifacts" = "artifacts"
 "atomisable" = "atomizable"
 "atomisably" = "atomizably"
 "atomisation" = "atomization"
@@ -925,6 +924,7 @@ extend-ignore-re = [
 "globalizers" = "globalizers"
 "globalizes" = "globalizes"
 "globalizing" = "globalizing"
+"handwritten" = "handwritten"
 "harmonisable" = "harmonizable"
 "harmonisably" = "harmonizably"
 "harmonisation" = "harmonization"
@@ -1888,6 +1888,26 @@ extend-ignore-re = [
 "pluralizers" = "pluralizers"
 "pluralizes" = "pluralizes"
 "pluralizing" = "pluralizing"
+"polymerisable" = "polymerizable"
+"polymerisably" = "polymerizably"
+"polymerisation" = "polymerization"
+"polymerisations" = "polymerizations"
+"polymerise" = "polymerize"
+"polymerised" = "polymerized"
+"polymeriser" = "polymerizer"
+"polymerisers" = "polymerizers"
+"polymerises" = "polymerizes"
+"polymerising" = "polymerizing"
+"polymerizable" = "polymerizable"
+"polymerizably" = "polymerizably"
+"polymerization" = "polymerization"
+"polymerizations" = "polymerizations"
+"polymerize" = "polymerize"
+"polymerized" = "polymerized"
+"polymerizer" = "polymerizer"
+"polymerizers" = "polymerizers"
+"polymerizes" = "polymerizes"
+"polymerizing" = "polymerizing"
 "popularisable" = "popularizable"
 "popularisably" = "popularizably"
 "popularisation" = "popularization"

@@ -39,6 +39,9 @@
   },
   "linter": {
     "enabled": true,
+    "domains": {
+      "project": "all"
+    },
     "rules": {
       "recommended": true,
       "correctness": {
@@ -145,7 +148,6 @@
       },
       "nursery": {
         "noFloatingPromises": "error",
-        "noImportCycles": "error",
         "useExhaustiveSwitchCases": "error"
       }
     }

@@ -445,7 +445,7 @@ working tree. If a `tofu` command fails, re-run it after fixing inputs; any
 removed by the test helpers or Makefile targets. If policy scripts leave
 temporary directories, delete them and rerun the script.
 
-## Artifacts and Notes
+## Artefacts and Notes
 
 Expected `rendered_manifests` keys for render mode include (names may vary
 based on decisions recorded in the design doc):
