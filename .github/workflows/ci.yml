@@ -23,7 +23,7 @@ jobs:
             **/pyproject.toml
             **/uv.lock
 
-      - uses: leynos/shared-actions/.github/actions/install-nixie@main
+      - uses: leynos/shared-actions/.github/actions/install-nixie@f4764bea8d813b1a8f7ebc37a44907d3c3b1e0e4  # main
 
       - name: Setup Helm
         # v4.3.1
