@@ -32,7 +32,7 @@ a robust and scalable system:
 
 - **Separation of Concerns:** A crucial architectural decision is the strict
   separation of the Continuous Integration (CI) process, which is responsible
-  for building and testing artifacts, from the Continuous Delivery (CD)
+  for building and testing artefacts, from the Continuous Delivery (CD)
   process, which handles deployment. GitHub Actions is tasked with building the
   application's container image and preparing deployment manifests, but it
   never directly interacts with the Kubernetes API. Instead, its final action
