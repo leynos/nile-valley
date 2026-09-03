@@ -4,98 +4,271 @@ name: ci
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Tool pins live here so the installers and the cache keys cannot drift apart.
+# Every version below is reproduced in the tooling cache key; bumping a pin
+# therefore invalidates the cache generation that contains the old binary.
+env:
+  ACTIONLINT_VERSION: '1.7.10'
+  ACTIONLINT_SHA256: f4c76b71db5755a713e6055cbb0857ed07e103e028bda117817660ebadb4386f
+  ACTION_VALIDATOR_VERSION: '0.8.0'
+  BUN_VERSION: '1.3.5'
+  CHECKMAKE_VERSION: '0.3.2'
+  CHECKMAKE_SHA256: e2effb876913f3ee2caef0ba35f6202c5e8a3cd55a077d8d2b9ce2034257b6af
+  HELM_VERSION: v3.15.0
+  MBAKE_VERSION: '1.4.4'
+  MERMAN_VERSION: '0.7.0'
+  NIXIE_VERSION: '1.1.0'
+  NIXIE_PYTHON_VERSION: '3.14'
+  TFLINT_VERSION: v0.55.1
+  UV_VERSION: '0.12.5'
+  YAMLLINT_VERSION: '1.35.1'
+  CACHE_GENERATION: v1
+
 jobs:
   build:
     runs-on: ubicloud-standard-8
+    timeout-minutes: 30
+    # The gate only reads the repository and fetches public release archives.
+    # It never pushes, so the job needs no write scope and no stored token.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v4
-
-      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2
         with:
-          bun-version: '1.3.5'
+          persist-credentials: false
 
-      - name: Install uv
+      - name: Expose the user binary directory
+        id: expose-local-bin
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          printf '%s\n' "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # A single digest keeps the tooling cache key short while remaining
+      # explainable: the pins it covers are printed to the job summary below.
+      - name: Resolve tool pins
+        id: pins
+        shell: bash
+        env:
+          TOOL_PINS: >-
+            uv=${{ env.UV_VERSION }}
+            python=${{ env.NIXIE_PYTHON_VERSION }}
+            nixie=${{ env.NIXIE_VERSION }}
+            merman=${{ env.MERMAN_VERSION }}
+            yamllint=${{ env.YAMLLINT_VERSION }}
+            mbake=${{ env.MBAKE_VERSION }}
+            action-validator=${{ env.ACTION_VALIDATOR_VERSION }}
+            actionlint=${{ env.ACTIONLINT_VERSION }}
+            checkmake=${{ env.CHECKMAKE_VERSION }}
+        run: |
+          set -euo pipefail
+          digest="$(printf '%s' "$TOOL_PINS" | sha256sum | cut -c1-16)"
+          {
+            printf 'pins=%s\n' "$TOOL_PINS"
+            printf 'digest=%s\n' "$digest"
+          } >> "$GITHUB_OUTPUT"
+
+      # Cache owner: the complete tool boundary. It holds the three uv layers
+      # (downloads, tool environments, shims), the version-scoped Merman tree
+      # written by install-nixie, and the release binaries installed below.
+      # `~/.local/bin` is shared by the uv shims and the release binaries, so
+      # the recipe's step C and step D are merged into this single owner.
+      - name: Restore tooling cache
+        id: tooling-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/.local/bin
+            ~/.cache/merman
+          key: >-
+            tooling-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            steps.pins.outputs.digest }}
+          restore-keys: |
+            tooling-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-
+
+      # Cache owner: repository-local uv layers. `make spelling` and
+      # `make lint-infra` deliberately redirect uv at `.uv-cache`/`.uv-tools`,
+      # so those trees are a separate contract from the home-directory layers.
+      - name: Restore workspace uv cache
+        id: workspace-uv-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            .uv-cache
+            .uv-tools
+          key: >-
+            workspace-uv-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment
+            }}-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            workspace-uv-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-
+
+      # Cache owner: Bun's package download store. `node_modules` is
+      # deliberately not archived; a frozen `bun install` from a warm download
+      # cache is cheaper than restoring the installed tree.
+      - name: Restore Bun install cache
+        id: bun-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: >-
+            bun-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            env.BUN_VERSION }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-
+
+      # Cache owner: the Chrome build that Puppeteer downloads for Mermaid
+      # rendering. The lockfile hash pins the Puppeteer version that decides
+      # which browser revision `scripts/install-mermaid-browser.mjs` fetches.
+      - name: Restore Puppeteer browser cache
+        id: puppeteer-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/puppeteer
+          key: >-
+            puppeteer-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            hashFiles('bun.lock') }}
+          restore-keys: |
+            puppeteer-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-
+
+      # Cache owner: TFLint's downloaded plugin binaries. `make lint-infra`
+      # runs `tflint --init` in eleven module directories, so a cold plugin
+      # tree is eleven downloads of the same archives.
+      - name: Restore TFLint plugin cache
+        id: tflint-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.tflint.d/plugins
+          key: >-
+            tflint-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            env.TFLINT_VERSION }}-${{ hashFiles('infra/**/.tflint.hcl') }}
+          restore-keys: |
+            tflint-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-
+
+      - name: Setup Bun
+        id: setup-bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # `enable-cache` is off because the tooling cache step above owns
+      # `~/.cache/uv`; two owners for one path is a policy failure.
+      - name: Setup uv
         id: setup-uv
         # v6.4.3
         uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6
         with:
-          cache-dependency-glob: |
-            **/pyproject.toml
-            **/uv.lock
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
 
-      - name: Install Nixie
-        run: uv tool install nixie-cli==1.1.0
-
-      - name: Setup Rust for Merman
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # master
+      # Installs Nixie from a pinned uv release and Merman from its
+      # checksum-verified release archive. Replaces the former
+      # `cargo install merman-cli` source build and its Rust toolchain.
+      - name: Install Nixie and Merman
+        id: install-nixie
+        uses: leynos/shared-actions/.github/actions/install-nixie@f6d4d5f549655c118f86f371b8d55c200d3efa50
         with:
-          toolchain: '1.95.0'
-
-      - name: Install Merman CLI
-        run: cargo install merman-cli --version '=0.7.0' --locked
+          nixie-version: ${{ env.NIXIE_VERSION }}
+          merman-version: ${{ env.MERMAN_VERSION }}
+          python-version: ${{ env.NIXIE_PYTHON_VERSION }}
 
       - name: Setup Helm
+        id: setup-helm
         # v4.3.1
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4
         with:
-          version: v3.15.0
+          version: ${{ env.HELM_VERSION }}
 
-      - name: Install yamllint
-        run: uv tool install yamllint==1.35.1
+      - name: Install uv-managed linters
+        id: install-uv-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Each probe lets a warm `~/.local/bin` skip the reinstall while a
+          # missing or mismatched shim still fails closed on the next check.
+          if ! yamllint --version 2>/dev/null | grep -qF "$YAMLLINT_VERSION"; then
+            uv tool install --force "yamllint==${YAMLLINT_VERSION}"
+          fi
+          yamllint --version
+          if ! mbake --version 2>/dev/null | grep -qF "$MBAKE_VERSION"; then
+            uv tool install --force "mbake==${MBAKE_VERSION}"
+          fi
+          mbake --version
 
       - name: Install action-validator
+        id: install-action-validator
         shell: bash
         run: |
-          set -euxo pipefail
-          url="https://github.com/mpalmer/action-validator/releases/download/v0.8.0/action-validator_linux_amd64"
-          checksum_url="https://api.github.com/repos/mpalmer/action-validator/releases/tags/v0.8.0"
-          local_bin="$HOME/.local/bin"
-          binary_name="action-validator_linux_amd64"
+          set -euo pipefail
+          if action-validator --version 2>/dev/null | grep -qF "$ACTION_VALIDATOR_VERSION"; then
+            echo "action-validator ${ACTION_VALIDATOR_VERSION} restored from cache"
+            exit 0
+          fi
+          releases="https://github.com/mpalmer/action-validator/releases"
+          api="https://api.github.com/repos/mpalmer/action-validator/releases"
           uv run scripts/install_action_validator.py \
-            --url "$url" \
-            --checksum-url "$checksum_url" \
-            --local-bin "$local_bin" \
-            --binary-name "$binary_name"
-          echo "$local_bin" >> "$GITHUB_PATH"
-
-      - name: Install mbake
-        run: uv tool install mbake==1.4.4
-
-      - name: Setup Go
-        # v5.0.2
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
-        with:
-          go-version: '1.22.x'
+            --url "${releases}/download/v${ACTION_VALIDATOR_VERSION}/action-validator_linux_amd64" \
+            --checksum-url "${api}/tags/v${ACTION_VALIDATOR_VERSION}" \
+            --local-bin "$HOME/.local/bin" \
+            --binary-name action-validator_linux_amd64
+          action-validator --version
 
       - name: Install actionlint
+        id: install-actionlint
         shell: bash
         run: |
-          set -euxo pipefail
-          version="1.7.10"
-          go install "github.com/rhysd/actionlint/cmd/actionlint@v${version}"
-          gobin="$(go env GOPATH)/bin"
-          echo "$gobin" >> "$GITHUB_PATH"
-          "$gobin/actionlint" -version
+          set -euo pipefail
+          if [ "$(actionlint -version 2>/dev/null | head -n 1)" = "$ACTIONLINT_VERSION" ]; then
+            echo "actionlint ${ACTIONLINT_VERSION} restored from cache"
+            exit 0
+          fi
+          workdir="$(mktemp -d)"
+          trap 'rm -rf -- "$workdir"' EXIT
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+            --output "${workdir}/${archive}" "$url"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "${workdir}/${archive}" | sha256sum --check --strict -
+          tar -xzf "${workdir}/${archive}" -C "$workdir" actionlint
+          install -m 0755 "${workdir}/actionlint" "$HOME/.local/bin/actionlint"
+          actionlint -version
 
       - name: Install checkmake
+        id: install-checkmake
         shell: bash
         run: |
-          set -euxo pipefail
-          version="0.3.2"
-          go install "github.com/checkmake/checkmake/cmd/checkmake@v${version}"
-          gobin="$(go env GOPATH)/bin"
-          "$gobin/checkmake" --version
+          set -euo pipefail
+          # The pinned release binary reports `checkmake v0.3.2 built at ...`,
+          # but other distributions omit the `v`; accept either form.
+          if checkmake --version 2>/dev/null | grep -qE "checkmake v?${CHECKMAKE_VERSION}\\b"; then
+            echo "checkmake ${CHECKMAKE_VERSION} restored from cache"
+            exit 0
+          fi
+          workdir="$(mktemp -d)"
+          trap 'rm -rf -- "$workdir"' EXIT
+          asset="checkmake-v${CHECKMAKE_VERSION}.linux.amd64"
+          url="https://github.com/checkmake/checkmake/releases/download/v${CHECKMAKE_VERSION}/${asset}"
+          curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+            --output "${workdir}/${asset}" "$url"
+          printf '%s  %s\n' "$CHECKMAKE_SHA256" "${workdir}/${asset}" | sha256sum --check --strict -
+          install -m 0755 "${workdir}/${asset}" "$HOME/.local/bin/checkmake"
+          checkmake --version
 
       - name: Install TFLint
+        id: install-tflint
         # v6.2.1
         uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33
         with:
-          tflint_version: v0.55.1
+          tflint_version: ${{ env.TFLINT_VERSION }}
 
       - name: Install dependencies
+        id: install-dependencies
         run: make deps
 
       - name: Add node_modules/.bin to PATH
+        id: expose-node-modules-bin
         run: echo "${{ github.workspace }}/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Spelling
@@ -118,3 +291,78 @@ jobs:
 
       - name: Tests
         run: make test
+
+      # Pull requests read the trusted generation but never publish a
+      # competing write; `main` is the single writer for every key above.
+      - name: Save tooling cache
+        if: github.ref == 'refs/heads/main' && steps.tooling-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/.local/bin
+            ~/.cache/merman
+          key: >-
+            tooling-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            steps.pins.outputs.digest }}
+
+      - name: Save workspace uv cache
+        if: github.ref == 'refs/heads/main' && steps.workspace-uv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            .uv-cache
+            .uv-tools
+          key: >-
+            workspace-uv-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment
+            }}-${{ hashFiles('Makefile') }}
+
+      - name: Save Bun install cache
+        if: github.ref == 'refs/heads/main' && steps.bun-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: >-
+            bun-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            env.BUN_VERSION }}-${{ hashFiles('bun.lock') }}
+
+      - name: Save Puppeteer browser cache
+        if: github.ref == 'refs/heads/main' && steps.puppeteer-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/puppeteer
+          key: >-
+            puppeteer-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            hashFiles('bun.lock') }}
+
+      - name: Save TFLint plugin cache
+        if: github.ref == 'refs/heads/main' && steps.tflint-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.tflint.d/plugins
+          key: >-
+            tflint-${{ env.CACHE_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{
+            env.TFLINT_VERSION }}-${{ hashFiles('infra/**/.tflint.hcl') }}
+
+      - name: Record cache observations
+        if: always()
+        shell: bash
+        env:
+          TOOL_PINS: ${{ steps.pins.outputs.pins }}
+          TOOLING_HIT: ${{ steps.tooling-cache.outputs.cache-hit }}
+          WORKSPACE_UV_HIT: ${{ steps.workspace-uv-cache.outputs.cache-hit }}
+          BUN_HIT: ${{ steps.bun-cache.outputs.cache-hit }}
+          PUPPETEER_HIT: ${{ steps.puppeteer-cache.outputs.cache-hit }}
+          TFLINT_HIT: ${{ steps.tflint-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          {
+            printf '### Cache observations\n\n'
+            printf -- "- tool pins: \`%s\`\n" "$TOOL_PINS"
+            printf -- "- tooling hit: \`%s\`\n" "$TOOLING_HIT"
+            printf -- "- workspace uv hit: \`%s\`\n" "$WORKSPACE_UV_HIT"
+            printf -- "- bun hit: \`%s\`\n" "$BUN_HIT"
+            printf -- "- puppeteer hit: \`%s\`\n" "$PUPPETEER_HIT"
+            printf -- "- tflint hit: \`%s\`\n" "$TFLINT_HIT"
+          } >> "$GITHUB_STEP_SUMMARY"
