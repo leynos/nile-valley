@@ -221,11 +221,14 @@ def test_every_restored_cache_has_a_matching_save(
 def test_non_build_jobs_stay_github_hosted(workflows: tuple[Workflow, ...]) -> None:
     """Scheduled, metadata, and orchestration jobs keep GitHub-hosted runners."""
     for job in iter_jobs(workflows):
-        if job.qualified_name in BUILD_JOBS or not job.runs_on:
+        if job.qualified_name in BUILD_JOBS or not job.declares_a_runner:
             continue
-        assert job.runs_on in GITHUB_HOSTED_LABELS, (
-            f"{job.qualified_name} is not a build job and must run on a "
-            f"GitHub-hosted label, not {job.runs_on!r}"
+        stray = [
+            label for label in job.runner_labels if label not in GITHUB_HOSTED_LABELS
+        ]
+        assert not stray, (
+            f"{job.qualified_name} is not a build job and must run on "
+            f"GitHub-hosted labels only, not {stray!r}"
         )
 
 
@@ -241,9 +244,10 @@ def test_self_hosted_labels_are_registered_with_actionlint(
     """Every intentional non-GitHub label is declared for actionlint."""
     registered = registered_self_hosted_labels()
     used = {
-        job.runs_on
+        label
         for job in iter_jobs(workflows)
-        if job.runs_on and job.runs_on not in GITHUB_HOSTED_LABELS
+        for label in job.runner_labels
+        if label not in GITHUB_HOSTED_LABELS
     }
     assert used <= registered, (
         f"labels missing from .github/actionlint.yaml: {sorted(used - registered)}"
@@ -277,11 +281,20 @@ def test_every_third_party_action_is_pinned_to_a_commit(
 ) -> None:
     """A floating tag lets an upstream force-push change what CI executes."""
     commit_reference = re.compile(r"@[0-9a-f]{40}$")
-    for job, step in iter_steps(workflows):
-        if not step.uses or step.uses.startswith("./"):
+    references = [
+        (f"{job.qualified_name}/{step.name}", step.uses)
+        for job, step in iter_steps(workflows)
+        if step.uses
+    ]
+    # A reusable workflow is called at job level, so it escapes a step-only loop.
+    references += [
+        (job.qualified_name, job.uses) for job in iter_jobs(workflows) if job.uses
+    ]
+    for location, reference in references:
+        if reference.startswith("./"):
             continue
-        assert commit_reference.search(step.uses), (
-            f"{job.qualified_name}/{step.name} must pin {step.uses!r} to a commit"
+        assert commit_reference.search(reference), (
+            f"{location} must pin {reference!r} to a commit"
         )
 
 

@@ -44,7 +44,7 @@ that holds the old binary.
 | Nixie and Merman | `leynos/shared-actions` `install-nixie` | Pinned uv release; checksum-pinned Merman archive    |
 | Bun              | `oven-sh/setup-bun`                     | Pinned action commit and Bun version                 |
 | uv               | `astral-sh/setup-uv`                    | Pinned action commit and uv version                  |
-| Helm             | `azure/setup-helm`                      | Pinned action commit and chart-tool version          |
+| Helm             | `azure/setup-helm`                      | Pinned action commit and Helm version                |
 | TFLint           | `terraform-linters/setup-tflint`        | Pinned action commit and TFLint version              |
 | yamllint, mbake  | `uv tool install`                       | Pinned versions; version probe guards the warm cache |
 | action-validator | `scripts/install_action_validator.py`   | SHA256 from the release metadata                     |

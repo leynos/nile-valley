@@ -28,8 +28,14 @@ jobs:
   build:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
+    # The gate only reads the repository and fetches public release archives.
+    # It never pushes, so the job needs no write scope and no stored token.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v4
+        with:
+          persist-credentials: false
 
       - name: Expose the user binary directory
         id: expose-local-bin
@@ -234,7 +240,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if checkmake --version 2>/dev/null | grep -qF "v${CHECKMAKE_VERSION}"; then
+          # The pinned release binary reports `checkmake v0.3.2 built at ...`,
+          # but other distributions omit the `v`; accept either form.
+          if checkmake --version 2>/dev/null | grep -qE "checkmake v?${CHECKMAKE_VERSION}\\b"; then
             echo "checkmake ${CHECKMAKE_VERSION} restored from cache"
             exit 0
           fi

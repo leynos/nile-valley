@@ -35,6 +35,8 @@ __all__ = [
     "Step",
     "Workflow",
     "cache_paths",
+    "iter_jobs",
+    "iter_steps",
     "load_workflows",
     "registered_self_hosted_labels",
 ]
@@ -69,7 +71,7 @@ class Job:
 
     workflow: str
     identifier: str
-    runs_on: str
+    runner_labels: tuple[str, ...]
     uses: str
     timeout_minutes: int | None
     steps: tuple[Step, ...]
@@ -78,6 +80,11 @@ class Job:
     def qualified_name(self) -> str:
         """Return a stable ``workflow.yml:job`` label for assertion messages."""
         return f"{self.workflow}:{self.identifier}"
+
+    @property
+    def declares_a_runner(self) -> bool:
+        """Report whether the job selects its own runner rather than a callee's."""
+        return bool(self.runner_labels)
 
 
 @dc.dataclass(frozen=True)
@@ -91,6 +98,26 @@ class Workflow:
 
 def _as_text(value: object) -> str:
     return value if isinstance(value, str) else ""
+
+
+def _runner_labels(raw: object) -> tuple[str, ...]:
+    """Normalize every ``runs-on`` form into a tuple of declared labels.
+
+    GitHub Actions accepts a scalar label, a sequence of labels, and a mapping
+    with ``group`` and ``labels`` keys. Treating the non-scalar forms as absent
+    would let a self-hosted job slip past the placement contracts.
+    """
+    if isinstance(raw, str):
+        return (raw,)
+    if isinstance(raw, list):
+        return tuple(label for label in raw if isinstance(label, str))
+    if isinstance(raw, dict):
+        labels = raw.get("labels")
+        if isinstance(labels, str):
+            return (labels,)
+        if isinstance(labels, list):
+            return tuple(label for label in labels if isinstance(label, str))
+    return ()
 
 
 def _step_from_mapping(index: int, raw: dict[str, object]) -> Step:
@@ -117,7 +144,7 @@ def _job_from_mapping(workflow: str, identifier: str, raw: dict[str, object]) ->
     return Job(
         workflow=workflow,
         identifier=identifier,
-        runs_on=_as_text(raw.get("runs-on")),
+        runner_labels=_runner_labels(raw.get("runs-on")),
         uses=_as_text(raw.get("uses")),
         timeout_minutes=timeout if isinstance(timeout, int) else None,
         steps=steps,
