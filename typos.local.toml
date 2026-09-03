@@ -13,10 +13,22 @@ accepted = ["AKS", "Hashi"]
 [words.corrections]
 
 [patterns]
-# Preserve the complete formal name and the OpenTofu command-line option.
+# The shared dictionary no longer exempts inline code spans, so every external
+# name that carries a US spelling or a deliberate misspelling needs its own
+# narrow exemption here.
 ignore = [
+  # Complete formal names quoted from their publishers.
   "Azure Architecture\\s+Center\\s+\\|\\s+Microsoft Learn",
+  "\\bArtifact ?Hub\\b",
+  # Command-line options and rule identifiers owned by external tools.
   "-no-color",
+  "--artifact-server-path",
+  "\\bcolor-contrast\\b",
+  # The documentation style guide's own example of an API that keeps US
+  # spelling. Rewording it would remove the point it illustrates.
+  "`color`",
+  # A deliberate misspelling used to illustrate an OpenTofu reference error.
+  "var\\.iamge_id",
 ]
 
 [files]

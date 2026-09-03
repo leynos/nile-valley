@@ -6,8 +6,8 @@ ______________________________________________________________________
 
 The foundation of any modern software delivery process is a robust Continuous
 Integration (CI) pipeline that reliably transforms source code into a
-deployable artifact. In the context of containerized applications, this
-artifact is a Docker image. This section details the construction of a
+deployable artefact. In the context of containerized applications, this
+artefact is a Docker image. This section details the construction of a
 complete, production-ready GitHub Actions workflow to build a container image
 and publish it to the GitHub Container Registry (GHCR), progressing from
 fundamental authentication principles to advanced, multi-architecture build
@@ -111,7 +111,7 @@ This is where the `docker/metadata-action` becomes invaluable.[^1] This utility
 action can inspect the Git context (e.g., a push to a branch, a new tag, a pull
 request) and generate a set of logical and informative image tags. This
 elevates the workflow from a simple script to an intelligent automation tool
-that produces versioned artifacts, such as tagging an image with the branch
+that produces versioned artefacts, such as tagging an image with the branch
 name, the short commit SHA, and applying the
 
 `latest` tag only for pushes to the default branch.

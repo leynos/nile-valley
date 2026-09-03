@@ -350,7 +350,7 @@ control plane.[^11]
 
 FluxCD manages Helm chart deployments declaratively using the `HelmRepository`
 and `HelmRelease` custom resources. This approach treats Helm releases as
-version-controlled artifacts, enabling automated, repeatable deployments.[^13]
+version-controlled artefacts, enabling automated, repeatable deployments.[^13]
 
 First, a `HelmRepository` source is defined to tell FluxCD where to find the
 cert-manager charts. The official OCI registry provided by Jetstack is the
