@@ -280,7 +280,7 @@ Success criteria:
 - Keep commits small and scoped so rollback is straightforward via `git revert`
   if needed.
 
-## Artefacts and Notes
+## Artefacts and notes
 
 Record key command outputs (inventory search, lint/test runs) in `/tmp` logs
 using `tee`. Reference these logs in commit messages or the ExecPlan as
