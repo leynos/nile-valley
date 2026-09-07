@@ -13,11 +13,16 @@ pass unnoticed.
 from __future__ import annotations
 
 import re
+import subprocess
 import typing as typ
 
 import pytest
 from makefile_contract_support import (
     REPO_ROOT,
+    MakeFlavourError,
+    gnu_make,
+    resolve_gnu_make,
+    makefile_variables,
     command_separators,
     is_guarded,
     is_single_command,
@@ -30,16 +35,34 @@ from makefile_contract_support import (
 if typ.TYPE_CHECKING:
     from pathlib import Path
 
-# `uv` may be named by an absolute path: the Makefile's `UV ?= uv` takes the
-# value of an inherited `UV` environment variable, which `uv run` itself sets.
-UV_RUN = re.compile(r"^(?:\S*/)?uv run ")
+# `uv` may be named by an absolute path, and two recipes prefix the launcher
+# with environment assignments; the Makefile's `UV ?= uv` also takes the value
+# of an inherited `UV` variable, which `uv run` itself sets.
+UV_RUN = re.compile(r"^(?:[A-Z_][A-Z0-9_]*=\S* )*(?:\S*/)?uv run ")
 
-# The gate scripts each replaced a chained recipe; the recipe must invoke the
-# script through `uv run`, not merely mention it.
+VARIABLES = makefile_variables()
+
+
+def _gate_command(template: str) -> str:
+    """Fill a Makefile variable into an expected gate command."""
+    return template.format(**VARIABLES)
+
+
+# The whole invocation is stated, not just the script name. A contract that
+# matched only the prefix would certify `... --help`, which lints nothing.
 CONVERTED_GATES = {
     "lint-actions": "scripts/lint_actions.py",
-    "yamllint": "scripts/lint_helm_manifests.py",
-    "check-fmt": "scripts/run_bun_tool.py",
+    "yamllint": "scripts/lint_helm_manifests.py --kube-version {KUBE_VERSION}",
+    "check-fmt": (
+        "scripts/run_bun_tool.py --tool biome "
+        "--package @biomejs/biome@{BIOME_VERSION} "
+        "-- ci --formatter-enabled=true --reporter=github scripts"
+    ),
+    "markdownlint": (
+        "scripts/run_bun_tool.py --tool markdownlint-cli2 "
+        "--package markdownlint-cli2@{MARKDOWNLINT_CLI2_VERSION} -- '**/*.md'"
+    ),
+    "spelling": "scripts/check_spelling.py --typos-version {TYPOS_VERSION}",
     "fluxcd-policy": "scripts/tofu_plan_policy.py --module fluxcd",
     "traefik-policy": "scripts/tofu_plan_policy.py --module traefik",
     "external-dns-policy": "scripts/tofu_plan_policy.py --module external-dns",
@@ -58,16 +81,16 @@ EXAMPLE_GATE_TARGETS = {
 
 
 def _invocations(lines: list[str], command: str) -> list[str]:
-    """Return the recipe lines that run ``command`` under ``uv run``."""
-    # Matching the launcher and then the remainder of the line keeps the
-    # assertion tied to the invocation, not a mention inside an argument.
+    """Return the recipe lines that run exactly ``command`` under ``uv run``."""
+    # The remainder has to match in full. Accepting a prefix would let a
+    # neutralized invocation such as a trailing `--help` satisfy the contract.
+    expected = _gate_command(command)
     matches = []
     for line in lines:
         launcher = UV_RUN.match(line)
         if launcher is None:
             continue
-        remainder = line[launcher.end() :]
-        if remainder == command or remainder.startswith(f"{command} "):
+        if line[launcher.end() :] == expected:
             matches.append(line)
     return matches
 
@@ -87,10 +110,10 @@ def test_every_recipe_line_is_a_single_or_guarded_command(target: str) -> None:
     ("target", "command"), sorted(CONVERTED_GATES.items()), ids=str
 )
 def test_converted_gate_invokes_its_script(target: str, command: str) -> None:
-    """The recipe runs the gate script as a command of its own."""
+    """The recipe runs the gate script, with exactly the arguments it needs."""
     lines = recipe_lines(target)
     assert _invocations(lines, command), (
-        f"{target} must run `uv run {command}`; recipe is {lines}"
+        f"{target} must run `uv run {_gate_command(command)}`; recipe is {lines}"
     )
 
 
@@ -104,6 +127,70 @@ def test_example_gate_targets_validate_and_plan_through_the_script(
     lines = recipe_lines(target)
     assert len(_invocations(lines, command)) == 1, (
         f"{target} must run `uv run {command}` exactly once; recipe is {lines}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("target", "command"), sorted(CONVERTED_GATES.items()), ids=str
+)
+def test_a_neutralized_invocation_is_rejected(target: str, command: str) -> None:
+    """A contract that matched a prefix would certify a gate that runs nothing.
+
+    Appending an option that makes the script exit without linting keeps the
+    script name in the recipe, so the check has to compare the whole command.
+    """
+    neutralized = [f"uv run {_gate_command(command)} --help"]
+
+    assert _invocations(neutralized, command) == [], (
+        f"{target} would be certified by a neutralized invocation"
+    )
+
+
+def _fake_make(directory: Path, name: str, version_line: str) -> Path:
+    """Install a fake make that reports ``version_line`` for ``--version``."""
+    script = directory / name
+    script.write_text(
+        f"#!/usr/bin/env bash\nprintf '%s\\n' '{version_line}'\n", encoding="utf-8"
+    )
+    script.chmod(0o755)
+    return script
+
+
+def test_the_contract_measures_with_gnu_make() -> None:
+    """The recipes are read with the make whose semantics they are read under.
+
+    One shell per recipe line, `.ONESHELL` and `--dry-run` expansion are GNU
+    Make behaviours; another make would expand differently or reject the
+    options, so measuring with it would prove nothing.
+    """
+    reported = subprocess.run(  # noqa: S603
+        [gnu_make(), "--version"], capture_output=True, text=True, check=False
+    )
+
+    assert reported.stdout.startswith("GNU Make"), (
+        f"{gnu_make()} is not GNU Make: {reported.stdout.splitlines()[:1]}"
+    )
+
+
+def test_a_non_gnu_make_is_rejected(tmp_path: Path) -> None:
+    """A search path offering only another make fails loudly."""
+    _fake_make(tmp_path, "make", "bmake version 20240101")
+
+    with pytest.raises(MakeFlavourError, match="needs GNU Make") as excinfo:
+        resolve_gnu_make(search_path=str(tmp_path))
+
+    assert "bmake" in str(excinfo.value), (
+        f"the error must name what it found: {excinfo.value}"
+    )
+
+
+def test_gmake_is_preferred_over_make(tmp_path: Path) -> None:
+    """On a platform where `make` is not GNU Make, `gmake` usually is."""
+    _fake_make(tmp_path, "make", "bmake version 20240101")
+    expected = _fake_make(tmp_path, "gmake", "GNU Make 4.4.1")
+
+    assert resolve_gnu_make(search_path=str(tmp_path)) == str(expected), (
+        "the resolver must prefer gmake when make is another implementation"
     )
 
 

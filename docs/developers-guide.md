@@ -91,6 +91,14 @@ own, against a temporary Makefile. A property test generates commands whose
 separators are hidden in quoting, escaping, substitutions, subshells and brace
 groups, with the real offsets known by construction.
 
+The contract resolves GNU Make before it measures anything, preferring
+`gmake`, and fails when `--version` does not report GNU Make. One shell per
+recipe line, `.ONESHELL` and `--dry-run` expansion are GNU Make behaviours, so
+another make would expand differently and the measurement would mean nothing.
+The expected command is compared in full rather than by prefix, because a
+prefix match would certify a recipe whose invocation had been neutralized with
+a trailing option.
+
 A second contract, `test_makefile_gate_environment.py`, derives the gate
 variable names from the module registry and asserts the Makefile exports each
 one, then runs Make for real and reads the value back out of a child process.

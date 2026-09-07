@@ -14,7 +14,9 @@ contributes.
 from __future__ import annotations
 
 import dataclasses as dc
+import functools
 import re
+import shutil
 import subprocess
 import typing as typ
 from pathlib import Path
@@ -36,6 +38,54 @@ class MakeInvocationError(RuntimeError):
     """Raised when ``make --dry-run`` cannot expand a target."""
 
 
+class MakeFlavourError(RuntimeError):
+    """Raised when no GNU Make is available to measure the recipes with."""
+
+
+def resolve_gnu_make(search_path: str | None = None) -> str:
+    """Return the path of a GNU Make on ``search_path``.
+
+    The contract reasons about GNU Make's semantics: one shell per recipe
+    line, `.ONESHELL`, and `--dry-run` expansion. Another make would either
+    reject the options or expand differently, so measuring with it would prove
+    nothing. `gmake` is preferred because on the BSDs and macOS it is GNU Make
+    while `make` is not.
+
+    Examples
+    --------
+    >>> resolve_gnu_make().endswith("make")
+    True
+    """
+    candidates = []
+    for name in ("gmake", "make"):
+        path = shutil.which(name, path=search_path)
+        if path is None:
+            continue
+        reported = subprocess.run(  # noqa: S603
+            [path, "--version"], capture_output=True, text=True, check=False
+        )
+        first_line = reported.stdout.splitlines()[0] if reported.stdout else ""
+        if reported.returncode == 0 and first_line.startswith("GNU Make"):
+            return path
+        candidates.append(f"{path} reported {first_line!r}")
+
+    found = "; ".join(candidates) if candidates else "no make on the search path"
+    message = f"the gate contract needs GNU Make, but found: {found}"
+    raise MakeFlavourError(message)
+
+
+@functools.cache
+def gnu_make() -> str:
+    """Return the GNU Make used by the contract, resolved once.
+
+    Examples
+    --------
+    >>> gnu_make() == resolve_gnu_make()
+    True
+    """
+    return resolve_gnu_make()
+
+
 class UnresolvedVariableError(RuntimeError):
     """Raised when a ``.PHONY`` declaration names a variable this cannot read.
 
@@ -53,6 +103,21 @@ def _join_continuations(text: str) -> list[str]:
 def _is_comment(line: str) -> bool:
     """Return whether the shell would treat the whole line as a comment."""
     return line.lstrip().startswith("#")
+
+
+def makefile_variables(makefile: Path | None = None) -> dict[str, str]:
+    """Return the Makefile's variable assignments.
+
+    The contract builds its expected commands from these rather than
+    hard-coding a version, so a pin change does not need the test edited.
+
+    Examples
+    --------
+    >>> makefile_variables()["UV"]
+    'uv'
+    """
+    makefile = makefile or (REPO_ROOT / "Makefile")
+    return _simple_assignments(makefile.read_text(encoding="utf-8"))
 
 
 def _simple_assignments(makefile_text: str) -> dict[str, str]:
@@ -119,7 +184,7 @@ def recipe_lines(
     True
     """
     directory = directory or REPO_ROOT
-    command = ["make", "--dry-run", "--no-print-directory"]
+    command = [gnu_make(), "--dry-run", "--no-print-directory"]
     if makefile is not None:
         command.extend(["--file", str(makefile)])
     command.append(target)

@@ -18,7 +18,7 @@ import subprocess
 import typing as typ
 
 import pytest
-from makefile_contract_support import REPO_ROOT
+from makefile_contract_support import REPO_ROOT, gnu_make
 
 from scripts._tofu_modules import MODULES
 
@@ -96,7 +96,7 @@ def test_command_line_override_reaches_a_child_process(
 
     completed = subprocess.run(  # noqa: S603
         [
-            "make",
+            gnu_make(),
             "--file",
             "Makefile",
             "--file",
