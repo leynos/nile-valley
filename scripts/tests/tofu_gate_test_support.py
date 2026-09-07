@@ -51,6 +51,7 @@ def tofu_handler(
     outputs = dict(stdout or {})
 
     def handler(invocation: typ.Any) -> Response:  # noqa: ANN401
+        """Answer one ``tofu`` invocation according to its subcommand."""
         subcommand = subcommand_of(list(invocation.args))
         return Response(
             stdout=outputs.get(subcommand, ""),

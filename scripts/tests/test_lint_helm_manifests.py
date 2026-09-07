@@ -37,7 +37,9 @@ def test_render_precedes_lint_and_both_pass(cmd_mox: CmdMox) -> None:
 
     main(release="example-app", kube_version="1.31.0")
 
-    assert commands_run(cmd_mox) == ["helm", "yamllint"]
+    assert commands_run(cmd_mox) == ["helm", "yamllint"], (
+        "the chart must be rendered before it is linted"
+    )
 
 
 def test_helm_arguments_carry_the_requested_kube_version(cmd_mox: CmdMox) -> None:
@@ -49,9 +51,15 @@ def test_helm_arguments_carry_the_requested_kube_version(cmd_mox: CmdMox) -> Non
     main(release="example-app", kube_version="1.33.1")
 
     helm_call = cmd_mox.journal[0]
-    assert helm_call.args[:2] == ["template", "example-app"]
-    assert "--kube-version" in helm_call.args
-    assert helm_call.args[helm_call.args.index("--kube-version") + 1] == "1.33.1"
+    assert helm_call.args[:2] == ["template", "example-app"], (
+        f"the release name must be passed to helm: {helm_call.args}"
+    )
+    assert "--kube-version" in helm_call.args, (
+        f"the Kubernetes version must be passed: {helm_call.args}"
+    )
+    assert helm_call.args[helm_call.args.index("--kube-version") + 1] == "1.33.1", (
+        f"the requested version must reach helm: {helm_call.args}"
+    )
 
 
 def test_rendered_output_is_fed_to_yamllint(cmd_mox: CmdMox) -> None:
@@ -63,8 +71,12 @@ def test_rendered_output_is_fed_to_yamllint(cmd_mox: CmdMox) -> None:
     main(release="example-app", kube_version="1.31.0")
 
     yamllint_call = cmd_mox.journal[1]
-    assert yamllint_call.args == ["-f", "parsable", "-"]
-    assert yamllint_call.stdin == RENDERED_MANIFEST
+    assert yamllint_call.args == ["-f", "parsable", "-"], (
+        f"yamllint must read standard input: {yamllint_call.args}"
+    )
+    assert yamllint_call.stdin == RENDERED_MANIFEST, (
+        "yamllint must receive exactly what helm rendered"
+    )
 
 
 def test_failing_render_stops_before_lint(cmd_mox: CmdMox) -> None:
@@ -77,11 +89,12 @@ def test_failing_render_stops_before_lint(cmd_mox: CmdMox) -> None:
     cmd_mox.stub("yamllint").returns(exit_code=0)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="helm template"):
         main(release="example-app", kube_version="1.31.0")
 
-    assert "helm" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["helm"]
+    assert commands_run(cmd_mox) == ["helm"], (
+        "yamllint must not lint the output of a failed render"
+    )
 
 
 def test_failing_lint_is_reported(cmd_mox: CmdMox) -> None:
@@ -90,11 +103,12 @@ def test_failing_lint_is_reported(cmd_mox: CmdMox) -> None:
     cmd_mox.stub("yamllint").returns(exit_code=1)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="yamllint"):
         main(release="example-app", kube_version="1.31.0")
 
-    assert "yamllint" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["helm", "yamllint"]
+    assert commands_run(cmd_mox) == ["helm", "yamllint"], (
+        "the render must precede the lint that failed"
+    )
 
 
 def test_missing_tools_are_named(
@@ -103,10 +117,10 @@ def test_missing_tools_are_named(
     """Both tools are checked before the chart is rendered."""
     with (
         empty_search_path(monkeypatch, tmp_path / "empty-bin"),
-        pytest.raises(GateError) as excinfo,
+        pytest.raises(GateError, match="not installed") as excinfo,
     ):
         main(release="example-app", kube_version="1.31.0")
 
     message = str(excinfo.value)
-    assert "helm" in message
-    assert "yamllint" in message
+    assert "helm" in message, f"helm must be named as missing: {message}"
+    assert "yamllint" in message, f"yamllint must be named as missing: {message}"

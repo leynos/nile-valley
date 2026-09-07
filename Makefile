@@ -150,9 +150,7 @@ spelling: spelling-helper-test
 	@$(UV_ENV) $(UV) run scripts/generate_typos_config.py
 	@git ls-files --error-unmatch typos.toml >/dev/null
 	@git diff --exit-code -- typos.toml
-	@git ls-files -z '*.md' | \
-		xargs -0 -r env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION) \
-		--config typos.toml --force-exclude
+	@$(UV_ENV) $(UV) run scripts/check_spelling.py --typos-version $(TYPOS_VERSION)
 
 spelling-helper-test:
 	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) format --isolated \

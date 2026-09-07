@@ -72,7 +72,7 @@ def test_all_tools_run_in_order_when_everything_passes(
         "action-validator",
         "yamllint",
         "actionlint",
-    ]
+    ], "composite actions must be linted before workflows"
 
 
 def test_failing_first_tool_stops_the_gate(cmd_mox: CmdMox, tmp_path: Path) -> None:
@@ -87,11 +87,12 @@ def test_failing_first_tool_stops_the_gate(cmd_mox: CmdMox, tmp_path: Path) -> N
     _stub_tools(cmd_mox, {"yamllint": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"yamllint \(workflows\)"):
         main(actions_dir=tmp_path / "absent", workflows_dir=workflows_dir)
 
-    assert "yamllint" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["yamllint"]
+    assert commands_run(cmd_mox) == ["yamllint"], (
+        "actionlint must not run after a yamllint failure"
+    )
 
 
 def test_failing_last_tool_is_reported(cmd_mox: CmdMox, tmp_path: Path) -> None:
@@ -102,11 +103,12 @@ def test_failing_last_tool_is_reported(cmd_mox: CmdMox, tmp_path: Path) -> None:
     _stub_tools(cmd_mox, {"actionlint": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="actionlint"):
         main(actions_dir=tmp_path / "absent", workflows_dir=workflows_dir)
 
-    assert "actionlint" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["yamllint", "actionlint"]
+    assert commands_run(cmd_mox) == ["yamllint", "actionlint"], (
+        "actionlint must run only after yamllint passes"
+    )
 
 
 def test_every_workflow_is_passed_to_both_tools(
@@ -123,7 +125,10 @@ def test_every_workflow_is_passed_to_both_tools(
     main(actions_dir=tmp_path / "absent", workflows_dir=workflows_dir)
 
     expected = [str(first), str(second)]
-    assert [invocation.args for invocation in cmd_mox.journal] == [expected, expected]
+    assert [invocation.args for invocation in cmd_mox.journal] == [
+        expected,
+        expected,
+    ], "both tools must receive every workflow file"
 
 
 def test_action_validator_runs_once_per_manifest(
@@ -143,7 +148,7 @@ def test_action_validator_runs_once_per_manifest(
         "yamllint",
         "action-validator",
         "action-validator",
-    ]
+    ], "each manifest must be validated individually"
 
 
 def test_action_validator_failure_stops_before_the_next_manifest(
@@ -157,12 +162,15 @@ def test_action_validator_failure_stops_before_the_next_manifest(
     _stub_tools(cmd_mox, {"action-validator": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="action-validator") as excinfo:
         main(actions_dir=actions_dir, workflows_dir=tmp_path / "absent")
 
-    assert "action-validator" in str(excinfo.value)
-    assert "alpha" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["yamllint", "action-validator"]
+    assert "alpha" in str(excinfo.value), (
+        f"the failing manifest must be named: {excinfo.value}"
+    )
+    assert commands_run(cmd_mox) == ["yamllint", "action-validator"], (
+        "the second manifest must not be validated after the first fails"
+    )
 
 
 def test_absent_directories_are_skipped(
@@ -178,9 +186,9 @@ def test_absent_directories_are_skipped(
     )
 
     output = capsys.readouterr().out
-    assert "No composite actions found" in output
-    assert "No workflows found" in output
-    assert commands_run(cmd_mox) == []
+    assert "No composite actions found" in output, f"missing skip notice: {output}"
+    assert "No workflows found" in output, f"missing skip notice: {output}"
+    assert commands_run(cmd_mox) == [], "no tool may run without files to lint"
 
 
 def test_missing_tool_is_named(
@@ -193,10 +201,10 @@ def test_missing_tool_is_named(
     """
     with (
         empty_search_path(monkeypatch, tmp_path / "empty-bin"),
-        pytest.raises(GateError) as excinfo,
+        pytest.raises(GateError, match="not installed") as excinfo,
     ):
         main(actions_dir=tmp_path, workflows_dir=tmp_path)
 
     message = str(excinfo.value)
     for tool in LINT_TOOLS:
-        assert tool in message
+        assert tool in message, f"{tool} must be named as missing: {message}"

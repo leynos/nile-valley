@@ -19,9 +19,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
+    # The repository root has to be on the path before the `scripts` package
+    # can be imported, which is why this import cannot sit with the others.
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts._gate_runner import GateError  # noqa: E402
+from scripts._gate_runner import GateError  # noqa: E402  # see the sys.path note above
 
 if typ.TYPE_CHECKING:
     from collections.abc import Mapping
@@ -37,7 +39,7 @@ class UnknownModuleError(GateError):
     """
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class TofuVar:
     """One ``-var`` assignment sourced from the environment.
 
@@ -68,7 +70,7 @@ class TofuVar:
         return f"{self.name}={value}"
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class PolicyCheck:
     """Conftest configuration for a module's plan policy."""
 
@@ -79,7 +81,7 @@ class PolicyCheck:
     data_path_env: str | None = None
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class TofuModule:
     """Everything the example gates need to know about one module."""
 
@@ -93,7 +95,13 @@ class TofuModule:
 
     @property
     def example_path(self) -> Path:
-        """Absolute path of the example the gate operates on."""
+        """Absolute path of the example the gate operates on.
+
+        Examples
+        --------
+        >>> MODULES["traefik"].example_path.is_absolute()
+        True
+        """
         return REPO_ROOT / self.example_dir
 
     def is_enabled(self, environ: Mapping[str, str] | None = None) -> bool:

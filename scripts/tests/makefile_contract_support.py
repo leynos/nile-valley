@@ -2,8 +2,9 @@
 
 A Make recipe line is handed to one shell. When that line chains commands the
 shell reports only the last status, and because this Makefile does not enable
-``errexit`` an earlier failure is discarded. The helpers here read the
-recipes as the shell receives them and classify each one.
+``errexit`` an earlier failure is discarded. A pipeline behaves the same way
+without ``pipefail``. The helpers here read the recipes as the shell receives
+them and classify each one.
 
 ``make --dry-run`` is used rather than a hand-rolled parser so the text under
 test is the fully expanded command, including anything a ``$(call ...)`` macro
@@ -23,17 +24,24 @@ if typ.TYPE_CHECKING:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# A line beginning with `set -e` enables errexit for the rest of that shell,
-# so any chain after it stops at the first failure.
-ERREXIT_PREFIX = re.compile(r"^set\s+-[a-zA-Z]*e")
-
 PHONY_PREFIX = ".PHONY:"
-SIMPLE_ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:?=\s*(.*)$")
+# Accepts `=`, `:=`, `::=`, `?=` and `+=`; only the value matters here.
+SIMPLE_ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*(?::{1,2}|\?|\+)?=\s*(.*)$")
 VARIABLE_REFERENCE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)")
+SET_COMMAND = "set"
+PIPEFAIL_OPTION = "pipefail"
 
 
 class MakeInvocationError(RuntimeError):
     """Raised when ``make --dry-run`` cannot expand a target."""
+
+
+class UnresolvedVariableError(RuntimeError):
+    """Raised when a ``.PHONY`` declaration names a variable this cannot read.
+
+    Expanding an unknown reference to an empty string would silently shrink
+    the set of targets under contract, so it is an error instead.
+    """
 
 
 def _join_continuations(text: str) -> list[str]:
@@ -48,10 +56,10 @@ def _is_comment(line: str) -> bool:
 
 
 def _simple_assignments(makefile_text: str) -> dict[str, str]:
-    """Return the Makefile's simple variable assignments."""
+    """Return the Makefile's top-level variable assignments."""
     assignments: dict[str, str] = {}
     for line in _join_continuations(makefile_text):
-        if line.startswith((" ", "\t")) or ":" not in line:
+        if line.startswith((" ", "\t")):
             continue
         match = SIMPLE_ASSIGNMENT.match(line.strip())
         if match:
@@ -59,12 +67,28 @@ def _simple_assignments(makefile_text: str) -> dict[str, str]:
     return assignments
 
 
+def _expand(declaration: str, assignments: dict[str, str]) -> str:
+    """Substitute variable references, refusing to drop an unknown one."""
+
+    def resolve(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name not in assignments:
+            message = (
+                f"cannot expand ${{{name}}} in a .PHONY declaration; the "
+                "contract would otherwise cover fewer targets than it claims"
+            )
+            raise UnresolvedVariableError(message)
+        return assignments[name]
+
+    return VARIABLE_REFERENCE.sub(resolve, declaration)
+
+
 def phony_targets(makefile: Path | None = None) -> tuple[str, ...]:
     """Return every target declared ``.PHONY`` in ``makefile``.
 
     Variable references in a ``.PHONY`` declaration are expanded from the
-    Makefile's simple assignments, so a target list held in a variable is
-    covered too.
+    Makefile's assignments, so a target list held in a variable is covered
+    too, and an unreadable reference raises rather than shrinking the set.
 
     Examples
     --------
@@ -79,11 +103,7 @@ def phony_targets(makefile: Path | None = None) -> tuple[str, ...]:
     for line in _join_continuations(text):
         if not line.startswith(PHONY_PREFIX):
             continue
-        declaration = line[len(PHONY_PREFIX) :]
-        declaration = VARIABLE_REFERENCE.sub(
-            lambda match: assignments.get(match.group(1), ""), declaration
-        )
-        names.extend(declaration.split())
+        names.extend(_expand(line[len(PHONY_PREFIX) :], assignments).split())
 
     return tuple(dict.fromkeys(names))
 
@@ -121,13 +141,9 @@ def recipe_lines(
     ]
 
 
-@dc.dataclass
+@dc.dataclass(slots=True)
 class _ShellScanner:
-    """Tracks quoting and grouping while walking a shell command.
-
-    Only a semicolon that is unquoted, unescaped and outside every grouping
-    construct separates two top-level commands.
-    """
+    """Tracks quoting and grouping while walking a shell command."""
 
     single_quoted: bool = False
     double_quoted: bool = False
@@ -138,7 +154,15 @@ class _ShellScanner:
 
     @property
     def at_top_level(self) -> bool:
-        """Whether the next character sits between two top-level commands."""
+        """Whether the next character separates two top-level commands.
+
+        Examples
+        --------
+        >>> _ShellScanner().at_top_level
+        True
+        >>> _ShellScanner(brace_depth=1).at_top_level
+        False
+        """
         return not (
             self.single_quoted
             or self.double_quoted
@@ -148,7 +172,7 @@ class _ShellScanner:
         )
 
     def _advance_quoting(self, character: str) -> bool:
-        """Update quote state, reporting whether it consumed ``character``."""
+        """Update quote state, reporting whether it consumed the character."""
         if self.escaped:
             self.escaped = False
             return True
@@ -193,6 +217,18 @@ class _ShellScanner:
         self.at_word_start = character in " \t;&|("
 
 
+def _top_level_offsets(command: str, wanted: str) -> list[int]:
+    """Return offsets of ``wanted`` outside quotes and grouping constructs."""
+    scanner = _ShellScanner()
+    offsets: list[int] = []
+    for index, character in enumerate(command):
+        follower = command[index + 1] if index + 1 < len(command) else ""
+        if character == wanted and scanner.at_top_level:
+            offsets.append(index)
+        scanner.advance(character, follower)
+    return offsets
+
+
 def command_separators(command: str) -> list[int]:
     """Return the offsets of ``;`` separators at the top level of ``command``.
 
@@ -207,31 +243,69 @@ def command_separators(command: str) -> list[int]:
     >>> command_separators("command -v tool || { echo missing; exit 1; }")
     []
     """
-    scanner = _ShellScanner()
-    offsets: list[int] = []
-    for index, character in enumerate(command):
-        follower = command[index + 1] if index + 1 < len(command) else ""
-        if character == ";" and scanner.at_top_level:
-            offsets.append(index)
-        scanner.advance(character, follower)
-    return offsets
+    return _top_level_offsets(command, ";")
+
+
+def pipeline_separators(command: str) -> list[int]:
+    """Return the offsets of pipes at the top level of ``command``.
+
+    A pipeline reports only the last stage's status unless ``pipefail`` is
+    set, so it discards an earlier failure exactly as a ``;`` chain does.
+    ``||`` is a fail-fast list, not a pipeline, and is excluded.
+
+    Examples
+    --------
+    >>> pipeline_separators("helm template chart | yamllint -")
+    [20]
+    >>> pipeline_separators("tofu plan || test $? -eq 2")
+    []
+    """
+    return [
+        index
+        for index in _top_level_offsets(command, "|")
+        if command[index - 1 : index] != "|" and command[index + 1 : index + 2] != "|"
+    ]
+
+
+def _set_options(command: str) -> tuple[bool, bool]:
+    """Return the errexit and pipefail flags a leading ``set`` enables."""
+    separators = command_separators(command)
+    head = command[: separators[0]] if separators else command
+    tokens = head.split()
+    if not tokens or tokens[0] != SET_COMMAND:
+        return (False, False)
+
+    errexit = any(
+        token.startswith("-") and not token.startswith("-o") and "e" in token[1:]
+        for token in tokens[1:]
+    )
+    return (errexit, PIPEFAIL_OPTION in tokens[1:])
 
 
 def is_guarded(command: str) -> bool:
-    """Return whether ``command`` enables ``errexit`` before chaining.
+    """Return whether ``command`` disables the hazard before chaining.
+
+    ``errexit`` covers a ``;`` chain. A pipeline additionally needs
+    ``pipefail``, because ``errexit`` alone still ignores every stage but the
+    last.
 
     Examples
     --------
     >>> is_guarded("set -euo pipefail; helm template chart | yamllint -")
     True
+    >>> is_guarded("set -eu; helm template chart | yamllint -")
+    False
     >>> is_guarded("helm template chart; yamllint -")
     False
     """
-    return bool(ERREXIT_PREFIX.match(command.strip()))
+    errexit, pipefail = _set_options(command)
+    if not errexit:
+        return False
+    return pipefail or not pipeline_separators(command)
 
 
 def is_single_command(command: str) -> bool:
-    """Return whether ``command`` is one command rather than a chain.
+    """Return whether ``command`` is one command rather than several.
 
     Examples
     --------
@@ -239,8 +313,10 @@ def is_single_command(command: str) -> bool:
     True
     >>> is_single_command("if [ -d dir ]; then lint; fi")
     False
+    >>> is_single_command("git ls-files | xargs typos")
+    False
     """
-    return not command_separators(command)
+    return not command_separators(command) and not pipeline_separators(command)
 
 
 def offending_lines(targets: Iterable[str]) -> dict[str, list[str]]:
@@ -268,9 +344,17 @@ def write_makefile(directory: Path, recipes: Sequence[str], target: str) -> Path
 
     Examples
     --------
-    >>> # write_makefile(tmp_path, ["yamllint f; actionlint f"], "gate")
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as raw:
+    ...     makefile = write_makefile(
+    ...         Path(raw), ["yamllint f; actionlint f"], "gate"
+    ...     )
+    ...     recipe_lines("gate", directory=Path(raw), makefile=makefile)
+    ['yamllint f; actionlint f']
     """
     body = "\n".join(f"\t{recipe}" for recipe in recipes)
     makefile = directory / "Makefile"
-    makefile.write_text(f"SHELL := bash\n\n.PHONY: {target}\n{target}:\n{body}\n")
+    makefile.write_text(
+        f"SHELL := bash\n\n.PHONY: {target}\n{target}:\n{body}\n", encoding="utf-8"
+    )
     return makefile

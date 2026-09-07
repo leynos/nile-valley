@@ -87,7 +87,7 @@ def require_env(values: Mapping[str, str | None], *, because: str) -> None:
         raise GateError(message)
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class ToolRun:
     """Where and how one tool invocation runs.
 
@@ -133,11 +133,9 @@ def _execution_context(
 
 
 def _flush_streams() -> None:
-    """Flush this process's streams before a child writes to them.
-
-    Python buffers standard output when it is redirected, so without this the
-    gate's own messages appear after the tool output they introduce.
-    """
+    """Flush this process's streams before a child writes to them."""
+    # Python buffers standard output when it is redirected, so without this
+    # the gate's own messages appear after the tool output they introduce.
     sys.stdout.flush()
     sys.stderr.flush()
 

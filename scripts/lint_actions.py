@@ -24,9 +24,11 @@ from cyclopts import App
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
+    # The repository root has to be on the path before the `scripts` package
+    # can be imported, which is why this import cannot sit with the others.
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts._gate_runner import (  # noqa: E402
+from scripts._gate_runner import (  # noqa: E402  # see the sys.path note above
     ToolRun,
     require_tools,
     run_gate,

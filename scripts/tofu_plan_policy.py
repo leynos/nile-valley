@@ -27,9 +27,11 @@ from cyclopts import App, Parameter
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
+    # The repository root has to be on the path before the `scripts` package
+    # can be imported, which is why this import cannot sit with the others.
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts._gate_runner import (  # noqa: E402
+from scripts._gate_runner import (  # noqa: E402  # see the sys.path note above
     GateError,
     ToolRun,
     capture_tool,
@@ -39,7 +41,7 @@ from scripts._gate_runner import (  # noqa: E402
     run_tool,
     skip,
 )
-from scripts._tofu_modules import get_module  # noqa: E402
+from scripts._tofu_modules import get_module  # noqa: E402  # see above
 
 if typ.TYPE_CHECKING:
     from collections.abc import Mapping
@@ -108,15 +110,8 @@ def export_plan(module: TofuModule, plan_binary: Path, destination: Path) -> Non
 def _inline_data_arguments(
     policy: PolicyCheck, workspace: Path, environ: Mapping[str, str]
 ) -> list[str]:
-    """Return ``-d`` arguments for inline policy parameters.
-
-    conftest reads data from a path, so inline JSON is written into
-    ``workspace`` first.
-
-    Examples
-    --------
-    >>> # _inline_data_arguments(policy, workspace, {})
-    """
+    """Return ``-d`` arguments for inline policy parameters."""
+    # conftest reads data from a path, so inline JSON is written out first.
     inline = environ.get(policy.inline_data_env) if policy.inline_data_env else None
     if not inline:
         return []
@@ -126,12 +121,7 @@ def _inline_data_arguments(
 
 
 def _data_path_arguments(policy: PolicyCheck, environ: Mapping[str, str]) -> list[str]:
-    """Return ``-d`` arguments for a policy data path supplied by the operator.
-
-    Examples
-    --------
-    >>> # _data_path_arguments(policy, {})
-    """
+    """Return ``-d`` arguments for a policy data path given by the operator."""
     data_path = environ.get(policy.data_path_env) if policy.data_path_env else None
     return ["-d", data_path] if data_path else []
 
@@ -139,15 +129,7 @@ def _data_path_arguments(policy: PolicyCheck, environ: Mapping[str, str]) -> lis
 def _data_arguments(
     policy: PolicyCheck, workspace: Path, environ: Mapping[str, str] | None = None
 ) -> list[str]:
-    """Return conftest ``-d`` arguments for the module's policy data.
-
-    Inline parameters take precedence over a supplied path, matching the
-    behaviour the Flux policy shell script had.
-
-    Examples
-    --------
-    >>> # _data_arguments(policy, Path("/tmp/workspace"))
-    """
+    """Return conftest ``-d`` arguments, inline parameters taking precedence."""
     environ = os.environ if environ is None else environ
     return _inline_data_arguments(policy, workspace, environ) or _data_path_arguments(
         policy, environ

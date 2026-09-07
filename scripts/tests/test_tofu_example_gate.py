@@ -53,8 +53,9 @@ def test_gate_is_skipped_when_the_kubeconfig_is_unset(
 
     main(module="traefik")
 
-    assert "Skipping traefik" in capsys.readouterr().out
-    assert commands_run(cmd_mox) == []
+    output = capsys.readouterr().out
+    assert "Skipping traefik" in output, f"the skip must be reported: {output}"
+    assert commands_run(cmd_mox) == [], "no tool may run when the gate is disabled"
 
 
 def test_incomplete_environment_is_reported_before_tofu_runs(
@@ -67,13 +68,16 @@ def test_incomplete_environment_is_reported_before_tofu_runs(
     stub_tofu(cmd_mox)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="TRAEFIK_ACME_EMAIL") as excinfo:
         main(module="traefik")
 
     message = str(excinfo.value)
-    assert "TRAEFIK_ACME_EMAIL" in message
-    assert "TRAEFIK_CLOUDFLARE_SECRET_NAME" in message
-    assert commands_run(cmd_mox) == []
+    assert "TRAEFIK_CLOUDFLARE_SECRET_NAME" in message, (
+        f"every missing variable must be named: {message}"
+    )
+    assert commands_run(cmd_mox) == [], (
+        "the environment must be checked before OpenTofu runs"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -84,7 +88,9 @@ def test_validate_runs_before_plan(cmd_mox: CmdMox) -> None:
 
     main(module="traefik")
 
-    assert tofu_calls(cmd_mox) == ["validate", "plan"]
+    assert tofu_calls(cmd_mox) == ["validate", "plan"], (
+        "the example must be validated before it is planned"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -97,11 +103,12 @@ def test_failing_validate_stops_the_gate(cmd_mox: CmdMox) -> None:
     stub_tofu(cmd_mox, {"validate": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"tofu validate \(traefik\)"):
         main(module="traefik")
 
-    assert "tofu validate" in str(excinfo.value)
-    assert tofu_calls(cmd_mox) == ["validate"]
+    assert tofu_calls(cmd_mox) == ["validate"], (
+        "the plan must not run after validation fails"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -110,11 +117,12 @@ def test_failing_plan_is_reported(cmd_mox: CmdMox) -> None:
     stub_tofu(cmd_mox, {"plan": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"tofu plan \(traefik\)"):
         main(module="traefik")
 
-    assert "tofu plan" in str(excinfo.value)
-    assert tofu_calls(cmd_mox) == ["validate", "plan"]
+    assert tofu_calls(cmd_mox) == ["validate", "plan"], (
+        "validation must precede the plan that failed"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -125,7 +133,9 @@ def test_pending_changes_are_not_a_failure(cmd_mox: CmdMox) -> None:
 
     main(module="traefik")
 
-    assert tofu_calls(cmd_mox) == ["validate", "plan"]
+    assert tofu_calls(cmd_mox) == ["validate", "plan"], (
+        "exit code 2 must be accepted, leaving the gate green"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -137,10 +147,17 @@ def test_environment_values_reach_tofu(cmd_mox: CmdMox) -> None:
     main(module="traefik")
 
     validate_args = list(cmd_mox.journal[0].args)
-    assert validate_args[0] == "-chdir=infra/modules/traefik/examples/basic"
-    assert "kubeconfig_path=/tmp/kubeconfig" in validate_args
-    assert "acme_email=ops@example.test" in validate_args
-    assert "cloudflare_api_token_secret_name=cloudflare-token" in validate_args
+    assert validate_args[0] == "-chdir=infra/modules/traefik/examples/basic", (
+        f"the module example must be selected: {validate_args[0]}"
+    )
+    for expected in (
+        "kubeconfig_path=/tmp/kubeconfig",
+        "acme_email=ops@example.test",
+        "cloudflare_api_token_secret_name=cloudflare-token",
+    ):
+        assert expected in validate_args, (
+            f"{expected} must be passed as a -var: {validate_args}"
+        )
 
 
 def test_flux_plan_uses_documented_defaults(
@@ -160,13 +177,17 @@ def test_flux_plan_uses_documented_defaults(
     main(module="fluxcd")
 
     plan_args = list(cmd_mox.journal[1].args)
-    assert "git_repository_branch=main" in plan_args
-    assert "git_repository_path=./clusters/my-cluster" in plan_args
-    assert any(argument.startswith("git_repository_url=http") for argument in plan_args)
-    # Validation takes only the kubeconfig, as the recipe did.
+    for expected in (
+        "git_repository_branch=main",
+        "git_repository_path=./clusters/my-cluster",
+    ):
+        assert expected in plan_args, f"{expected} must default: {plan_args}"
+    assert any(
+        argument.startswith("git_repository_url=http") for argument in plan_args
+    ), f"the sample repository must be the default URL: {plan_args}"
     assert not any(
         argument.startswith("git_repository") for argument in cmd_mox.journal[0].args
-    )
+    ), "validation takes only the kubeconfig, as the recipe did"
 
 
 def test_unknown_module_is_rejected() -> None:
@@ -175,19 +196,23 @@ def test_unknown_module_is_rejected() -> None:
     The error is a ``GateError`` so the script reports one line and exits 1
     instead of printing a traceback.
     """
-    with pytest.raises(UnknownModuleError) as excinfo:
+    with pytest.raises(UnknownModuleError, match="not-a-module") as excinfo:
         main(module="not-a-module")
 
-    assert isinstance(excinfo.value, GateError)
-    assert "not-a-module" in str(excinfo.value)
+    message = str(excinfo.value)
+    assert isinstance(excinfo.value, GateError), (
+        "the error must be reportable as a gate failure"
+    )
     for known in MODULES:
-        assert known in str(excinfo.value)
+        assert known in message, f"{known} must be offered as an option: {message}"
 
 
 def test_every_registered_module_declares_an_example() -> None:
     """The registry points at examples that exist in the repository."""
     for module in MODULES.values():
-        assert module.example_path.is_dir(), module.key
+        assert module.example_path.is_dir(), (
+            f"{module.key} points at a missing example: {module.example_path}"
+        )
 
 
 def test_missing_tofu_is_named(
@@ -196,8 +221,6 @@ def test_missing_tofu_is_named(
     """An absent OpenTofu binary is reported before the gate decides to skip."""
     with (
         empty_search_path(monkeypatch, tmp_path / "empty-bin"),
-        pytest.raises(GateError) as excinfo,
+        pytest.raises(GateError, match=r"not installed: tofu"),
     ):
         main(module="traefik")
-
-    assert "tofu" in str(excinfo.value)

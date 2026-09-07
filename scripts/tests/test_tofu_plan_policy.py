@@ -60,8 +60,9 @@ def test_gate_is_skipped_when_the_kubeconfig_is_unset(
 
     main(module="traefik")
 
-    assert "Skipping traefik plan policy" in capsys.readouterr().out
-    assert commands_run(cmd_mox) == []
+    output = capsys.readouterr().out
+    assert "Skipping traefik plan policy" in output, f"skip not reported: {output}"
+    assert commands_run(cmd_mox) == [], "no tool may run when the gate is disabled"
 
 
 def test_incomplete_environment_is_reported_before_planning(
@@ -74,11 +75,12 @@ def test_incomplete_environment_is_reported_before_planning(
     _stub_policy_tools(cmd_mox)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="TRAEFIK_ACME_EMAIL"):
         main(module="traefik")
 
-    assert "TRAEFIK_ACME_EMAIL" in str(excinfo.value)
-    assert commands_run(cmd_mox) == []
+    assert commands_run(cmd_mox) == [], (
+        "the environment must be checked before a plan is written"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -89,8 +91,12 @@ def test_plan_export_and_policy_run_in_order(cmd_mox: CmdMox) -> None:
 
     main(module="traefik")
 
-    assert commands_run(cmd_mox) == ["tofu", "tofu", "conftest"]
-    assert tofu_calls(cmd_mox) == ["plan", "show"]
+    assert commands_run(cmd_mox) == ["tofu", "tofu", "conftest"], (
+        "the plan must be written, exported and only then checked"
+    )
+    assert tofu_calls(cmd_mox) == ["plan", "show"], (
+        "the export must read the plan that was just written"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -99,11 +105,12 @@ def test_failing_plan_stops_before_the_export(cmd_mox: CmdMox) -> None:
     _stub_policy_tools(cmd_mox, {"plan": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"tofu plan \(traefik\)"):
         main(module="traefik")
 
-    assert "tofu plan" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["tofu"]
+    assert commands_run(cmd_mox) == ["tofu"], (
+        "no policy verdict may follow a failed plan"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -112,11 +119,12 @@ def test_failing_export_stops_before_conftest(cmd_mox: CmdMox) -> None:
     _stub_policy_tools(cmd_mox, {"show": 1})
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"tofu show \(traefik\)"):
         main(module="traefik")
 
-    assert "tofu show" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["tofu", "tofu"]
+    assert commands_run(cmd_mox) == ["tofu", "tofu"], (
+        "conftest must not read the output of a failed export"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -125,11 +133,12 @@ def test_failing_policy_is_reported(cmd_mox: CmdMox) -> None:
     _stub_policy_tools(cmd_mox, conftest_exit_code=1)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="conftest"):
         main(module="traefik")
 
-    assert "conftest" in str(excinfo.value)
-    assert commands_run(cmd_mox) == ["tofu", "tofu", "conftest"]
+    assert commands_run(cmd_mox) == ["tofu", "tofu", "conftest"], (
+        "the plan and export must precede the failing policy check"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -140,7 +149,9 @@ def test_pending_changes_are_not_a_failure(cmd_mox: CmdMox) -> None:
 
     main(module="traefik")
 
-    assert commands_run(cmd_mox) == ["tofu", "tofu", "conftest"]
+    assert commands_run(cmd_mox) == ["tofu", "tofu", "conftest"], (
+        "a plan with pending changes must still be checked"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -152,14 +163,18 @@ def test_conftest_receives_the_modules_policy_settings(cmd_mox: CmdMox) -> None:
     main(module="traefik")
 
     arguments = list(cmd_mox.journal[2].args)
-    assert arguments[0] == "test"
-    assert "--policy" in arguments
+    assert arguments[0] == "test", f"conftest must be asked to test: {arguments}"
+    assert "--policy" in arguments, f"a policy directory must be given: {arguments}"
     assert (
         arguments[arguments.index("--policy") + 1]
         == "infra/modules/traefik/policy/plan"
+    ), f"the module's plan policy must be used: {arguments}"
+    assert "--fail-on-warn" in arguments, (
+        f"warnings must fail this module's gate: {arguments}"
     )
-    assert "--fail-on-warn" in arguments
-    assert arguments[arguments.index("--namespace") + 1] == "traefik.policy.plan"
+    assert arguments[arguments.index("--namespace") + 1] == "traefik.policy.plan", (
+        f"the module's policy namespace must be selected: {arguments}"
+    )
 
 
 @pytest.mark.usefixtures("traefik_environment")
@@ -178,7 +193,9 @@ def test_exported_plan_is_the_document_conftest_reads(cmd_mox: CmdMox) -> None:
 
     main(module="traefik")
 
-    assert observed["contents"] == PLAN_JSON
+    assert observed["contents"] == PLAN_JSON, (
+        "conftest must read exactly what `tofu show` produced"
+    )
 
 
 def test_flux_policy_passes_inline_data_as_a_file(
@@ -202,9 +219,12 @@ def test_flux_policy_passes_inline_data_as_a_file(
 
     main(module="fluxcd")
 
-    assert observed["data"] == '{"allowed": true}'
-    # The Flux policy has no namespace, unlike the plan policies.
-    assert observed["namespace"] == ""
+    assert observed["data"] == '{"allowed": true}', (
+        f"inline parameters must reach conftest: {observed['data']}"
+    )
+    assert observed["namespace"] == "", (
+        "the Flux policy has no namespace, unlike the plan policies"
+    )
 
 
 def test_flux_policy_accepts_a_data_path(
@@ -223,4 +243,6 @@ def test_flux_policy_accepts_a_data_path(
     main(module="fluxcd")
 
     arguments = list(cmd_mox.journal[2].args)
-    assert arguments[arguments.index("-d") + 1] == str(data_file)
+    assert arguments[arguments.index("-d") + 1] == str(data_file), (
+        f"the supplied data path must be forwarded unchanged: {arguments}"
+    )

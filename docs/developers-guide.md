@@ -41,11 +41,15 @@ rc=0
 
 ### The rule
 
-Every gate recipe line is a single command. Multi-command gate logic - a
-chain, a loop, or a conditional - lives in a Python script under `scripts/`
-written to the [scripting standards](scripting-standards.md), and the recipe
-invokes that script with `$(UV) run`. `|| exit 1` on each link is an interim
-guard, not a fix.
+Every gate recipe line is a single command. Any multi-command gate logic
+lives in a Python script under `scripts/` written to the
+[scripting standards](scripting-standards.md), and the recipe invokes that
+script with `$(UV) run`. That covers a `;` chain, a loop, a conditional and a
+pipeline. `|| exit 1` on each link is an interim guard, not a fix.
+
+A pipeline hides a failure the same way: without `pipefail`, bash reports only
+the last stage's status, so `helm template chart | yamllint -` passed on a
+chart that failed to render.
 
 The scripts share `scripts/_gate_runner.py`, which runs tools in sequence,
 stops at the first unexpected exit status and names the tool that failed.
@@ -60,6 +64,7 @@ where one tool's output feeds the next.
 | `run_bun_tool.py`        | `lint`, `check-fmt`, `markdownlint`          |
 | `tofu_example_gate.py`   | the `*-test` validate and plan steps         |
 | `tofu_plan_policy.py`    | the `*-policy` plan, export and conftest run |
+| `check_spelling.py`      | the typos step of `spelling`                 |
 
 `scripts/_tofu_modules.py` holds each module's example path, gate variable,
 required companion variables and `-var` assignments, so one script serves
@@ -73,9 +78,11 @@ reaches the script.
 `scripts/tests/test_makefile_gate_contract.py` reads every `.PHONY` target's
 recipe through `make --dry-run`, which yields the fully expanded text the
 shell receives, and asserts each line is a single command or enables `errexit`
-before it chains. Semicolons inside quotes, a `$(...)` substitution, a
-subshell or a `{ ...; }` group are not separators, and `&&` or `||` lists
-already stop at the first failure.
+before it chains. A pipeline additionally needs `pipefail` to count as
+guarded. Semicolons inside quotes, a `$(...)` substitution, a subshell or a
+`{ ...; }` group are not separators, and `&&` or `||` lists already stop at
+the first failure. A `.PHONY` list held in a variable is expanded, and an
+unreadable reference is an error rather than a silently smaller contract.
 
 To prove the contract still bites, put a chain back into a recipe and run the
 test; it fails for that target, for every target that reaches it, and for the

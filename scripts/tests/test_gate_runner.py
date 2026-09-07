@@ -34,17 +34,19 @@ pytestmark = pytest.mark.cmd_mox(auto_lifecycle=False)
 
 def test_tool_path_reports_missing_tool() -> None:
     """An absent binary resolves to ``None`` rather than raising."""
-    assert tool_path("nile-valley-no-such-tool") is None
+    assert tool_path("nile-valley-no-such-tool") is None, (
+        "an absent tool must resolve to None so the caller can report it"
+    )
 
 
 def test_require_tools_names_every_missing_tool() -> None:
     """All missing tools are listed so one run reports the full remediation."""
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="not installed") as excinfo:
         require_tools(["nile-valley-absent-one", "nile-valley-absent-two"])
 
     message = str(excinfo.value)
-    assert "nile-valley-absent-one" in message
-    assert "nile-valley-absent-two" in message
+    assert "nile-valley-absent-one" in message, f"first tool unnamed: {message}"
+    assert "nile-valley-absent-two" in message, f"second tool unnamed: {message}"
 
 
 def test_require_tools_accepts_present_tools(cmd_mox: CmdMox) -> None:
@@ -57,17 +59,18 @@ def test_require_tools_accepts_present_tools(cmd_mox: CmdMox) -> None:
 
 def test_require_env_names_unset_variables() -> None:
     """Empty and absent values are both reported as missing."""
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match="EXAMPLE_TOKEN") as excinfo:
         require_env(
             {"EXAMPLE_TOKEN": None, "EXAMPLE_REGION": "", "EXAMPLE_NAME": "set"},
             because="when EXAMPLE_KUBECONFIG_PATH is set",
         )
 
     message = str(excinfo.value)
-    assert "EXAMPLE_TOKEN" in message
-    assert "EXAMPLE_REGION" in message
-    assert "EXAMPLE_NAME" not in message
-    assert "when EXAMPLE_KUBECONFIG_PATH is set" in message
+    assert "EXAMPLE_REGION" in message, f"an empty value must count as unset: {message}"
+    assert "EXAMPLE_NAME" not in message, f"a set value must not be listed: {message}"
+    assert "when EXAMPLE_KUBECONFIG_PATH is set" in message, (
+        f"the reason the variables are required must be stated: {message}"
+    )
 
 
 def test_run_tool_returns_status_for_successful_command(cmd_mox: CmdMox) -> None:
@@ -75,9 +78,11 @@ def test_run_tool_returns_status_for_successful_command(cmd_mox: CmdMox) -> None
     cmd_mox.mock("yamllint").with_args("--version").returns(exit_code=0)
     activate(cmd_mox)
 
-    assert run_tool("yamllint", ["--version"]) == 0
+    assert run_tool("yamllint", ["--version"]) == 0, (
+        "a successful tool must report exit status 0"
+    )
     cmd_mox.verify()
-    assert commands_run(cmd_mox) == ["yamllint"]
+    assert commands_run(cmd_mox) == ["yamllint"], "only yamllint should have run"
 
 
 def test_run_tool_raises_named_error_on_failure(cmd_mox: CmdMox) -> None:
@@ -85,11 +90,8 @@ def test_run_tool_raises_named_error_on_failure(cmd_mox: CmdMox) -> None:
     cmd_mox.mock("yamllint").with_args("--version").returns(exit_code=3)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"yamllint failed with exit status 3"):
         run_tool("yamllint", ["--version"])
-
-    assert "yamllint" in str(excinfo.value)
-    assert "3" in str(excinfo.value)
 
 
 def test_run_tool_accepts_declared_exit_codes(cmd_mox: CmdMox) -> None:
@@ -97,7 +99,9 @@ def test_run_tool_accepts_declared_exit_codes(cmd_mox: CmdMox) -> None:
     cmd_mox.mock("tofu").with_args("plan").returns(exit_code=2)
     activate(cmd_mox)
 
-    assert run_tool("tofu", ["plan"], ToolRun(allowed_exit_codes=(0, 2))) == 2
+    assert run_tool("tofu", ["plan"], ToolRun(allowed_exit_codes=(0, 2))) == 2, (
+        "pending changes must be reported, not treated as a failure"
+    )
 
 
 def test_run_tool_still_fails_outside_declared_exit_codes(cmd_mox: CmdMox) -> None:
@@ -105,10 +109,8 @@ def test_run_tool_still_fails_outside_declared_exit_codes(cmd_mox: CmdMox) -> No
     cmd_mox.mock("tofu").with_args("plan").returns(exit_code=1)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"tofu failed with exit status 1"):
         run_tool("tofu", ["plan"], ToolRun(allowed_exit_codes=(0, 2)))
-
-    assert "tofu" in str(excinfo.value)
 
 
 def test_run_tool_labels_the_step(cmd_mox: CmdMox) -> None:
@@ -116,10 +118,8 @@ def test_run_tool_labels_the_step(cmd_mox: CmdMox) -> None:
     cmd_mox.mock("tofu").with_args("validate").returns(exit_code=1)
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"tofu validate failed with exit status 1"):
         run_tool("tofu", ["validate"], ToolRun(label="tofu validate"))
-
-    assert "tofu validate" in str(excinfo.value)
 
 
 def test_capture_tool_returns_stdout(cmd_mox: CmdMox) -> None:
@@ -129,7 +129,9 @@ def test_capture_tool_returns_stdout(cmd_mox: CmdMox) -> None:
     )
     activate(cmd_mox)
 
-    assert capture_tool("helm", ["template", "example"]) == "kind: Deployment\n"
+    assert capture_tool("helm", ["template", "example"]) == "kind: Deployment\n", (
+        "the rendered document must be returned verbatim"
+    )
     cmd_mox.verify()
 
 
@@ -140,10 +142,8 @@ def test_capture_tool_raises_before_output_is_used(cmd_mox: CmdMox) -> None:
     )
     activate(cmd_mox)
 
-    with pytest.raises(GateError) as excinfo:
+    with pytest.raises(GateError, match=r"helm failed with exit status 1"):
         capture_tool("helm", ["template", "example"])
-
-    assert "helm" in str(excinfo.value)
 
 
 def test_run_gate_exits_zero_on_success(capsys: pytest.CaptureFixture[str]) -> None:
@@ -151,8 +151,10 @@ def test_run_gate_exits_zero_on_success(capsys: pytest.CaptureFixture[str]) -> N
     with pytest.raises(SystemExit) as excinfo:
         run_gate(lambda: None)
 
-    assert excinfo.value.code == 0
-    assert capsys.readouterr().err == ""
+    assert excinfo.value.code == 0, (
+        f"a clean gate must exit 0, got {excinfo.value.code}"
+    )
+    assert capsys.readouterr().err == "", "a clean gate must print nothing to stderr"
 
 
 def test_run_gate_reports_gate_error_without_traceback(
@@ -167,8 +169,12 @@ def test_run_gate_reports_gate_error_without_traceback(
     with pytest.raises(SystemExit) as excinfo:
         run_gate(failing)
 
-    assert excinfo.value.code == 1
-    assert "actionlint failed with exit status 1" in capsys.readouterr().err
+    assert excinfo.value.code == 1, (
+        f"a failed gate must exit 1, got {excinfo.value.code}"
+    )
+    assert "actionlint failed with exit status 1" in capsys.readouterr().err, (
+        "the diagnostic must name the failing tool on stderr"
+    )
 
 
 def test_run_gate_propagates_unexpected_errors() -> None:
