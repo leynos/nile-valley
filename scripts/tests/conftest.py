@@ -19,6 +19,10 @@ from pathlib import Path
 
 import pytest
 
+# ``cmd-mox`` ships a pytest plugin that provides the ``cmd_mox`` fixture
+# used by the gate-script tests.
+pytest_plugins = ("cmd_mox.pytest_plugin",)
+
 SCRIPT_DIRECTORY = Path(__file__).resolve().parents[1]
 
 
