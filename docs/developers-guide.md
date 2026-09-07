@@ -110,6 +110,23 @@ search path holding only fake tools, so the exit code and the diagnostic Make
 depends on are tested at the process boundary rather than through an
 in-process call.
 
+A recipe line may also disown its exit status with a leading `-`, which is
+Make's own `|| true`. `make --dry-run` strips that prefix before printing, so
+the contract reads the recipe text for it rather than the expansion.
+
+### CI runs the gates
+
+Converting the recipes only helps while the workflow still runs them, and a
+contract that searched a step's `run` value for the command would pass on a
+step that never executes. `test_workflow_gate_contract.py` requires the whole
+shape instead: the job exists, some step's entire `run` is the gate command,
+and neither the job nor that step carries a condition. A condition is detected
+by the presence of the `if` key, never by its value, because `if: false`
+parses to a boolean and a plausible condition such as a push-only one is not
+falsy at all. Nine mutations are proved to fail the contract, including a
+condition on the step and on the job, a wrapper, a `|| true` suffix, a
+mistyped command and a removed `pull_request` trigger.
+
 `.SHELLFLAGS := -eo pipefail -c` is deliberately absent. It would make a
 forbidden recipe shape work rather than removing it, weakening the contract,
 and it would change the meaning of every existing recipe line at once. The

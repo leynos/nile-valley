@@ -21,6 +21,7 @@ from makefile_contract_support import (
     REPO_ROOT,
     MakeFlavourError,
     gnu_make,
+    ignored_failure_lines,
     resolve_gnu_make,
     makefile_variables,
     command_separators,
@@ -191,6 +192,35 @@ def test_gmake_is_preferred_over_make(tmp_path: Path) -> None:
 
     assert resolve_gnu_make(search_path=str(tmp_path)) == str(expected), (
         "the resolver must prefer gmake when make is another implementation"
+    )
+
+
+def test_no_recipe_ignores_a_failure() -> None:
+    """A leading `-` tells Make to disregard the exit status.
+
+    It is the Make-native `|| true`, and `make --dry-run` strips it before
+    printing, so the recipe text is read instead of the expansion.
+    """
+    offenders = ignored_failure_lines()
+
+    assert offenders == [], f"these recipes ignore their exit status: {offenders}"
+
+
+def test_the_ignored_failure_check_reads_the_prefix(tmp_path: Path) -> None:
+    """The check finds the prefix in any order and ignores continuations."""
+    makefile = tmp_path / "Makefile"
+    makefile.write_text(
+        "gate:\n"
+        "\t@-uv run scripts/lint_actions.py\n"
+        "\tuv run scripts/check_spelling.py \\\n"
+        "\t-not-a-prefix\n",
+        encoding="utf-8",
+    )
+
+    offenders = ignored_failure_lines(makefile)
+
+    assert offenders == ["@-uv run scripts/lint_actions.py"], (
+        f"expected only the prefixed line, got {offenders}"
     )
 
 

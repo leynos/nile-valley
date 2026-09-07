@@ -22,7 +22,7 @@ import typing as typ
 from pathlib import Path
 
 if typ.TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -290,6 +290,41 @@ class _ShellScanner:
         if not self._advance_quoting(character):
             self._advance_grouping(character, follower)
         self.at_word_start = character in " \t;&|("
+
+
+IGNORE_ERRORS_PREFIX = "-"
+RECIPE_PREFIXES = "@-+"
+
+
+def _recipe_first_lines(makefile_text: str) -> Iterator[str]:
+    """Yield each recipe's first line, without its continuations."""
+    continued = False
+    for line in makefile_text.splitlines():
+        starts_recipe = line.startswith("\t") and not continued
+        continued = line.endswith("\\")
+        if starts_recipe:
+            yield line[1:]
+
+
+def ignored_failure_lines(makefile: Path | None = None) -> list[str]:
+    """Return recipe lines whose failure Make is told to ignore.
+
+    A leading ``-`` makes Make disregard the command's exit status, which is
+    the Make-native form of ``|| true``. ``make --dry-run`` strips the prefix
+    before printing, so this reads the Makefile text instead.
+
+    Examples
+    --------
+    >>> ignored_failure_lines()
+    []
+    """
+    makefile = makefile or (REPO_ROOT / "Makefile")
+    offenders = []
+    for line in _recipe_first_lines(makefile.read_text(encoding="utf-8")):
+        prefix = line[: len(line) - len(line.lstrip(RECIPE_PREFIXES))]
+        if IGNORE_ERRORS_PREFIX in prefix:
+            offenders.append(line)
+    return offenders
 
 
 def _top_level_offsets(command: str, wanted: str) -> list[int]:
