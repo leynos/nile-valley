@@ -13,18 +13,28 @@ from __future__ import annotations
 
 import dataclasses as dc
 import os
+import sys
 import typing as typ
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts._gate_runner import GateError  # noqa: E402
 
 if typ.TYPE_CHECKING:
     from collections.abc import Mapping
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULES_ROOT = Path("infra/modules")
 
 
-class UnknownModuleError(KeyError):
-    """Raised when a caller names a module that has no gate configuration."""
+class UnknownModuleError(GateError):
+    """Raised when a caller names a module that has no gate configuration.
+
+    It is a :class:`GateError` so a misspelt ``--module`` produces the same
+    one-line diagnostic as a failing tool rather than a traceback.
+    """
 
 
 @dc.dataclass(frozen=True)

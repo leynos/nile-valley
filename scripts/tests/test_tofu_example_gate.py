@@ -170,9 +170,18 @@ def test_flux_plan_uses_documented_defaults(
 
 
 def test_unknown_module_is_rejected() -> None:
-    """A misspelt module name fails loudly rather than gating nothing."""
-    with pytest.raises(UnknownModuleError):
+    """A misspelt module name fails loudly rather than gating nothing.
+
+    The error is a ``GateError`` so the script reports one line and exits 1
+    instead of printing a traceback.
+    """
+    with pytest.raises(UnknownModuleError) as excinfo:
         main(module="not-a-module")
+
+    assert isinstance(excinfo.value, GateError)
+    assert "not-a-module" in str(excinfo.value)
+    for known in MODULES:
+        assert known in str(excinfo.value)
 
 
 def test_every_registered_module_declares_an_example() -> None:
