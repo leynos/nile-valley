@@ -193,15 +193,23 @@ class _ShellScanner:
             return True
         return False
 
+    def _opens_brace_group(self, character: str, follower: str) -> bool:
+        """Whether the character starts a ``{ ...; }`` group."""
+        return character == "{" and self.at_word_start and follower.isspace()
+
+    def _closes_brace_group(self, character: str) -> bool:
+        """Whether the character ends a ``{ ...; }`` group."""
+        return character == "}" and self.at_word_start
+
     def _advance_grouping(self, character: str, follower: str) -> None:
         """Update subshell and brace-group depth."""
         if character == "(":
             self.paren_depth += 1
         elif character == ")":
             self.paren_depth = max(0, self.paren_depth - 1)
-        elif character == "{" and self.at_word_start and follower.isspace():
+        elif self._opens_brace_group(character, follower):
             self.brace_depth += 1
-        elif character == "}" and self.at_word_start:
+        elif self._closes_brace_group(character):
             self.brace_depth = max(0, self.brace_depth - 1)
 
     def advance(self, character: str, follower: str) -> None:
