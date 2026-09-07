@@ -1,0 +1,68 @@
+#!/usr/bin/env -S uv run python
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["cyclopts>=2.9", "plumbum"]
+# ///
+"""Render a Helm chart and lint the resulting manifests with yamllint.
+
+The Make recipe used to enable ``pipefail`` and pipe ``helm template`` into
+yamllint on one line. Rendering and linting here keeps both exit statuses:
+a chart that fails to render stops the gate before yamllint is handed an
+empty document.
+"""
+
+from __future__ import annotations
+
+import sys
+import typing as typ
+from pathlib import Path
+
+import cyclopts
+from cyclopts import App, Parameter
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts._gate_runner import (  # noqa: E402
+    capture_tool,
+    require_tools,
+    run_gate,
+    run_tool,
+)
+
+REQUIRED_TOOLS = ("helm", "yamllint")
+DEFAULT_RELEASE = "example-app"
+DEFAULT_CHART = Path("deploy/charts/example-app")
+
+app = App(
+    name="lint-helm-manifests",
+    help="Render a Helm chart and lint the rendered manifests.",
+    config=cyclopts.config.Env("INPUT_", command=False),
+)
+
+
+@app.default
+def main(
+    *,
+    release: str = DEFAULT_RELEASE,
+    chart: Path = DEFAULT_CHART,
+    kube_version: typ.Annotated[str, Parameter(env_var="KUBE_VERSION")] = "1.31.0",
+) -> None:
+    """Render ``chart`` for ``kube_version`` and lint the output.
+
+    Examples
+    --------
+    >>> # main(release="example-app", chart=Path("deploy/charts/example-app"))
+    """
+    require_tools(REQUIRED_TOOLS)
+    rendered = capture_tool(
+        "helm",
+        ["template", release, str(chart), "--kube-version", kube_version],
+        label="helm template",
+    )
+    run_tool("yamllint", ["-f", "parsable", "-"], stdin_text=rendered)
+
+
+if __name__ == "__main__":
+    run_gate(app)
