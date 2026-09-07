@@ -84,6 +84,42 @@ def _steps(job: Mapping[str, typ.Any]) -> Iterator[Document]:
             yield step
 
 
+class GateStep(typ.NamedTuple):
+    """A step whose whole ``run`` is the gate command, and its job."""
+
+    job_identifier: str
+    job: Document
+    step: Document
+
+
+def matching_steps(
+    document: Mapping[typ.Any, typ.Any], command: str
+) -> Iterator[GateStep]:
+    """Yield every step whose entire ``run`` is ``command``.
+
+    Comparing the whole value is the point: a wrapper or a ``|| true`` suffix
+    leaves the command in the file while stopping it from deciding anything.
+
+    Examples
+    --------
+    >>> found = matching_steps(load_document(), "make lint")
+    >>> [gate.job_identifier for gate in found]
+    ['build']
+    """
+    for identifier, job in _jobs(document):
+        for step in _steps(job):
+            if str(step.get("run", "")).strip() == command:
+                yield GateStep(job_identifier=identifier, job=job, step=step)
+
+
+def _first_match(document: Document, command: str) -> GateStep:
+    """Return the first step running ``command``, or raise."""
+    for found in matching_steps(document, command):
+        return found
+    message = f"no step's whole run is {command!r}"
+    raise LookupError(message)
+
+
 def gate_failures(document: Mapping[typ.Any, typ.Any], command: str) -> list[str]:
     """Return the reasons ``command`` is not run unconditionally on a pull request.
 
@@ -96,23 +132,18 @@ def gate_failures(document: Mapping[typ.Any, typ.Any], command: str) -> list[str
     []
     """
     reasons: list[str] = []
-
     if "pull_request" not in triggers(document):
         reasons.append("the workflow does not react to pull_request")
 
     matched = False
-    for identifier, job in _jobs(document):
-        for step in _steps(job):
-            if str(step.get("run", "")).strip() != command:
-                continue
-            matched = True
-            if CONDITION_KEY in job:
-                reasons.append(f"job {identifier} carries a condition")
-                continue
-            if CONDITION_KEY in step:
-                reasons.append(f"the step running {command!r} carries a condition")
-                continue
-            return reasons if reasons else []
+    for found in matching_steps(document, command):
+        matched = True
+        if CONDITION_KEY in found.job:
+            reasons.append(f"job {found.job_identifier} carries a condition")
+        elif CONDITION_KEY in found.step:
+            reasons.append(f"the step running {command!r} carries a condition")
+        else:
+            return reasons
 
     if not matched:
         reasons.append(f"no step's whole run is {command!r}")
@@ -143,12 +174,7 @@ def find_step(document: Document, command: str) -> Document:
     >>> find_step(load_document(), "make lint")["name"]
     'Lint'
     """
-    for _, job in _jobs(document):
-        for step in _steps(job):
-            if str(step.get("run", "")).strip() == command:
-                return step
-    message = f"no step runs {command!r}"
-    raise LookupError(message)
+    return _first_match(document, command).step
 
 
 def find_job(document: Document, command: str) -> Document:
@@ -159,9 +185,4 @@ def find_job(document: Document, command: str) -> Document:
     >>> "steps" in find_job(load_document(), "make lint")
     True
     """
-    for _, job in _jobs(document):
-        for step in _steps(job):
-            if str(step.get("run", "")).strip() == command:
-                return job
-    message = f"no job runs {command!r}"
-    raise LookupError(message)
+    return _first_match(document, command).job
