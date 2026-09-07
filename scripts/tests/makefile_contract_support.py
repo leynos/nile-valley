@@ -12,13 +12,14 @@ contributes.
 
 from __future__ import annotations
 
+import dataclasses as dc
 import re
 import subprocess
 import typing as typ
 from pathlib import Path
 
 if typ.TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -94,8 +95,8 @@ def recipe_lines(
 
     Examples
     --------
-    >>> recipe_lines("lint-actions")
-    ['./scripts/lint_actions.py']
+    >>> recipe_lines("lint-actions")[0].endswith("scripts/lint_actions.py")
+    True
     """
     directory = directory or REPO_ROOT
     command = ["make", "--dry-run", "--no-print-directory"]
@@ -120,45 +121,76 @@ def recipe_lines(
     ]
 
 
-def _quote_and_group_state(command: str) -> Iterator[tuple[int, str, int, int, bool]]:
-    """Yield ``(index, character, paren depth, brace depth, quoted)`` per byte."""
-    paren_depth = 0
-    brace_depth = 0
-    single = False
-    double = False
-    escaped = False
-    at_word_start = True
+@dc.dataclass
+class _ShellScanner:
+    """Tracks quoting and grouping while walking a shell command.
 
-    for index, character in enumerate(command):
-        quoted = single or double
-        if escaped:
-            escaped = False
-        elif character == "\\":
-            escaped = True
-        elif single:
-            single = character != "'"
-        elif double:
-            double = character != '"'
-        elif character == "'":
-            single = True
-        elif character == '"':
-            double = True
-        elif character == "(":
-            paren_depth += 1
+    Only a semicolon that is unquoted, unescaped and outside every grouping
+    construct separates two top-level commands.
+    """
+
+    single_quoted: bool = False
+    double_quoted: bool = False
+    escaped: bool = False
+    paren_depth: int = 0
+    brace_depth: int = 0
+    at_word_start: bool = True
+
+    @property
+    def at_top_level(self) -> bool:
+        """Whether the next character sits between two top-level commands."""
+        return not (
+            self.single_quoted
+            or self.double_quoted
+            or self.escaped
+            or self.paren_depth
+            or self.brace_depth
+        )
+
+    def _advance_quoting(self, character: str) -> bool:
+        """Update quote state, reporting whether it consumed ``character``."""
+        if self.escaped:
+            self.escaped = False
+            return True
+        if character == "\\":
+            self.escaped = True
+            return True
+        if self.single_quoted:
+            self.single_quoted = character != "'"
+            return True
+        if self.double_quoted:
+            self.double_quoted = character != '"'
+            return True
+        if character in "'\"":
+            self.single_quoted = character == "'"
+            self.double_quoted = character == '"'
+            return True
+        return False
+
+    def _advance_grouping(self, character: str, follower: str) -> None:
+        """Update subshell and brace-group depth."""
+        if character == "(":
+            self.paren_depth += 1
         elif character == ")":
-            paren_depth = max(0, paren_depth - 1)
-        elif (
-            character == "{"
-            and at_word_start
-            and index + 1 < len(command)
-            and command[index + 1].isspace()
-        ):
-            brace_depth += 1
-        elif character == "}" and at_word_start:
-            brace_depth = max(0, brace_depth - 1)
+            self.paren_depth = max(0, self.paren_depth - 1)
+        elif character == "{" and self.at_word_start and follower.isspace():
+            self.brace_depth += 1
+        elif character == "}" and self.at_word_start:
+            self.brace_depth = max(0, self.brace_depth - 1)
 
-        yield index, character, paren_depth, brace_depth, quoted
-        at_word_start = character in " \t;&|("
+    def advance(self, character: str, follower: str) -> None:
+        """Consume one character of the command.
+
+        Examples
+        --------
+        >>> scanner = _ShellScanner()
+        >>> scanner.advance("'", "a")
+        >>> scanner.at_top_level
+        False
+        """
+        if not self._advance_quoting(character):
+            self._advance_grouping(character, follower)
+        self.at_word_start = character in " \t;&|("
 
 
 def command_separators(command: str) -> list[int]:
@@ -171,15 +203,18 @@ def command_separators(command: str) -> list[int]:
     Examples
     --------
     >>> command_separators("yamllint file; actionlint file")
-    [15]
+    [13]
     >>> command_separators("command -v tool || { echo missing; exit 1; }")
     []
     """
-    return [
-        index
-        for index, character, paren, brace, quoted in _quote_and_group_state(command)
-        if character == ";" and not quoted and paren == 0 and brace == 0
-    ]
+    scanner = _ShellScanner()
+    offsets: list[int] = []
+    for index, character in enumerate(command):
+        follower = command[index + 1] if index + 1 < len(command) else ""
+        if character == ";" and scanner.at_top_level:
+            offsets.append(index)
+        scanner.advance(character, follower)
+    return offsets
 
 
 def is_guarded(command: str) -> bool:

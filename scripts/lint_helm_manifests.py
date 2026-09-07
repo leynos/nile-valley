@@ -25,6 +25,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts._gate_runner import (  # noqa: E402
+    ToolRun,
     capture_tool,
     require_tools,
     run_gate,
@@ -59,9 +60,9 @@ def main(
     rendered = capture_tool(
         "helm",
         ["template", release, str(chart), "--kube-version", kube_version],
-        label="helm template",
+        ToolRun(label="helm template"),
     )
-    run_tool("yamllint", ["-f", "parsable", "-"], stdin_text=rendered)
+    run_tool("yamllint", ["-f", "parsable", "-"], ToolRun(stdin_text=rendered))
 
 
 if __name__ == "__main__":

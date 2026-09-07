@@ -14,6 +14,7 @@ import pytest
 
 from scripts._gate_runner import (
     GateError,
+    ToolRun,
     capture_tool,
     require_env,
     require_tools,
@@ -96,7 +97,7 @@ def test_run_tool_accepts_declared_exit_codes(cmd_mox: CmdMox) -> None:
     cmd_mox.mock("tofu").with_args("plan").returns(exit_code=2)
     activate(cmd_mox)
 
-    assert run_tool("tofu", ["plan"], allowed_exit_codes=(0, 2)) == 2
+    assert run_tool("tofu", ["plan"], ToolRun(allowed_exit_codes=(0, 2))) == 2
 
 
 def test_run_tool_still_fails_outside_declared_exit_codes(cmd_mox: CmdMox) -> None:
@@ -105,7 +106,7 @@ def test_run_tool_still_fails_outside_declared_exit_codes(cmd_mox: CmdMox) -> No
     activate(cmd_mox)
 
     with pytest.raises(GateError) as excinfo:
-        run_tool("tofu", ["plan"], allowed_exit_codes=(0, 2))
+        run_tool("tofu", ["plan"], ToolRun(allowed_exit_codes=(0, 2)))
 
     assert "tofu" in str(excinfo.value)
 
@@ -116,7 +117,7 @@ def test_run_tool_labels_the_step(cmd_mox: CmdMox) -> None:
     activate(cmd_mox)
 
     with pytest.raises(GateError) as excinfo:
-        run_tool("tofu", ["validate"], label="tofu validate")
+        run_tool("tofu", ["validate"], ToolRun(label="tofu validate"))
 
     assert "tofu validate" in str(excinfo.value)
 

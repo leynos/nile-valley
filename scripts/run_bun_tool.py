@@ -24,6 +24,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts._gate_runner import (  # noqa: E402
+    ToolRun,
     require_tools,
     run_gate,
     run_tool,
@@ -63,7 +64,7 @@ def main(
     if package:
         bun_arguments.append(f"--package={package}")
     bun_arguments.extend([tool, *arguments])
-    run_tool(BUN, bun_arguments, label=f"bun x {tool}")
+    run_tool(BUN, bun_arguments, ToolRun(label=f"bun x {tool}"))
 
 
 if __name__ == "__main__":

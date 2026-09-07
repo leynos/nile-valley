@@ -10,6 +10,7 @@ tools in order, stop at the first failure, and name the tool that failed.
 from __future__ import annotations
 
 import contextlib
+import dataclasses as dc
 import subprocess
 import sys
 import typing as typ
@@ -86,6 +87,38 @@ def require_env(values: Mapping[str, str | None], *, because: str) -> None:
         raise GateError(message)
 
 
+@dc.dataclass(frozen=True)
+class ToolRun:
+    """Where and how one tool invocation runs.
+
+    Attributes
+    ----------
+    cwd:
+        Directory the tool runs in; the caller's directory when ``None``.
+    env:
+        Environment overrides applied for the invocation alone.
+    allowed_exit_codes:
+        Statuses treated as success. OpenTofu's ``-detailed-exitcode`` returns
+        ``2`` for pending changes, which is not a failure.
+    label:
+        Names the step in the error, distinguishing two steps that share a
+        binary such as ``tofu validate`` and ``tofu plan``.
+    stdin_text:
+        Fed to the tool on standard input; input is closed when ``None``.
+
+    Examples
+    --------
+    >>> ToolRun(label="tofu plan", allowed_exit_codes=(0, 2)).label
+    'tofu plan'
+    """
+
+    cwd: Path | None = None
+    env: Mapping[str, str] | None = None
+    allowed_exit_codes: Sequence[int] = SUCCESS_EXIT_CODES
+    label: str | None = None
+    stdin_text: str | None = None
+
+
 @contextlib.contextmanager
 def _execution_context(
     cwd: Path | None, env: Mapping[str, str] | None
@@ -109,69 +142,45 @@ def _flush_streams() -> None:
     sys.stderr.flush()
 
 
-def _check_status(
-    status: int, name: str, label: str | None, allowed_exit_codes: Sequence[int]
-) -> int:
+def _check_status(status: int, name: str, run: ToolRun) -> int:
     """Return ``status`` or raise :class:`GateError` naming the failing tool."""
-    if status not in tuple(allowed_exit_codes):
-        message = f"{label or name} failed with exit status {status}"
+    if status not in tuple(run.allowed_exit_codes):
+        message = f"{run.label or name} failed with exit status {status}"
         raise GateError(message)
     return status
 
 
-def run_tool(
-    name: str,
-    args: Sequence[str] = (),
-    *,
-    cwd: Path | None = None,
-    env: Mapping[str, str] | None = None,
-    allowed_exit_codes: Sequence[int] = SUCCESS_EXIT_CODES,
-    label: str | None = None,
-    stdin_text: str | None = None,
-) -> int:
+def run_tool(name: str, args: Sequence[str] = (), run: ToolRun | None = None) -> int:
     """Run ``name`` with ``args`` and return its exit status.
 
     Output is inherited rather than captured so the gate log reads exactly as
-    it would when the tool is run by hand. An exit status outside
-    ``allowed_exit_codes`` raises :class:`GateError` naming the tool, which
-    stops the caller before it runs the next tool in the sequence.
-
-    ``allowed_exit_codes`` exists for OpenTofu's ``-detailed-exitcode``, where
-    ``2`` means "changes pending" rather than failure.
-
-    Standard input is closed unless ``stdin_text`` is supplied, so a tool that
-    reads from a terminal fails fast instead of hanging a gate.
+    it would when the tool is run by hand. A status outside the run's allowed
+    exit codes raises :class:`GateError` naming the tool, which stops the
+    caller before it runs the next tool in the sequence.
 
     Examples
     --------
     >>> run_tool("true")
     0
     """
+    run = run or ToolRun()
     command = local[name][tuple(args)]
     _flush_streams()
-    with _execution_context(cwd, env):
-        if stdin_text is None:
+    with _execution_context(run.cwd, run.env):
+        if run.stdin_text is None:
             process = command.popen(
                 stdin=subprocess.DEVNULL, stdout=None, stderr=None
             )
             status = process.wait()
         else:
-            process = command.popen(
-                stdin=subprocess.PIPE, stdout=None, stderr=None
-            )
-            process.communicate(input=stdin_text.encode("utf-8"))
+            process = command.popen(stdin=subprocess.PIPE, stdout=None, stderr=None)
+            process.communicate(input=run.stdin_text.encode("utf-8"))
             status = process.returncode
-    return _check_status(status, name, label, allowed_exit_codes)
+    return _check_status(status, name, run)
 
 
 def capture_tool(
-    name: str,
-    args: Sequence[str] = (),
-    *,
-    cwd: Path | None = None,
-    env: Mapping[str, str] | None = None,
-    allowed_exit_codes: Sequence[int] = SUCCESS_EXIT_CODES,
-    label: str | None = None,
+    name: str, args: Sequence[str] = (), run: ToolRun | None = None
 ) -> str:
     """Run ``name`` and return its standard output as text.
 
@@ -184,15 +193,16 @@ def capture_tool(
     >>> capture_tool("echo", ["rendered"]).strip()
     'rendered'
     """
+    run = run or ToolRun()
     command = local[name][tuple(args)]
     _flush_streams()
-    with _execution_context(cwd, env):
+    with _execution_context(run.cwd, run.env):
         process = command.popen(
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=None
         )
         stdout, _ = process.communicate()
         status = process.returncode
-    _check_status(status, name, label, allowed_exit_codes)
+    _check_status(status, name, run)
     return stdout.decode("utf-8") if isinstance(stdout, bytes) else str(stdout)
 
 

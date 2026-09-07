@@ -27,6 +27,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts._gate_runner import (  # noqa: E402
+    ToolRun,
     require_tools,
     run_gate,
     run_tool,
@@ -71,13 +72,17 @@ def lint_composite_actions(actions_dir: Path) -> None:
         skip("No composite action manifests found; skipping composite action lint")
         return
 
-    run_tool("yamllint", _as_arguments(manifests), label="yamllint (composite actions)")
+    run_tool(
+        "yamllint",
+        _as_arguments(manifests),
+        ToolRun(label="yamllint (composite actions)"),
+    )
     for manifest in manifests:
         print(f"{manifest}:", flush=True)
         run_tool(
             "action-validator",
             [str(manifest)],
-            label=f"action-validator ({manifest})",
+            ToolRun(label=f"action-validator ({manifest})"),
         )
 
 
@@ -105,8 +110,8 @@ def lint_workflows(workflows_dir: Path) -> None:
         return
 
     arguments = _as_arguments(workflows)
-    run_tool("yamllint", arguments, label="yamllint (workflows)")
-    run_tool("actionlint", arguments, label="actionlint")
+    run_tool("yamllint", arguments, ToolRun(label="yamllint (workflows)"))
+    run_tool("actionlint", arguments)
 
 
 @app.default

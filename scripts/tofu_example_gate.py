@@ -28,6 +28,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts._gate_runner import (  # noqa: E402
+    ToolRun,
     require_env,
     require_tools,
     run_gate,
@@ -66,9 +67,11 @@ def validate_example(module: TofuModule) -> None:
     run_tool(
         TOFU,
         arguments,
-        cwd=REPO_ROOT,
-        env=AUTOMATION_ENV,
-        label=f"tofu validate ({module.key})",
+        ToolRun(
+            cwd=REPO_ROOT,
+            env=AUTOMATION_ENV,
+            label=f"tofu validate ({module.key})",
+        ),
     )
 
 
@@ -90,10 +93,12 @@ def plan_example(module: TofuModule) -> None:
     run_tool(
         TOFU,
         arguments,
-        cwd=REPO_ROOT,
-        env=AUTOMATION_ENV,
-        allowed_exit_codes=PLAN_EXIT_CODES,
-        label=f"tofu plan ({module.key})",
+        ToolRun(
+            cwd=REPO_ROOT,
+            env=AUTOMATION_ENV,
+            allowed_exit_codes=PLAN_EXIT_CODES,
+            label=f"tofu plan ({module.key})",
+        ),
     )
 
 

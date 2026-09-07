@@ -31,6 +31,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts._gate_runner import (  # noqa: E402
     GateError,
+    ToolRun,
     capture_tool,
     require_env,
     require_tools,
@@ -76,10 +77,12 @@ def write_plan(module: TofuModule, destination: Path) -> None:
     run_tool(
         TOFU,
         arguments,
-        cwd=REPO_ROOT,
-        env=AUTOMATION_ENV,
-        allowed_exit_codes=PLAN_EXIT_CODES,
-        label=f"tofu plan ({module.key})",
+        ToolRun(
+            cwd=REPO_ROOT,
+            env=AUTOMATION_ENV,
+            allowed_exit_codes=PLAN_EXIT_CODES,
+            label=f"tofu plan ({module.key})",
+        ),
     )
 
 
@@ -93,11 +96,44 @@ def export_plan(module: TofuModule, plan_binary: Path, destination: Path) -> Non
     rendered = capture_tool(
         TOFU,
         [f"-chdir={module.example_dir}", "show", "-json", str(plan_binary)],
-        cwd=REPO_ROOT,
-        env=AUTOMATION_ENV,
-        label=f"tofu show ({module.key})",
+        ToolRun(
+            cwd=REPO_ROOT,
+            env=AUTOMATION_ENV,
+            label=f"tofu show ({module.key})",
+        ),
     )
     destination.write_text(rendered, encoding="utf-8")
+
+
+def _inline_data_arguments(
+    policy: PolicyCheck, workspace: Path, environ: Mapping[str, str]
+) -> list[str]:
+    """Return ``-d`` arguments for inline policy parameters.
+
+    conftest reads data from a path, so inline JSON is written into
+    ``workspace`` first.
+
+    Examples
+    --------
+    >>> # _inline_data_arguments(policy, workspace, {})
+    """
+    inline = environ.get(policy.inline_data_env) if policy.inline_data_env else None
+    if not inline:
+        return []
+    data_file = workspace / "policy-data.json"
+    data_file.write_text(inline, encoding="utf-8")
+    return ["-d", str(data_file)]
+
+
+def _data_path_arguments(policy: PolicyCheck, environ: Mapping[str, str]) -> list[str]:
+    """Return ``-d`` arguments for a policy data path supplied by the operator.
+
+    Examples
+    --------
+    >>> # _data_path_arguments(policy, {})
+    """
+    data_path = environ.get(policy.data_path_env) if policy.data_path_env else None
+    return ["-d", data_path] if data_path else []
 
 
 def _data_arguments(
@@ -105,28 +141,17 @@ def _data_arguments(
 ) -> list[str]:
     """Return conftest ``-d`` arguments for the module's policy data.
 
-    Inline JSON is written into ``workspace`` because conftest reads data from
-    a path rather than from a literal.
+    Inline parameters take precedence over a supplied path, matching the
+    behaviour the Flux policy shell script had.
 
     Examples
     --------
     >>> # _data_arguments(policy, Path("/tmp/workspace"))
     """
     environ = os.environ if environ is None else environ
-
-    if policy.inline_data_env:
-        inline = environ.get(policy.inline_data_env)
-        if inline:
-            data_file = workspace / "policy-data.json"
-            data_file.write_text(inline, encoding="utf-8")
-            return ["-d", str(data_file)]
-
-    if policy.data_path_env:
-        data_path = environ.get(policy.data_path_env)
-        if data_path:
-            return ["-d", data_path]
-
-    return []
+    return _inline_data_arguments(policy, workspace, environ) or _data_path_arguments(
+        policy, environ
+    )
 
 
 def check_plan(module: TofuModule, plan_json: Path, workspace: Path) -> None:
@@ -151,8 +176,7 @@ def check_plan(module: TofuModule, plan_json: Path, workspace: Path) -> None:
     run_tool(
         CONFTEST,
         arguments,
-        cwd=REPO_ROOT,
-        label=f"conftest ({module.key} plan policy)",
+        ToolRun(cwd=REPO_ROOT, label=f"conftest ({module.key} plan policy)"),
     )
 
 
