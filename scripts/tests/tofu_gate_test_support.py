@@ -15,6 +15,8 @@ if typ.TYPE_CHECKING:
 
     from cmd_mox import CmdMox
 
+    from scripts._tofu_modules import TofuModule
+
 TRAEFIK_ENVIRONMENT = {
     "TRAEFIK_KUBECONFIG_PATH": "/tmp/kubeconfig",
     "TRAEFIK_ACME_EMAIL": "ops@example.test",
@@ -87,3 +89,21 @@ def tofu_calls(mox: CmdMox) -> list[str]:
         for invocation in mox.journal
         if invocation.command == "tofu"
     ]
+
+
+def module_environment(module: TofuModule) -> dict[str, str]:
+    """Return a complete, distinct environment for ``module``'s gate.
+
+    Every declared variable gets a value derived from its name, so an
+    assertion can tell which variable a `-var` assignment came from.
+
+    Examples
+    --------
+    >>> # module_environment(MODULES["traefik"])["TRAEFIK_ACME_EMAIL"]
+    """
+    environment = {module.gate_env: f"value-for-{module.gate_env}"}
+    for name in module.required_env:
+        environment[name] = f"value-for-{name}"
+    for variable in (*module.validate_vars, *module.plan_vars):
+        environment.setdefault(variable.env_var, f"value-for-{variable.env_var}")
+    return environment

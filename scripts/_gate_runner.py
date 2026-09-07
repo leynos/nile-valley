@@ -148,6 +148,24 @@ def _check_status(status: int, name: str, run: ToolRun) -> int:
     return status
 
 
+def _spawn(command: typ.Any, run: ToolRun, *, capture: bool) -> tuple[int, bytes]:  # noqa: ANN401
+    """Run ``command`` under ``run`` and return its status and captured output."""
+    # Standard input is closed unless the caller supplies text, so a tool that
+    # reads a terminal fails fast instead of leaving the gate blocked.
+    stdin = subprocess.DEVNULL if run.stdin_text is None else subprocess.PIPE
+    payload = None if run.stdin_text is None else run.stdin_text.encode("utf-8")
+
+    _flush_streams()
+    with _execution_context(run.cwd, run.env):
+        process = command.popen(
+            stdin=stdin,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=None,
+        )
+        stdout, _ = process.communicate(input=payload)
+    return process.returncode, stdout or b""
+
+
 def run_tool(name: str, args: Sequence[str] = (), run: ToolRun | None = None) -> int:
     """Run ``name`` with ``args`` and return its exit status.
 
@@ -162,18 +180,7 @@ def run_tool(name: str, args: Sequence[str] = (), run: ToolRun | None = None) ->
     0
     """
     run = run or ToolRun()
-    command = local[name][tuple(args)]
-    _flush_streams()
-    with _execution_context(run.cwd, run.env):
-        if run.stdin_text is None:
-            process = command.popen(
-                stdin=subprocess.DEVNULL, stdout=None, stderr=None
-            )
-            status = process.wait()
-        else:
-            process = command.popen(stdin=subprocess.PIPE, stdout=None, stderr=None)
-            process.communicate(input=run.stdin_text.encode("utf-8"))
-            status = process.returncode
+    status, _ = _spawn(local[name][tuple(args)], run, capture=False)
     return _check_status(status, name, run)
 
 
@@ -192,16 +199,9 @@ def capture_tool(
     'rendered'
     """
     run = run or ToolRun()
-    command = local[name][tuple(args)]
-    _flush_streams()
-    with _execution_context(run.cwd, run.env):
-        process = command.popen(
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=None
-        )
-        stdout, _ = process.communicate()
-        status = process.returncode
+    status, stdout = _spawn(local[name][tuple(args)], run, capture=True)
     _check_status(status, name, run)
-    return stdout.decode("utf-8") if isinstance(stdout, bytes) else str(stdout)
+    return stdout.decode("utf-8")
 
 
 def skip(message: str) -> None:

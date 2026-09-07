@@ -16,6 +16,7 @@ cannot leave a stale plan behind for the next one to check.
 
 from __future__ import annotations
 
+import dataclasses as dc
 import os
 import sys
 import tempfile
@@ -107,33 +108,78 @@ def export_plan(module: TofuModule, plan_binary: Path, destination: Path) -> Non
     destination.write_text(rendered, encoding="utf-8")
 
 
-def _inline_data_arguments(
-    policy: PolicyCheck, workspace: Path, environ: Mapping[str, str]
-) -> list[str]:
-    """Return ``-d`` arguments for inline policy parameters."""
-    # conftest reads data from a path, so inline JSON is written out first.
-    inline = environ.get(policy.inline_data_env) if policy.inline_data_env else None
-    if not inline:
-        return []
-    data_file = workspace / "policy-data.json"
-    data_file.write_text(inline, encoding="utf-8")
-    return ["-d", str(data_file)]
+@dc.dataclass(frozen=True, slots=True)
+class PolicyData:
+    """Where conftest should read the module's policy data from.
+
+    Exactly one of the fields is set, or neither when the module declares no
+    policy data. ``inline`` still has to be written to a file before conftest
+    can read it, which is :func:`write_policy_data`'s job.
+
+    Examples
+    --------
+    >>> PolicyData(path="data.json").arguments()
+    ['-d', 'data.json']
+    """
+
+    inline: str | None = None
+    path: str | None = None
+
+    def arguments(self) -> list[str]:
+        """Return the conftest ``-d`` arguments for an already-readable path.
+
+        Examples
+        --------
+        >>> PolicyData().arguments()
+        []
+        """
+        return ["-d", self.path] if self.path else []
 
 
-def _data_path_arguments(policy: PolicyCheck, environ: Mapping[str, str]) -> list[str]:
-    """Return ``-d`` arguments for a policy data path given by the operator."""
-    data_path = environ.get(policy.data_path_env) if policy.data_path_env else None
-    return ["-d", data_path] if data_path else []
+def select_policy_data(
+    policy: PolicyCheck, environ: Mapping[str, str] | None = None
+) -> PolicyData:
+    """Return the policy data the environment selects, reading nothing.
 
+    Inline parameters take precedence over a supplied path, matching the
+    behaviour of the Flux policy shell script this replaced.
 
-def _data_arguments(
-    policy: PolicyCheck, workspace: Path, environ: Mapping[str, str] | None = None
-) -> list[str]:
-    """Return conftest ``-d`` arguments, inline parameters taking precedence."""
+    Examples
+    --------
+    >>> select_policy_data(get_module("fluxcd").policy, {})
+    PolicyData(inline=None, path=None)
+    """
     environ = os.environ if environ is None else environ
-    return _inline_data_arguments(policy, workspace, environ) or _data_path_arguments(
-        policy, environ
-    )
+
+    inline = environ.get(policy.inline_data_env) if policy.inline_data_env else None
+    if inline:
+        return PolicyData(inline=inline)
+
+    path = environ.get(policy.data_path_env) if policy.data_path_env else None
+    return PolicyData(path=path or None)
+
+
+def write_policy_data(data: PolicyData, workspace: Path) -> PolicyData:
+    """Write inline data into ``workspace`` and return a readable descriptor.
+
+    conftest reads data from a path rather than from a literal, so inline
+    parameters become a file here. A descriptor that already names a path is
+    returned unchanged.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as raw:
+    ...     written = write_policy_data(PolicyData(inline="{}"), Path(raw))
+    ...     Path(written.path).read_text(encoding="utf-8")
+    '{}'
+    """
+    if data.inline is None:
+        return data
+
+    data_file = workspace / "policy-data.json"
+    data_file.write_text(data.inline, encoding="utf-8")
+    return PolicyData(path=str(data_file))
 
 
 def check_plan(module: TofuModule, plan_json: Path, workspace: Path) -> None:
@@ -153,7 +199,8 @@ def check_plan(module: TofuModule, plan_json: Path, workspace: Path) -> None:
         arguments.append("--fail-on-warn")
     if policy.namespace:
         arguments.extend(["--namespace", policy.namespace])
-    arguments.extend(_data_arguments(policy, workspace))
+    readable = write_policy_data(select_policy_data(policy), workspace)
+    arguments.extend(readable.arguments())
 
     run_tool(
         CONFTEST,

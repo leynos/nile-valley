@@ -104,6 +104,7 @@ scripts-test:
 		--with plumbum \
 		--with cyclopts \
 		--with pyyaml \
+		--with hypothesis \
 		--with "cmd-mox==0.2.0" \
 		pytest scripts/tests
 

@@ -8,7 +8,9 @@ accepted without masking real failures.
 
 from __future__ import annotations
 
+import os
 import typing as typ
+from pathlib import Path
 
 import pytest
 
@@ -144,6 +146,49 @@ def test_capture_tool_raises_before_output_is_used(cmd_mox: CmdMox) -> None:
 
     with pytest.raises(GateError, match=r"helm failed with exit status 1"):
         capture_tool("helm", ["template", "example"])
+
+
+def test_run_tool_uses_the_requested_working_directory(tmp_path: Path) -> None:
+    """A tool runs where the caller asked, not where pytest happens to be.
+
+    The real `pwd` is used rather than a double, because the property under
+    test is the child process's directory.
+    """
+    output = capture_tool("pwd", run=ToolRun(cwd=tmp_path))
+
+    assert Path(output.strip()).resolve() == tmp_path.resolve(), (
+        f"the tool ran in {output.strip()}, not {tmp_path}"
+    )
+
+
+def test_run_tool_applies_environment_overrides() -> None:
+    """An override reaches the child process for that invocation alone."""
+    output = capture_tool(
+        "printenv", ["TF_IN_AUTOMATION"], run=ToolRun(env={"TF_IN_AUTOMATION": "1"})
+    )
+
+    assert output.strip() == "1", f"the override did not reach the child: {output!r}"
+    assert os.environ.get("TF_IN_AUTOMATION") is None, (
+        "the override must not leak into this process"
+    )
+
+
+def test_run_tool_closes_standard_input() -> None:
+    """A tool that reads standard input sees end of file rather than hanging.
+
+    Without this, plumbum's default open pipe leaves a reader blocked forever
+    and the gate never returns.
+    """
+    output = capture_tool("cat")
+
+    assert output == "", f"stdin should be at end of file, got {output!r}"
+
+
+def test_run_tool_can_supply_standard_input() -> None:
+    """Supplied text is delivered, replacing a shell pipeline."""
+    output = capture_tool("cat", run=ToolRun(stdin_text="kind: Service\n"))
+
+    assert output == "kind: Service\n", f"stdin text was not delivered: {output!r}"
 
 
 def test_run_gate_exits_zero_on_success(capsys: pytest.CaptureFixture[str]) -> None:

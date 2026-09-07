@@ -87,7 +87,20 @@ unreadable reference is an error rather than a silently smaller contract.
 To prove the contract still bites, put a chain back into a recipe and run the
 test; it fails for that target, for every target that reaches it, and for the
 whole-Makefile check. The suite carries the same mutation as a test of its
-own, against a temporary Makefile.
+own, against a temporary Makefile. A property test generates commands whose
+separators are hidden in quoting, escaping, substitutions, subshells and brace
+groups, with the real offsets known by construction.
+
+A second contract, `test_makefile_gate_environment.py`, derives the gate
+variable names from the module registry and asserts the Makefile exports each
+one, then runs Make for real and reads the value back out of a child process.
+Without the export, `make <target> VAR=value` would be silently ignored and
+the gate would report a skip.
+
+`test_gate_scripts_end_to_end.py` starts each script in a subprocess against a
+search path holding only fake tools, so the exit code and the diagnostic Make
+depends on are tested at the process boundary rather than through an
+in-process call.
 
 `.SHELLFLAGS := -eo pipefail -c` is deliberately absent. It would make a
 forbidden recipe shape work rather than removing it, weakening the contract,
