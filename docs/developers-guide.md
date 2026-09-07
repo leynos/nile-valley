@@ -18,6 +18,75 @@ security and persistence coordination. Only `scripts/typos_rollout.py` may
 compose it with dictionary validation; infrastructure scripts must not reuse
 these spelling-policy internals.
 
+## Gate recipes
+
+`SHELL := bash` is the only shell setting in the `Makefile`: there is no
+`.ONESHELL` and no `-e` in `.SHELLFLAGS`. Make hands each recipe line to its
+own shell and inspects that shell's exit status, so a line that chains
+commands with `;` reports only the last command's status and discards every
+earlier failure.
+
+That is not hypothetical. Before this rule existed, adding a workflow file
+with trailing whitespace made yamllint exit 1 inside `make lint-actions`,
+which then ran actionlint, and Make saw actionlint's clean status:
+
+```console
+$ yamllint .github/workflows/zz-repro.yml; echo "rc=$?"
+  5:9  error  trailing spaces  (trailing-spaces)
+rc=1
+$ make lint-actions; echo "rc=$?"
+  5:9  error  trailing spaces  (trailing-spaces)
+rc=0
+```
+
+### The rule
+
+Every gate recipe line is a single command. Multi-command gate logic - a
+chain, a loop, or a conditional - lives in a Python script under `scripts/`
+written to the [scripting standards](scripting-standards.md), and the recipe
+invokes that script with `$(UV) run`. `|| exit 1` on each link is an interim
+guard, not a fix.
+
+The scripts share `scripts/_gate_runner.py`, which runs tools in sequence,
+stops at the first unexpected exit status and names the tool that failed.
+Standard input is closed unless a step supplies it, so a gate cannot hang on
+a tool that reads a terminal, and `capture_tool` replaces shell pipelines
+where one tool's output feeds the next.
+
+| Script                   | Recipes it owns                              |
+| ------------------------ | -------------------------------------------- |
+| `lint_actions.py`        | `lint-actions`                               |
+| `lint_helm_manifests.py` | `yamllint`                                   |
+| `run_bun_tool.py`        | `lint`, `check-fmt`, `markdownlint`          |
+| `tofu_example_gate.py`   | the `*-test` validate and plan steps         |
+| `tofu_plan_policy.py`    | the `*-policy` plan, export and conftest run |
+
+`scripts/_tofu_modules.py` holds each module's example path, gate variable,
+required companion variables and `-var` assignments, so one script serves
+every module. A gate stays opt-in: when the module's kubeconfig variable is
+unset the script reports a skip, exactly as the recipes did. The variables are
+`export`ed in the `Makefile` so a `make <target> VAR=value` override still
+reaches the script.
+
+### The contract
+
+`scripts/tests/test_makefile_gate_contract.py` reads every `.PHONY` target's
+recipe through `make --dry-run`, which yields the fully expanded text the
+shell receives, and asserts each line is a single command or enables `errexit`
+before it chains. Semicolons inside quotes, a `$(...)` substitution, a
+subshell or a `{ ...; }` group are not separators, and `&&` or `||` lists
+already stop at the first failure.
+
+To prove the contract still bites, put a chain back into a recipe and run the
+test; it fails for that target, for every target that reaches it, and for the
+whole-Makefile check. The suite carries the same mutation as a test of its
+own, against a temporary Makefile.
+
+`.SHELLFLAGS := -eo pipefail -c` is deliberately absent. It would make a
+forbidden recipe shape work rather than removing it, weakening the contract,
+and it would change the meaning of every existing recipe line at once. The
+mechanism this repository relies on is one command per line.
+
 ## Continuous integration
 
 The `ci` workflow runs a single `build` job on `ubicloud-standard-8`. It is the

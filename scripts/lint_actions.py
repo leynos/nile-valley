@@ -73,7 +73,7 @@ def lint_composite_actions(actions_dir: Path) -> None:
 
     run_tool("yamllint", _as_arguments(manifests), label="yamllint (composite actions)")
     for manifest in manifests:
-        print(f"{manifest}:")
+        print(f"{manifest}:", flush=True)
         run_tool(
             "action-validator",
             [str(manifest)],

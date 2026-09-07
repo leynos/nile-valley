@@ -99,6 +99,16 @@ def _execution_context(
         yield
 
 
+def _flush_streams() -> None:
+    """Flush this process's streams before a child writes to them.
+
+    Python buffers standard output when it is redirected, so without this the
+    gate's own messages appear after the tool output they introduce.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+
 def _check_status(
     status: int, name: str, label: str | None, allowed_exit_codes: Sequence[int]
 ) -> int:
@@ -138,6 +148,7 @@ def run_tool(
     0
     """
     command = local[name][tuple(args)]
+    _flush_streams()
     with _execution_context(cwd, env):
         if stdin_text is None:
             process = command.popen(
@@ -174,6 +185,7 @@ def capture_tool(
     'rendered'
     """
     command = local[name][tuple(args)]
+    _flush_streams()
     with _execution_context(cwd, env):
         process = command.popen(
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=None
@@ -192,7 +204,7 @@ def skip(message: str) -> None:
     >>> skip("Skipping example gate; set EXAMPLE_PATH to enable")
     Skipping example gate; set EXAMPLE_PATH to enable
     """
-    print(message)
+    print(message, flush=True)
 
 
 def run_gate(entry_point: Callable[[], object]) -> typ.NoReturn:

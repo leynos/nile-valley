@@ -13,18 +13,30 @@ define ensure_tool
 endef
 
 # Prefer PATH-installed tools but fall back to `bun x` for ephemeral runs.
+# The choice is made inside the script so the recipe stays a single command
+# and the tool's exit status reaches Make unaltered.
 #
 # Parameters:
 #   $(1) - command name to execute (e.g. `biome`)
 #   $(2) - arguments passed to the command
 #   $(3) - optional npm package spec for the Bun fallback
 define exec_or_bunx
-	if command -v $(1) >/dev/null 2>&1; then \
-	  $(1) $(2); \
-	else \
-	  bun x $(if $(3),--package=$(3) ,)$(1) $(2); \
-	fi
+	$(UV) run scripts/run_bun_tool.py --tool $(1) $(if $(3),--package $(3) ,)-- $(2)
 endef
+
+# The gate scripts read their configuration from the environment, so a
+# `make <target> VAR=value` override has to reach the child process.
+export FLUX_KUBECONFIG_PATH FLUX_GIT_REPOSITORY_URL FLUX_GIT_REPOSITORY_PATH
+export FLUX_GIT_REPOSITORY_BRANCH FLUX_POLICY_PARAMS_JSON FLUX_POLICY_DATA
+export TRAEFIK_KUBECONFIG_PATH TRAEFIK_ACME_EMAIL TRAEFIK_CLOUDFLARE_SECRET_NAME
+export EXTERNAL_DNS_KUBECONFIG_PATH EXTERNAL_DNS_DOMAIN_FILTERS
+export EXTERNAL_DNS_TXT_OWNER_ID EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME
+export CERT_MANAGER_KUBECONFIG_PATH CERT_MANAGER_ACME_EMAIL
+export CERT_MANAGER_NAMECHEAP_SECRET_NAME CERT_MANAGER_VAULT_SERVER
+export CERT_MANAGER_VAULT_PKI_PATH CERT_MANAGER_VAULT_TOKEN_SECRET_NAME
+export CERT_MANAGER_VAULT_CA_BUNDLE_PEM
+export VAULT_ESO_KUBECONFIG_PATH VAULT_ESO_VAULT_ADDRESS VAULT_ESO_CA_BUNDLE_PEM
+export VAULT_ESO_APPROLE_ROLE_ID VAULT_ESO_APPROLE_SECRET_ID
 
 BIOME_VERSION ?= 2.3.1
 MARKDOWNLINT_CLI2_VERSION ?= 0.14.0
@@ -64,24 +76,7 @@ lint-makefile:
 	mbake validate Makefile
 
 lint-actions:
-	$(call ensure_tool,yamllint)
-	$(call ensure_tool,action-validator)
-	$(call ensure_tool,actionlint)
-	@if [ ! -d .github/actions ]; then \
-	  echo "No composite actions found; skipping lint-actions"; \
-	else \
-	  find .github/actions -name 'action.yml' -print0 | xargs -0 -r yamllint; \
-	  while IFS= read -r -d '' action; do \
-	    echo "$$action:"; \
-	    action-validator "$$action"; \
-	  done < <(find .github/actions -name 'action.yml' -print0); \
-	fi
-	@if [ ! -d .github/workflows ]; then \
-	  echo "No workflows found; skipping workflow lint"; \
-	else \
-	  find .github/workflows \( -name '*.yml' -o -name '*.yaml' \) -print0 | xargs -0 -r yamllint; \
-	  find .github/workflows \( -name '*.yml' -o -name '*.yaml' \) -print0 | xargs -0 -r actionlint; \
-	fi
+	$(UV) run scripts/lint_actions.py
 
 lint-infra:
 	$(call ensure_tool,tflint)
@@ -191,8 +186,7 @@ nixie:
 	nixie --no-sandbox
 
 yamllint:
-	command -v helm >/dev/null && command -v yamllint >/dev/null
-	set -o pipefail; helm template example-app ./deploy/charts/example-app --kube-version $(KUBE_VERSION) | yamllint -f parsable -
+	$(UV) run scripts/lint_helm_manifests.py --kube-version $(KUBE_VERSION)
 
 conftest:
 	$(call ensure_tool,conftest)
@@ -237,43 +231,16 @@ cluster-provision-test:
 fluxcd-test:
 	tofu fmt -check infra/modules/fluxcd
 	tofu -chdir=infra/modules/fluxcd/examples/basic init
-	if [ -n "$(FLUX_KUBECONFIG_PATH)" ]; then \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/fluxcd/examples/basic validate -no-color \
-			-var "kubeconfig_path=$(FLUX_KUBECONFIG_PATH)"; \
-	else \
-		echo "Skipping fluxcd validate; set FLUX_KUBECONFIG_PATH to enable"; \
-	fi
+	$(UV) run scripts/tofu_example_gate.py --module fluxcd
 	command -v tflint >/dev/null
 	cd infra/modules/fluxcd && tflint --init && tflint --config .tflint.hcl --version && tflint --config .tflint.hcl
 	cd infra/modules/fluxcd/tests && $(GO_TEST_ENV) KUBECONFIG="$(FLUX_KUBECONFIG_PATH)" go test -v
-	if [ -n "$(FLUX_KUBECONFIG_PATH)" ]; then \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/fluxcd/examples/basic plan -input=false -no-color -detailed-exitcode \
-			-var "git_repository_url=${FLUX_GIT_REPOSITORY_URL:-https://github.com/fluxcd/flux2-kustomize-helm-example.git}" \
-			-var "git_repository_path=${FLUX_GIT_REPOSITORY_PATH:-./clusters/my-cluster}" \
-			-var "git_repository_branch=${FLUX_GIT_REPOSITORY_BRANCH:-main}" \
-			-var "kubeconfig_path=$(FLUX_KUBECONFIG_PATH)"; \
-		status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-	else \
-		echo "Skipping fluxcd plan -detailed-exitcode; set FLUX_KUBECONFIG_PATH to enable"; \
-	fi
 	$(MAKE) fluxcd-policy
 
-# Delegate the Terraform plan and Conftest execution to a script so the target
-# stays readable while still supporting temporary files and clean shutdown.
+# The plan, its JSON export and the Conftest run happen inside one script so
+# that a failure in any step reaches Make.
 fluxcd-policy: conftest tofu
-	if [ -z "$(FLUX_KUBECONFIG_PATH)" ]; then \
-	echo "Skipping fluxcd-policy; set FLUX_KUBECONFIG_PATH to run"; \
-	else \
-	env \
-	FLUX_KUBECONFIG_PATH="$(FLUX_KUBECONFIG_PATH)" \
-	FLUX_GIT_REPOSITORY_URL="$(FLUX_GIT_REPOSITORY_URL)" \
-	FLUX_GIT_REPOSITORY_PATH="$(FLUX_GIT_REPOSITORY_PATH)" \
-	FLUX_GIT_REPOSITORY_BRANCH="$(FLUX_GIT_REPOSITORY_BRANCH)" \
-	FLUX_POLICY_PARAMS_JSON="$(FLUX_POLICY_PARAMS_JSON)" \
-	FLUX_POLICY_DATA="$(FLUX_POLICY_DATA)" \
-	./scripts/fluxcd-policy.sh; \
-	fi
+	$(UV) run scripts/tofu_plan_policy.py --module fluxcd
 
 vault-appliance-test:
 	tofu fmt -check infra/modules/vault_appliance
@@ -319,67 +286,19 @@ traefik-test:
 	TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/traefik/examples/render plan -input=false -no-color -detailed-exitcode \
 	|| test $$? -eq 2
 	tofu -chdir=infra/modules/traefik/examples/basic init
-	if [ -n "$(TRAEFIK_KUBECONFIG_PATH)" ]; then \
-		if [ -z "$(TRAEFIK_ACME_EMAIL)" ] || [ -z "$(TRAEFIK_CLOUDFLARE_SECRET_NAME)" ]; then \
-			echo "TRAEFIK_ACME_EMAIL and TRAEFIK_CLOUDFLARE_SECRET_NAME must be set when TRAEFIK_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/traefik/examples/basic validate -no-color \
-			-var "kubeconfig_path=$(TRAEFIK_KUBECONFIG_PATH)" \
-			-var "acme_email=$(TRAEFIK_ACME_EMAIL)" \
-			-var "cloudflare_api_token_secret_name=$(TRAEFIK_CLOUDFLARE_SECRET_NAME)"; \
-	else \
-		echo "Skipping traefik validate; set TRAEFIK_KUBECONFIG_PATH to enable"; \
-	fi
+	$(UV) run scripts/tofu_example_gate.py --module traefik
 	command -v tflint >/dev/null
 	cd infra/modules/traefik && tflint --init && tflint --config .tflint.hcl --version && tflint --config .tflint.hcl
 	cd infra/modules/traefik/tests && $(GO_TEST_ENV) KUBECONFIG="$(TRAEFIK_KUBECONFIG_PATH)" go test -v
-	if [ -n "$(TRAEFIK_KUBECONFIG_PATH)" ]; then \
-		if [ -z "$(TRAEFIK_ACME_EMAIL)" ] || [ -z "$(TRAEFIK_CLOUDFLARE_SECRET_NAME)" ]; then \
-			echo "TRAEFIK_ACME_EMAIL and TRAEFIK_CLOUDFLARE_SECRET_NAME must be set when TRAEFIK_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/traefik/examples/basic plan -input=false -no-color -detailed-exitcode \
-			-var "kubeconfig_path=$(TRAEFIK_KUBECONFIG_PATH)" \
-			-var "acme_email=$(TRAEFIK_ACME_EMAIL)" \
-			-var "cloudflare_api_token_secret_name=$(TRAEFIK_CLOUDFLARE_SECRET_NAME)"; \
-		status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-	else \
-		echo "Skipping traefik plan -detailed-exitcode; set TRAEFIK_KUBECONFIG_PATH to enable"; \
-	fi
 	$(MAKE) traefik-policy
 
 traefik-policy: conftest tofu
 	./scripts/traefik-render-policy.sh
-	if [ -z "$(TRAEFIK_KUBECONFIG_PATH)" ]; then \
-		echo "Skipping traefik-policy; set TRAEFIK_KUBECONFIG_PATH to run"; \
-	else \
-		set -euo pipefail; \
-		if [ -z "$(TRAEFIK_ACME_EMAIL)" ] || [ -z "$(TRAEFIK_CLOUDFLARE_SECRET_NAME)" ]; then \
-			echo "TRAEFIK_ACME_EMAIL and TRAEFIK_CLOUDFLARE_SECRET_NAME must be set when TRAEFIK_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		tmpdir=$$(mktemp -d); \
-		trap 'rm -rf "$$tmpdir"' EXIT; \
-		status=0; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/traefik/examples/basic plan \
-			-out="$$tmpdir/tfplan.binary" \
-			-detailed-exitcode \
-			-var "kubeconfig_path=$(TRAEFIK_KUBECONFIG_PATH)" \
-			-var "acme_email=$(TRAEFIK_ACME_EMAIL)" \
-			-var "cloudflare_api_token_secret_name=$(TRAEFIK_CLOUDFLARE_SECRET_NAME)" \
-			|| status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/traefik/examples/basic show -json "$$tmpdir/tfplan.binary" > "$$tmpdir/plan.json"; \
-		conftest test --policy infra/modules/traefik/policy/plan --fail-on-warn --namespace traefik.policy.plan "$$tmpdir/plan.json"; \
-	fi
+	$(UV) run scripts/tofu_plan_policy.py --module traefik
 
+# `traefik-e2e.sh` refuses to run without the same variables, so the recipe
+# does not duplicate the check.
 traefik-e2e: tofu
-	@if [ -z "$(TRAEFIK_KUBECONFIG_PATH)" ] || [ -z "$(TRAEFIK_ACME_EMAIL)" ] || [ -z "$(TRAEFIK_CLOUDFLARE_SECRET_NAME)" ]; then \
-		echo "Missing Traefik env vars for e2e. Set TRAEFIK_KUBECONFIG_PATH, TRAEFIK_ACME_EMAIL, and TRAEFIK_CLOUDFLARE_SECRET_NAME." >&2; \
-		exit 1; \
-	fi
 	./scripts/traefik-e2e.sh
 
 external-dns-test:
@@ -389,26 +308,7 @@ external-dns-test:
 	TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/external_dns/examples/render plan -input=false -no-color -detailed-exitcode \
 	|| test $$? -eq 2
 	tofu -chdir=infra/modules/external_dns/examples/basic init
-	if [ -n "$(EXTERNAL_DNS_KUBECONFIG_PATH)" ]; then \
-		if [ -z "$(EXTERNAL_DNS_DOMAIN_FILTERS)" ] || [ -z "$(EXTERNAL_DNS_TXT_OWNER_ID)" ] || [ -z "$(EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME)" ]; then \
-			echo "EXTERNAL_DNS_DOMAIN_FILTERS, EXTERNAL_DNS_TXT_OWNER_ID, and EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME must be set when EXTERNAL_DNS_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/external_dns/examples/basic validate -no-color \
-			-var "kubeconfig_path=$(EXTERNAL_DNS_KUBECONFIG_PATH)" \
-			-var "domain_filters=$(EXTERNAL_DNS_DOMAIN_FILTERS)" \
-			-var "txt_owner_id=$(EXTERNAL_DNS_TXT_OWNER_ID)" \
-			-var "cloudflare_api_token_secret_name=$(EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME)"; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/external_dns/examples/basic plan -input=false -no-color -detailed-exitcode \
-			-var "kubeconfig_path=$(EXTERNAL_DNS_KUBECONFIG_PATH)" \
-			-var "domain_filters=$(EXTERNAL_DNS_DOMAIN_FILTERS)" \
-			-var "txt_owner_id=$(EXTERNAL_DNS_TXT_OWNER_ID)" \
-			-var "cloudflare_api_token_secret_name=$(EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME)"; \
-		status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-	else \
-		echo "Skipping external-dns validate; set EXTERNAL_DNS_KUBECONFIG_PATH to enable"; \
-	fi
+	$(UV) run scripts/tofu_example_gate.py --module external-dns
 	command -v tflint >/dev/null
 	cd infra/modules/external_dns && tflint --init && tflint --config .tflint.hcl --version && tflint --config .tflint.hcl
 	cd infra/modules/external_dns/tests && $(GO_TEST_ENV) KUBECONFIG="$(EXTERNAL_DNS_KUBECONFIG_PATH)" go test -v
@@ -416,29 +316,7 @@ external-dns-test:
 
 external-dns-policy: conftest tofu
 	./scripts/external-dns-render-policy.sh
-	if [ -z "$(EXTERNAL_DNS_KUBECONFIG_PATH)" ]; then \
-		echo "Skipping external-dns plan policy; set EXTERNAL_DNS_KUBECONFIG_PATH to run"; \
-	else \
-		set -euo pipefail; \
-		if [ -z "$(EXTERNAL_DNS_DOMAIN_FILTERS)" ] || [ -z "$(EXTERNAL_DNS_TXT_OWNER_ID)" ] || [ -z "$(EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME)" ]; then \
-			echo "EXTERNAL_DNS_DOMAIN_FILTERS, EXTERNAL_DNS_TXT_OWNER_ID, and EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME must be set when EXTERNAL_DNS_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		tmpdir=$$(mktemp -d); \
-		trap 'rm -rf "$$tmpdir"' EXIT; \
-		status=0; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/external_dns/examples/basic plan \
-			-out="$$tmpdir/tfplan.binary" \
-			-detailed-exitcode \
-			-var "kubeconfig_path=$(EXTERNAL_DNS_KUBECONFIG_PATH)" \
-			-var "domain_filters=$(EXTERNAL_DNS_DOMAIN_FILTERS)" \
-			-var "txt_owner_id=$(EXTERNAL_DNS_TXT_OWNER_ID)" \
-			-var "cloudflare_api_token_secret_name=$(EXTERNAL_DNS_CLOUDFLARE_SECRET_NAME)" \
-			|| status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/external_dns/examples/basic show -json "$$tmpdir/tfplan.binary" > "$$tmpdir/plan.json"; \
-		conftest test --policy infra/modules/external_dns/policy/plan --fail-on-warn --namespace external_dns.policy.plan "$$tmpdir/plan.json"; \
-	fi
+	$(UV) run scripts/tofu_plan_policy.py --module external-dns
 
 cert-manager-test:
 	tofu fmt -check infra/modules/cert_manager
@@ -447,29 +325,7 @@ cert-manager-test:
 	TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/cert_manager/examples/render plan -input=false -no-color -detailed-exitcode \
 	|| test $$? -eq 2
 	tofu -chdir=infra/modules/cert_manager/examples/basic init
-	if [ -n "$(CERT_MANAGER_KUBECONFIG_PATH)" ]; then \
-		./scripts/require-cert-manager-env.sh; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/cert_manager/examples/basic validate -no-color \
-			-var "kubeconfig_path=$(CERT_MANAGER_KUBECONFIG_PATH)" \
-			-var "acme_email=$(CERT_MANAGER_ACME_EMAIL)" \
-			-var "namecheap_api_secret_name=$(CERT_MANAGER_NAMECHEAP_SECRET_NAME)" \
-			-var "vault_server=$(CERT_MANAGER_VAULT_SERVER)" \
-			-var "vault_pki_path=$(CERT_MANAGER_VAULT_PKI_PATH)" \
-			-var "vault_token_secret_name=$(CERT_MANAGER_VAULT_TOKEN_SECRET_NAME)" \
-			-var "vault_ca_bundle_pem=$(CERT_MANAGER_VAULT_CA_BUNDLE_PEM)"; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/cert_manager/examples/basic plan -input=false -no-color -detailed-exitcode \
-			-var "kubeconfig_path=$(CERT_MANAGER_KUBECONFIG_PATH)" \
-			-var "acme_email=$(CERT_MANAGER_ACME_EMAIL)" \
-			-var "namecheap_api_secret_name=$(CERT_MANAGER_NAMECHEAP_SECRET_NAME)" \
-			-var "vault_server=$(CERT_MANAGER_VAULT_SERVER)" \
-			-var "vault_pki_path=$(CERT_MANAGER_VAULT_PKI_PATH)" \
-			-var "vault_token_secret_name=$(CERT_MANAGER_VAULT_TOKEN_SECRET_NAME)" \
-			-var "vault_ca_bundle_pem=$(CERT_MANAGER_VAULT_CA_BUNDLE_PEM)"; \
-		status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-	else \
-		echo "Skipping cert-manager validate; set CERT_MANAGER_KUBECONFIG_PATH to enable"; \
-	fi
+	$(UV) run scripts/tofu_example_gate.py --module cert-manager
 	command -v tflint >/dev/null
 	cd infra/modules/cert_manager && tflint --init && tflint --config .tflint.hcl --version && tflint --config .tflint.hcl
 	cd infra/modules/cert_manager/tests && $(GO_TEST_ENV) KUBECONFIG="$(CERT_MANAGER_KUBECONFIG_PATH)" go test -v
@@ -477,29 +333,7 @@ cert-manager-test:
 
 cert-manager-policy: conftest tofu
 	./scripts/cert-manager-render-policy.sh
-	if [ -z "$(CERT_MANAGER_KUBECONFIG_PATH)" ]; then \
-		echo "Skipping cert-manager plan policy; set CERT_MANAGER_KUBECONFIG_PATH to run"; \
-	else \
-		set -euo pipefail; \
-		./scripts/require-cert-manager-env.sh; \
-		tmpdir=$$(mktemp -d); \
-		trap 'rm -rf "$$tmpdir"' EXIT; \
-		status=0; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/cert_manager/examples/basic plan \
-			-out="$$tmpdir/tfplan.binary" \
-			-detailed-exitcode \
-			-var "kubeconfig_path=$(CERT_MANAGER_KUBECONFIG_PATH)" \
-			-var "acme_email=$(CERT_MANAGER_ACME_EMAIL)" \
-			-var "namecheap_api_secret_name=$(CERT_MANAGER_NAMECHEAP_SECRET_NAME)" \
-			-var "vault_server=$(CERT_MANAGER_VAULT_SERVER)" \
-			-var "vault_pki_path=$(CERT_MANAGER_VAULT_PKI_PATH)" \
-			-var "vault_token_secret_name=$(CERT_MANAGER_VAULT_TOKEN_SECRET_NAME)" \
-			-var "vault_ca_bundle_pem=$(CERT_MANAGER_VAULT_CA_BUNDLE_PEM)" \
-			|| status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/cert_manager/examples/basic show -json "$$tmpdir/tfplan.binary" > "$$tmpdir/plan.json"; \
-		conftest test --policy infra/modules/cert_manager/policy/plan --fail-on-warn --namespace cert_manager.policy.plan "$$tmpdir/plan.json"; \
-	fi
+	$(UV) run scripts/tofu_plan_policy.py --module cert-manager
 
 vault-eso-test:
 	tofu fmt -check infra/modules/vault_eso
@@ -508,28 +342,7 @@ vault-eso-test:
 	TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/vault_eso/examples/render plan -input=false -no-color -detailed-exitcode \
 	|| test $$? -eq 2
 	tofu -chdir=infra/modules/vault_eso/examples/basic init
-	if [ -n "$(VAULT_ESO_KUBECONFIG_PATH)" ]; then \
-		if [ -z "$(VAULT_ESO_VAULT_ADDRESS)" ] || [ -z "$(VAULT_ESO_CA_BUNDLE_PEM)" ] || [ -z "$(VAULT_ESO_APPROLE_ROLE_ID)" ] || [ -z "$(VAULT_ESO_APPROLE_SECRET_ID)" ]; then \
-			echo "VAULT_ESO_VAULT_ADDRESS, VAULT_ESO_CA_BUNDLE_PEM, VAULT_ESO_APPROLE_ROLE_ID, and VAULT_ESO_APPROLE_SECRET_ID must be set when VAULT_ESO_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/vault_eso/examples/basic validate -no-color \
-			-var "vault_address=$(VAULT_ESO_VAULT_ADDRESS)" \
-			-var "vault_ca_bundle_pem=$(VAULT_ESO_CA_BUNDLE_PEM)" \
-			-var "approle_role_id=$(VAULT_ESO_APPROLE_ROLE_ID)" \
-			-var "approle_secret_id=$(VAULT_ESO_APPROLE_SECRET_ID)" \
-			-var "kubeconfig_path=$(VAULT_ESO_KUBECONFIG_PATH)"; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/vault_eso/examples/basic plan -input=false -no-color -detailed-exitcode \
-			-var "vault_address=$(VAULT_ESO_VAULT_ADDRESS)" \
-			-var "vault_ca_bundle_pem=$(VAULT_ESO_CA_BUNDLE_PEM)" \
-			-var "approle_role_id=$(VAULT_ESO_APPROLE_ROLE_ID)" \
-			-var "approle_secret_id=$(VAULT_ESO_APPROLE_SECRET_ID)" \
-			-var "kubeconfig_path=$(VAULT_ESO_KUBECONFIG_PATH)"; \
-		status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-	else \
-		echo "Skipping vault-eso validate; set VAULT_ESO_KUBECONFIG_PATH to enable"; \
-	fi
+	$(UV) run scripts/tofu_example_gate.py --module vault-eso
 	command -v tflint >/dev/null
 	cd infra/modules/vault_eso && tflint --init && tflint --config .tflint.hcl --version && tflint --config .tflint.hcl
 	cd infra/modules/vault_eso/tests && $(GO_TEST_ENV) KUBECONFIG="$(VAULT_ESO_KUBECONFIG_PATH)" go test -v
@@ -537,30 +350,7 @@ vault-eso-test:
 
 vault-eso-policy: conftest tofu
 	./scripts/vault-eso-render-policy.sh
-	if [ -z "$(VAULT_ESO_KUBECONFIG_PATH)" ]; then \
-		echo "Skipping vault-eso plan policy; set VAULT_ESO_KUBECONFIG_PATH to run"; \
-	else \
-		set -euo pipefail; \
-		if [ -z "$(VAULT_ESO_VAULT_ADDRESS)" ] || [ -z "$(VAULT_ESO_CA_BUNDLE_PEM)" ] || [ -z "$(VAULT_ESO_APPROLE_ROLE_ID)" ] || [ -z "$(VAULT_ESO_APPROLE_SECRET_ID)" ]; then \
-			echo "VAULT_ESO_VAULT_ADDRESS, VAULT_ESO_CA_BUNDLE_PEM, VAULT_ESO_APPROLE_ROLE_ID, and VAULT_ESO_APPROLE_SECRET_ID must be set when VAULT_ESO_KUBECONFIG_PATH is set" >&2; \
-			exit 1; \
-		fi; \
-		tmpdir=$$(mktemp -d); \
-		trap 'rm -rf "$$tmpdir"' EXIT; \
-		status=0; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/vault_eso/examples/basic plan \
-			-out="$$tmpdir/tfplan.binary" \
-			-detailed-exitcode \
-			-var "vault_address=$(VAULT_ESO_VAULT_ADDRESS)" \
-			-var "vault_ca_bundle_pem=$(VAULT_ESO_CA_BUNDLE_PEM)" \
-			-var "approle_role_id=$(VAULT_ESO_APPROLE_ROLE_ID)" \
-			-var "approle_secret_id=$(VAULT_ESO_APPROLE_SECRET_ID)" \
-			-var "kubeconfig_path=$(VAULT_ESO_KUBECONFIG_PATH)" \
-			|| status=$$?; \
-		if [ $$status -ne 0 ] && [ $$status -ne 2 ]; then exit $$status; fi; \
-		TF_IN_AUTOMATION=1 tofu -chdir=infra/modules/vault_eso/examples/basic show -json "$$tmpdir/tfplan.binary" > "$$tmpdir/plan.json"; \
-		conftest test --policy infra/modules/vault_eso/policy/plan --fail-on-warn --namespace vault_eso.policy.plan "$$tmpdir/plan.json"; \
-	fi
+	$(UV) run scripts/tofu_plan_policy.py --module vault-eso
 
 .PHONY: cnpg-test
 cnpg-test: ## Run CNPG module Terratest suite
