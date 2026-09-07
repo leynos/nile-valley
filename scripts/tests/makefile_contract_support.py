@@ -124,6 +124,8 @@ def recipe_lines(
         command.extend(["--file", str(makefile)])
     command.append(target)
 
+    # S603: the argument vector is built here from literals and a target
+    # name taken from the repository's own Makefile; no shell is involved.
     completed = subprocess.run(  # noqa: S603
         command, cwd=directory, capture_output=True, text=True, check=False
     )

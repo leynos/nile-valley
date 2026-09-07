@@ -12,7 +12,7 @@ import typing as typ
 from pathlib import Path
 
 import pytest
-from cmd_mox import Response
+from cmd_mox import Invocation, Response
 
 from scripts._gate_runner import GateError
 from scripts.tests.gate_test_support import activate, commands_run
@@ -182,7 +182,7 @@ def test_exported_plan_is_the_document_conftest_reads(cmd_mox: CmdMox) -> None:
     """The JSON that conftest inspects is the output of ``tofu show``."""
     observed: dict[str, str] = {}
 
-    def conftest_handler(invocation: typ.Any) -> Response:  # noqa: ANN401
+    def conftest_handler(invocation: Invocation) -> Response:
         plan_path = Path(invocation.args[1])
         observed["contents"] = plan_path.read_text(encoding="utf-8")
         return Response(exit_code=0)
@@ -204,7 +204,7 @@ def test_flux_policy_passes_inline_data_as_a_file(
     """Inline policy parameters are written out because conftest reads paths."""
     observed: dict[str, str] = {}
 
-    def conftest_handler(invocation: typ.Any) -> Response:  # noqa: ANN401
+    def conftest_handler(invocation: Invocation) -> Response:
         arguments = list(invocation.args)
         data_path = Path(arguments[arguments.index("-d") + 1])
         observed["data"] = data_path.read_text(encoding="utf-8")

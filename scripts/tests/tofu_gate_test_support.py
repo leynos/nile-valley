@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import typing as typ
 
-from cmd_mox import Response
+from cmd_mox import Invocation, Response
 
 if typ.TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -41,7 +41,7 @@ def subcommand_of(args: list[str]) -> str:
 
 def tofu_handler(
     exit_codes: Mapping[str, int], stdout: Mapping[str, str] | None = None
-) -> Callable[[typ.Any], Response]:
+) -> Callable[[Invocation], Response]:
     """Build a ``tofu`` double that answers per subcommand.
 
     Examples
@@ -50,7 +50,7 @@ def tofu_handler(
     """
     outputs = dict(stdout or {})
 
-    def handler(invocation: typ.Any) -> Response:  # noqa: ANN401
+    def handler(invocation: Invocation) -> Response:
         """Answer one ``tofu`` invocation according to its subcommand."""
         subcommand = subcommand_of(list(invocation.args))
         return Response(
