@@ -15,9 +15,21 @@ from __future__ import annotations
 import importlib
 import sys
 import types
+from importlib.util import find_spec
 from pathlib import Path
 
 import pytest
+
+
+def _cmd_mox_plugins() -> tuple[str, ...]:
+    """Register the ``cmd_mox`` fixture only when the package is installed."""
+    # The spelling gate runs a narrower pytest invocation that deliberately
+    # omits cmd-mox; an unconditional registration would break it. A test that
+    # needs the fixture fails with "fixture not found" rather than skipping.
+    return ("cmd_mox.pytest_plugin",) if find_spec("cmd_mox") else ()
+
+
+pytest_plugins = _cmd_mox_plugins()
 
 SCRIPT_DIRECTORY = Path(__file__).resolve().parents[1]
 

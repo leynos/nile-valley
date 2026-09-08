@@ -18,6 +18,135 @@ security and persistence coordination. Only `scripts/typos_rollout.py` may
 compose it with dictionary validation; infrastructure scripts must not reuse
 these spelling-policy internals.
 
+## Gate recipes
+
+`SHELL := bash` is the only shell setting in the `Makefile`: there is no
+`.ONESHELL` and no `-e` in `.SHELLFLAGS`. Make hands each recipe line to its
+own shell and inspects that shell's exit status, so a line that chains
+commands with `;` reports only the last command's status and discards every
+earlier failure.
+
+That is not hypothetical. Before this rule existed, adding a workflow file
+with trailing whitespace made yamllint exit 1 inside `make lint-actions`,
+which then ran actionlint, and Make saw actionlint's clean status:
+
+```console
+$ yamllint .github/workflows/zz-repro.yml; echo "rc=$?"
+  5:9  error  trailing spaces  (trailing-spaces)
+rc=1
+$ make lint-actions; echo "rc=$?"
+  5:9  error  trailing spaces  (trailing-spaces)
+rc=0
+```
+
+### The rule
+
+Every gate recipe line is a single command. Any multi-command gate logic
+lives in a Python script under `scripts/` written to the
+[scripting standards](scripting-standards.md), and the recipe invokes that
+script with `$(UV) run`. That covers a `;` chain, a loop, a conditional, and a
+pipeline. `|| exit 1` on each link is an interim guard, not a fix.
+
+A pipeline hides a failure the same way: without `pipefail`, bash reports only
+the last stage's status, so `helm template chart | yamllint -` passed on a
+chart that failed to render.
+
+The scripts share `scripts/_gate_runner.py`, which runs tools in sequence,
+stops at the first unexpected exit status and names the tool that failed.
+Standard input is closed unless a step supplies it, so a gate cannot hang on
+a tool that reads a terminal.
+
+Where one tool's output feeds the next, the shape depends on what the output
+is. A generated artefact goes to a file: `write_tool_output` redirects the
+tool's standard output into it, and a consumer reads it back through a run's
+`stdin_path`. That is how an OpenTofu plan reaches conftest as JSON and how a
+rendered chart reaches yamllint, so the size of a plan or a chart does not
+become the gate's memory footprint. `capture_tool` holds output in memory and
+is reserved for output bounded by construction, such as the list of tracked
+files the spelling gate checks.
+
+The gate scripts read the environment once, at the command line, and pass the
+mapping down. Nothing below that boundary consults `os.environ`, so the
+variables a decision was made from are the ones the caller can see, and the
+module registry is a read-only mapping for the same reason.
+
+| Script                   | Recipes it owns                              |
+| ------------------------ | -------------------------------------------- |
+| `lint_actions.py`        | `lint-actions`                               |
+| `lint_helm_manifests.py` | `yamllint`                                   |
+| `run_bun_tool.py`        | `lint`, `check-fmt`, `markdownlint`          |
+| `tofu_example_gate.py`   | the `*-test` validate and plan steps         |
+| `tofu_plan_policy.py`    | the `*-policy` plan, export and conftest run |
+| `check_spelling.py`      | the typos step of `spelling`                 |
+
+`scripts/_tofu_modules.py` holds each module's example path, gate variable,
+required companion variables and `-var` assignments, so one script serves
+every module. A gate stays opt-in: when the module's kubeconfig variable is
+unset the script reports a skip, exactly as the recipes did. The variables are
+`export`ed in the `Makefile` so a `make <target> VAR=value` override still
+reaches the script.
+
+### The contract
+
+`scripts/tests/test_makefile_gate_contract.py` reads every `.PHONY` target's
+recipe through `make --dry-run`, which yields the fully expanded text the
+shell receives, and asserts each line is a single command or enables `errexit`
+before it chains. A pipeline additionally needs `pipefail` to count as
+guarded. Semicolons inside quotes, a `$(...)` substitution, a subshell or a
+`{ ...; }` group are not separators, and `&&` or `||` lists already stop at
+the first failure. A `.PHONY` list held in a variable is expanded, and an
+unreadable reference is an error rather than a silently smaller contract.
+
+To prove the contract still bites, put a chain back into a recipe and run the
+test; it fails for that target, for every target that reaches it, and for the
+whole-Makefile check. The suite carries the same mutation as a test of its
+own, against a temporary Makefile. A property test generates commands whose
+separators are hidden in quoting, escaping, substitutions, subshells and brace
+groups, with the real offsets known by construction. It uses Hypothesis, which
+the `scripts-test` recipe installs through its `uv run --with hypothesis`
+invocation alongside the other test dependencies.
+
+The contract resolves GNU Make before it measures anything, preferring
+`gmake`, and fails when `--version` does not report GNU Make. One shell per
+recipe line, `.ONESHELL` and `--dry-run` expansion are GNU Make behaviours, so
+another make would expand differently and the measurement would mean nothing.
+The expected command is compared in full rather than by prefix, because a
+prefix match would certify a recipe whose invocation had been neutralized with
+a trailing option.
+
+A second contract, `test_makefile_gate_environment.py`, derives the gate
+variable names from the module registry and asserts the Makefile exports each
+one, then runs Make for real and reads the value back out of a child process.
+Without the export, `make <target> VAR=value` would be silently ignored and
+the gate would report a skip.
+
+`test_gate_scripts_end_to_end.py` starts each script in a subprocess against a
+search path holding only fake tools, so the exit code and the diagnostic Make
+depends on are tested at the process boundary rather than through an
+in-process call.
+
+A recipe line may also disown its exit status with a leading `-`, which is
+Make's own `|| true`. `make --dry-run` strips that prefix before printing, so
+the contract reads the recipe text for it rather than the expansion.
+
+### CI runs the gates
+
+Converting the recipes only helps while the workflow still runs them, and a
+contract that searched a step's `run` value for the command would pass on a
+step that never executes. `test_workflow_gate_contract.py` requires the whole
+shape instead: the job exists, some step's entire `run` is the gate command,
+and neither the job nor that step carries a condition. A condition is detected
+by the presence of the `if` key, never by its value, because `if: false`
+parses to a boolean and a plausible condition such as a push-only one is not
+falsy at all. Nine mutations are proved to fail the contract, including a
+condition on the step and on the job, a wrapper, a `|| true` suffix, a
+mistyped command and a removed `pull_request` trigger.
+
+`.SHELLFLAGS := -eo pipefail -c` is deliberately absent. It would make a
+forbidden recipe shape work rather than removing it, weakening the contract,
+and it would change the meaning of every existing recipe line at once. The
+mechanism this repository relies on is one command per line.
+
 ## Continuous integration
 
 The `ci` workflow runs a single `build` job on `ubicloud-standard-8`. It is the
