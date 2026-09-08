@@ -26,6 +26,7 @@ TOOL_LOG = "GATE_TOOL_LOG"
 # The fake tools run with a search path holding only themselves, so their
 # interpreter has to be named absolutely.
 BASH = shutil.which("bash") or "/bin/bash"
+CAT = shutil.which("cat") or "/bin/cat"
 
 
 class Harness(typ.NamedTuple):
@@ -35,12 +36,19 @@ class Harness(typ.NamedTuple):
     log: Path
 
     def add_tool(self, name: str, *, exit_code: int = 0, stdout: str = "") -> Path:
-        """Install a fake executable that records its call and exits."""
+        """Install a fake executable that records its call and exits.
+
+        The output is written to a companion file and copied out verbatim
+        rather than passed through ``printf``, so a payload containing a NUL
+        or a backslash reaches the caller as the bytes the test wrote.
+        """
         script = self.bin_dir / name
         body = f"#!{BASH}\n"
         body += f'printf "%s %s\\n" "{name}" "$*" >> "${TOOL_LOG}"\n'
         if stdout:
-            body += f"printf '%b' {stdout!r}\n"
+            payload = self.bin_dir / f"{name}.stdout"
+            payload.write_bytes(stdout.encode("utf-8"))
+            body += f'"{CAT}" "{payload}"\n'
         body += f"exit {exit_code}\n"
         script.write_text(body, encoding="utf-8")
         script.chmod(0o755)
@@ -86,6 +94,8 @@ def _run(
     }
     env.update(environment or {})
 
+    # S603: the argument vector is this interpreter, a script path built
+    # from a literal, and the test's own arguments; no shell is involved.
     return subprocess.run(  # noqa: S603
         [sys.executable, f"scripts/{script}", *arguments],
         cwd=REPO_ROOT,
@@ -237,7 +247,7 @@ def test_unknown_module_exits_one_without_a_traceback(harness: Harness) -> None:
 
 def test_check_spelling_reports_a_finding(harness: Harness) -> None:
     """A typos finding exits 1 and names the pinned version."""
-    harness.add_tool("git", stdout="README.md\\0")
+    harness.add_tool("git", stdout="README.md\0docs/guide.md\0")  # real NUL bytes
     harness.add_tool("uv", exit_code=2)
 
     result = _run(
@@ -250,6 +260,11 @@ def test_check_spelling_reports_a_finding(harness: Harness) -> None:
     )
     assert harness.calls() == ["git", "uv"], (
         f"the listing must precede the check: {harness.calls()}"
+    )
+    # Two names split out of one NUL-delimited listing. A listing that arrived
+    # as literal text would reach typos as a single argument.
+    assert harness.arguments_of("uv")[-2:] == ["README.md", "docs/guide.md"], (
+        f"the listing must be split on NUL: {harness.arguments_of('uv')}"
     )
 
 

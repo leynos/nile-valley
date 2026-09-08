@@ -27,8 +27,14 @@ if typ.TYPE_CHECKING:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 PHONY_PREFIX = ".PHONY:"
-# Accepts `=`, `:=`, `::=`, `?=` and `+=`; only the value matters here.
-SIMPLE_ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*(?::{1,2}|\?|\+)?=\s*(.*)$")
+# The operator is captured as well as the name, because `+=` appends to the
+# earlier value and `?=` defers to it. Overwriting either way would drop
+# targets from a `.PHONY` list and shrink what the contract inspects.
+SIMPLE_ASSIGNMENT = re.compile(
+    r"^([A-Za-z_][A-Za-z0-9_]*)\s*(:{1,2}|\?|\+)?=\s*(.*)$"
+)
+APPEND_OPERATOR = "+"
+CONDITIONAL_OPERATOR = "?"
 VARIABLE_REFERENCE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)")
 SET_COMMAND = "set"
 PIPEFAIL_OPTION = "pipefail"
@@ -120,6 +126,16 @@ def makefile_variables(makefile: Path | None = None) -> dict[str, str]:
     return _simple_assignments(makefile.read_text(encoding="utf-8"))
 
 
+def _apply_assignment(
+    assignments: dict[str, str], name: str, operator: str, value: str
+) -> None:
+    """Record one assignment, honouring the operator's semantics."""
+    if operator == APPEND_OPERATOR and name in assignments:
+        assignments[name] = f"{assignments[name]} {value}".strip()
+    elif not (operator == CONDITIONAL_OPERATOR and name in assignments):
+        assignments[name] = value
+
+
 def _simple_assignments(makefile_text: str) -> dict[str, str]:
     """Return the Makefile's top-level variable assignments."""
     assignments: dict[str, str] = {}
@@ -128,7 +144,8 @@ def _simple_assignments(makefile_text: str) -> dict[str, str]:
             continue
         match = SIMPLE_ASSIGNMENT.match(line.strip())
         if match:
-            assignments[match.group(1)] = match.group(2)
+            name, operator, value = match.group(1), match.group(2) or "", match.group(3)
+            _apply_assignment(assignments, name, operator, value)
     return assignments
 
 
@@ -327,12 +344,26 @@ def ignored_failure_lines(makefile: Path | None = None) -> list[str]:
     return offenders
 
 
+COMMENT_CHARACTER = "#"
+
+
+def _starts_comment(scanner: _ShellScanner, character: str) -> bool:
+    """Report whether the character comments out the rest of the line."""
+    # A `#` starting a word makes everything after it prose rather than a
+    # command, so a separator beyond it is not one the shell would act on.
+    if character != COMMENT_CHARACTER:
+        return False
+    return scanner.at_top_level and scanner.at_word_start
+
+
 def _top_level_offsets(command: str, wanted: str) -> list[int]:
-    """Return offsets of ``wanted`` outside quotes and grouping constructs."""
+    """Return offsets of ``wanted`` outside quotes, grouping and comments."""
     scanner = _ShellScanner()
     offsets: list[int] = []
     for index, character in enumerate(command):
         follower = command[index + 1] if index + 1 < len(command) else ""
+        if _starts_comment(scanner, character):
+            break
         if character == wanted and scanner.at_top_level:
             offsets.append(index)
         scanner.advance(character, follower)
@@ -377,11 +408,22 @@ def pipeline_separators(command: str) -> list[int]:
     ]
 
 
+def _segments(command: str) -> list[str]:
+    """Split ``command`` on its top-level ``;`` separators."""
+    offsets = command_separators(command)
+    bounds = [-1, *offsets, len(command)]
+    # `bounds[1:]` is one shorter by construction, which is what pairs each
+    # boundary with the next one.
+    return [
+        command[start + 1 : end]
+        for start, end in zip(bounds, bounds[1:], strict=False)
+    ]
+
+
 def _set_options(command: str) -> tuple[bool, bool]:
     """Return the errexit and pipefail flags a leading ``set`` enables."""
-    separators = command_separators(command)
-    head = command[: separators[0]] if separators else command
-    tokens = head.split()
+    segments = _segments(command)
+    tokens = segments[0].split()
     if not tokens or tokens[0] != SET_COMMAND:
         return (False, False)
 
@@ -390,6 +432,15 @@ def _set_options(command: str) -> tuple[bool, bool]:
         for token in tokens[1:]
     )
     return (errexit, PIPEFAIL_OPTION in tokens[1:])
+
+
+def _resets_options(command: str) -> bool:
+    """Report whether a later command changes the shell options again."""
+    # `set -e -o pipefail; set +o pipefail; failing | passing` succeeds, so a
+    # line that revisits `set` is not taken as guarded by its opening one.
+    return any(
+        segment.split()[:1] == [SET_COMMAND] for segment in _segments(command)[1:]
+    )
 
 
 def is_guarded(command: str) -> bool:
@@ -407,9 +458,11 @@ def is_guarded(command: str) -> bool:
     False
     >>> is_guarded("helm template chart; yamllint -")
     False
+    >>> is_guarded("set -eo pipefail; set +o pipefail; failing | passing")
+    False
     """
     errexit, pipefail = _set_options(command)
-    if not errexit:
+    if not errexit or _resets_options(command):
         return False
     return pipefail or not pipeline_separators(command)
 

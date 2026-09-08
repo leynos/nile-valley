@@ -164,6 +164,7 @@ def test_the_contract_measures_with_gnu_make() -> None:
     Make behaviours; another make would expand differently or reject the
     options, so measuring with it would prove nothing.
     """
+    # S603: a resolved binary path and a literal option, run without a shell.
     reported = subprocess.run(  # noqa: S603
         [gnu_make(), "--version"], capture_output=True, text=True, check=False
     )

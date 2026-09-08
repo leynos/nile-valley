@@ -128,6 +128,28 @@ def test_the_contract_rejects_each_mutation(name: str, document: Document) -> No
     )
 
 
+def test_a_conditioned_duplicate_does_not_disqualify_the_gate(
+    document: Document,
+) -> None:
+    """One unconditional step is enough, whatever a duplicate carries.
+
+    A workflow may run the same gate twice, for instance on a second platform
+    behind a condition. The contract asks that the gate runs unconditionally
+    somewhere, not that no conditioned copy exists.
+    """
+
+    def add_conditioned_duplicate(mutated: Document) -> None:
+        job = find_job(mutated, MUTATED_GATE)
+        duplicate = {"name": "Lint again", "run": MUTATED_GATE, "if": False}
+        job["steps"].insert(0, duplicate)
+
+    mutated = with_mutation(document, add_conditioned_duplicate)
+
+    assert gate_failures(mutated, MUTATED_GATE) == [], (
+        "the unconditional step still satisfies the contract"
+    )
+
+
 def test_an_unmutated_document_still_passes(document: Document) -> None:
     """The mutations are what fail, not the copying the harness does."""
     unchanged = with_mutation(document, lambda _: None)

@@ -131,23 +131,28 @@ def gate_failures(document: Mapping[typ.Any, typ.Any], command: str) -> list[str
     >>> gate_failures(load_document(), "make lint")
     []
     """
-    reasons: list[str] = []
+    trigger_reasons: list[str] = []
     if "pull_request" not in triggers(document):
-        reasons.append("the workflow does not react to pull_request")
+        trigger_reasons.append("the workflow does not react to pull_request")
 
-    matched = False
+    # A conditioned duplicate does not disqualify the workflow; one
+    # unconditional step running the command is what the contract asks for.
+    condition_reasons: list[str] = []
     for found in matching_steps(document, command):
-        matched = True
         if CONDITION_KEY in found.job:
-            reasons.append(f"job {found.job_identifier} carries a condition")
+            condition_reasons.append(
+                f"job {found.job_identifier} carries a condition"
+            )
         elif CONDITION_KEY in found.step:
-            reasons.append(f"the step running {command!r} carries a condition")
+            condition_reasons.append(
+                f"the step running {command!r} carries a condition"
+            )
         else:
-            return reasons
+            return trigger_reasons
 
-    if not matched:
-        reasons.append(f"no step's whole run is {command!r}")
-    return reasons
+    if not condition_reasons:
+        condition_reasons.append(f"no step's whole run is {command!r}")
+    return trigger_reasons + condition_reasons
 
 
 def with_mutation(

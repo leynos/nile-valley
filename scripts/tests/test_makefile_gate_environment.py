@@ -94,6 +94,9 @@ def test_command_line_override_reaches_a_child_process(
         encoding="utf-8",
     )
 
+    # S603: the vector is a resolved binary, literal options, a temporary
+    # probe file this test wrote, and a name from the module registry; no
+    # shell is involved.
     completed = subprocess.run(  # noqa: S603
         [
             gnu_make(),

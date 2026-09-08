@@ -17,6 +17,7 @@ import typing as typ
 from pathlib import Path
 
 from plumbum import local
+from plumbum.commands.base import BaseCommand
 from plumbum.commands.processes import CommandNotFound
 
 if typ.TYPE_CHECKING:
@@ -148,7 +149,7 @@ def _check_status(status: int, name: str, run: ToolRun) -> int:
     return status
 
 
-def _spawn(command: typ.Any, run: ToolRun, *, capture: bool) -> tuple[int, bytes]:  # noqa: ANN401
+def _spawn(command: BaseCommand, run: ToolRun, *, capture: bool) -> tuple[int, bytes]:
     """Run ``command`` under ``run`` and return its status and captured output."""
     # Standard input is closed unless the caller supplies text, so a tool that
     # reads a terminal fails fast instead of leaving the gate blocked.

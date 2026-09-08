@@ -44,7 +44,7 @@ rc=0
 Every gate recipe line is a single command. Any multi-command gate logic
 lives in a Python script under `scripts/` written to the
 [scripting standards](scripting-standards.md), and the recipe invokes that
-script with `$(UV) run`. That covers a `;` chain, a loop, a conditional and a
+script with `$(UV) run`. That covers a `;` chain, a loop, a conditional, and a
 pipeline. `|| exit 1` on each link is an interim guard, not a fix.
 
 A pipeline hides a failure the same way: without `pipefail`, bash reports only

@@ -13,20 +13,17 @@ from __future__ import annotations
 
 import dataclasses as dc
 import os
-import sys
 import typing as typ
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    # The repository root has to be on the path before the `scripts` package
-    # can be imported, which is why this import cannot sit with the others.
-    sys.path.insert(0, str(REPO_ROOT))
-
-from scripts._gate_runner import GateError  # noqa: E402  # see the sys.path note above
+from scripts._gate_runner import GateError
 
 if typ.TYPE_CHECKING:
     from collections.abc import Mapping
+
+# Importing the registry has no side effect on `sys.path`: the executable gate
+# scripts put the repository root there before they import it.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 MODULES_ROOT = Path("infra/modules")
 
