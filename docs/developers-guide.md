@@ -18,6 +18,44 @@ security and persistence coordination. Only `scripts/typos_rollout.py` may
 compose it with dictionary validation; infrastructure scripts must not reuse
 these spelling-policy internals.
 
+## CodeScene rule overrides
+
+This repository declares no CodeScene rule overrides. The file that held them,
+`.codescene/code-health-rules.json`, was removed because its one rule set had
+never applied: it used a top-level `rules` map with `threshold-by-pattern`,
+which CodeScene rejects, and its glob named Rust sources in a repository that
+contains none. Removing it changed no verdict, because CodeScene had never
+read it.
+
+The failure mode is worth knowing before writing a replacement. A rule set the
+tool cannot read is skipped, the verdicts carry on without the override, and
+the only sign is a line on standard error that a passing run buries. The
+diagnostic blames JSON syntax, which sends the reader looking for a missing
+comma, when the real cause is that hyphenated keys read as namespaced keywords.
+
+To add an override, use the schema `cs docs code-health-rules-template` prints:
+a top-level `rule_sets` array, each entry naming a `matching_content_path` and
+justifying itself in `matching_content_path_doc`, and each rule named in prose
+with a `weight` between 0.0, which disables it, and 1.0, which is the default.
+Validate it before pushing:
+
+```bash
+cs rules-config validate
+```
+
+That is a local check and stays one. The CodeScene command-line tool does not
+belong in CI or in a Makefile target: the GitHub integration reads the same
+rule set, so running the tool as well would duplicate the check under a
+licence the runners do not need. With no overrides declared the command
+reports "No configuration file found" and exits non-zero, which is the
+expected state here rather than a fault.
+
+`scripts/tests/test_codescene_rules.py` is a schema test, not a substitute for
+either. It asserts the documented shape rather than merely that the file is
+JSON, requires every rule set to justify itself, and requires every glob to
+match at least one file, since a glob left behind by a rename or a copy is an
+exemption that quietly stops applying.
+
 ## Gate recipes
 
 `SHELL := bash` is the only shell setting in the `Makefile`: there is no
