@@ -31,6 +31,30 @@ import pytest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RULES_PATH = REPOSITORY_ROOT / ".codescene" / "code-health-rules.json"
 
+
+class RuleRecord(typ.TypedDict):
+    """One rule override: a prose name and a weight between 0.0 and 1.0."""
+
+    name: str
+    weight: float
+
+
+class RuleSetRecord(typ.TypedDict, total=False):
+    """One rule set, as `cs docs code-health-rules-template` emits it."""
+
+    matching_content_path: str
+    matching_content_path_doc: str
+    content_filter: str
+    rules: list[RuleRecord]
+    thresholds: dict[str, float]
+
+
+class RulesDocument(typ.TypedDict, total=False):
+    """The rule file as a whole."""
+
+    usage: str
+    rule_sets: list[RuleSetRecord]
+
 #: Keys `cs docs code-health-rules-template` emits for a rule set. `usage` and
 #: the `_doc` suffixes are documentation the template carries itself, so they
 #: are allowed rather than required.
@@ -47,7 +71,7 @@ RULE_SET_KEYS = frozenset(
 MINIMUM_JUSTIFICATION = 80
 
 
-def _rule_sets() -> list[dict[str, typ.Any]]:
+def _rule_sets() -> list[RuleSetRecord]:
     """Return the file's rule sets, failing if the top-level shape is wrong."""
     document = json.loads(RULES_PATH.read_text(encoding="utf-8"))
     assert isinstance(document, dict), "the rule file must be a JSON object"
@@ -58,19 +82,28 @@ def _rule_sets() -> list[dict[str, typ.Any]]:
         "with a message about JSON syntax that sends the reader elsewhere"
     )
     assert rule_sets, "an empty rule_sets array declares no override at all"
-    return typ.cast("list[dict[str, typ.Any]]", rule_sets)
+    for rule_set in rule_sets:
+        assert isinstance(rule_set, dict), "each rule set must be an object"
+    return typ.cast("list[RuleSetRecord]", rule_sets)
 
 
-def _check_rule(rule: dict[str, typ.Any]) -> None:
+def _check_rule(rule: RuleSetRecord | dict[str, object]) -> None:
     """Assert one rule override carries a prose name and a weight."""
     assert set(rule) == {"name", "weight"}, (
         f"a rule override carries exactly a name and a weight: {rule}"
     )
-    assert isinstance(rule["name"], str) and " " in rule["name"], (
+    name = rule["name"]
+    assert isinstance(name, str) and " " in name, (
         "rules are named in prose, as in 'String Heavy Function Arguments', "
-        f"not as a hyphenated slug: {rule['name']!r}"
+        f"not as a hyphenated slug: {name!r}"
     )
     weight = rule["weight"]
+    # A Boolean passes `isinstance(..., int)` and falls inside the range, but
+    # CodeScene expects a number, so the contract would approve a file the
+    # authoritative validator rejects.
+    assert not isinstance(weight, bool), (
+        f"a rule's weight is a number, not a Boolean: {weight!r}"
+    )
     assert isinstance(weight, int | float) and 0.0 <= weight <= 1.0, (
         "a rule's weight is a relative multiplier between 0.0 and 1.0, not a "
         f"threshold: {weight!r}"
@@ -122,10 +155,14 @@ def check_globs_match() -> None:
         assert isinstance(pattern, str) and pattern, (
             "each rule set must declare a matching_content_path"
         )
-        matched = next(REPOSITORY_ROOT.glob(pattern), None)
+        matched = next(
+            (path for path in REPOSITORY_ROOT.glob(pattern) if path.is_file()),
+            None,
+        )
         assert matched is not None, (
             f"no file matches {pattern!r}; an exemption that matches nothing "
-            "is either stale or was never right"
+            "is either stale or was never right. A pattern resolving only to "
+            "a directory counts as nothing, because CodeScene weighs files"
         )
 
 
@@ -240,10 +277,55 @@ def test_a_rule_file_would_have_to_pass_each_check(
             (check_justifications,),
             id="an-unjustified-exemption",
         ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [
+                            {"name": "String Heavy Arguments", "weight": 0.0}
+                        ],
+                    }
+                ]
+            },
+            (check_globs_match,),
+            id="a-glob-matching-only-a-directory",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [
+                            {"name": "String Heavy Arguments", "weight": True}
+                        ],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-boolean-weight-true",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [
+                            {"name": "String Heavy Arguments", "weight": False}
+                        ],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-boolean-weight-false",
+        ),
     ],
 )
 def test_the_checks_reject_known_bad_shapes(
-    document: dict[str, typ.Any],
+    document: dict[str, object],
     failing_checks: tuple[typ.Callable[[], None], ...],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

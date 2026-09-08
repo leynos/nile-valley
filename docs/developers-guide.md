@@ -19,14 +19,14 @@ never drift-checked in CI, because the shared dictionary is the authority and a
 dictionary change would otherwise fail every consumer's pipeline. Narrow
 repository exceptions belong in `typos.local.toml`.
 
-
 ## CodeScene rule overrides
 
-This repository declares no CodeScene rule overrides. `.codescene/code-health-rules.json`
-was removed because the one rule set it held had never applied: the file used a
-top-level `rules` map with `threshold-by-pattern`, which CodeScene rejects, and
-its glob named Rust sources in a repository that contains none. Removing it
-changed no verdict, because CodeScene had never read it.
+This repository declares no CodeScene rule overrides. The file that held them,
+`.codescene/code-health-rules.json`, was removed because its one rule set had
+never applied: it used a top-level `rules` map with `threshold-by-pattern`,
+which CodeScene rejects, and its glob named Rust sources in a repository that
+contains none. Removing it changed no verdict, because CodeScene had never
+read it.
 
 The failure mode is worth knowing before writing a replacement. A rule set the
 tool cannot read is skipped, the verdicts carry on without the override, and
