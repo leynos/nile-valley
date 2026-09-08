@@ -12,14 +12,11 @@ reports a skip, exactly as the shell recipes did.
 from __future__ import annotations
 
 import dataclasses as dc
-import os
-import typing as typ
+import types
+from collections.abc import Mapping
 from pathlib import Path
 
 from scripts._gate_runner import GateError
-
-if typ.TYPE_CHECKING:
-    from collections.abc import Mapping
 
 # Importing the registry has no side effect on `sys.path`: the executable gate
 # scripts put the repository root there before they import it.
@@ -101,19 +98,21 @@ class TofuModule:
         """
         return REPO_ROOT / self.example_dir
 
-    def is_enabled(self, environ: Mapping[str, str] | None = None) -> bool:
+    def is_enabled(self, environ: Mapping[str, str]) -> bool:
         """Return whether the operator has enabled this gate.
+
+        The environment is passed in rather than read here, so a caller can
+        see which mapping a decision was made from.
 
         Examples
         --------
         >>> MODULES["traefik"].is_enabled({})
         False
         """
-        environ = os.environ if environ is None else environ
         return bool(environ.get(self.gate_env))
 
     def missing_requirements(
-        self, environ: Mapping[str, str] | None = None
+        self, environ: Mapping[str, str]
     ) -> dict[str, str | None]:
         """Return the required environment variables and their current values.
 
@@ -122,13 +121,10 @@ class TofuModule:
         >>> sorted(MODULES["traefik"].missing_requirements({}))
         ['TRAEFIK_ACME_EMAIL', 'TRAEFIK_CLOUDFLARE_SECRET_NAME']
         """
-        environ = os.environ if environ is None else environ
         return {name: environ.get(name) for name in self.required_env}
 
     def var_arguments(
-        self,
-        variables: tuple[TofuVar, ...],
-        environ: Mapping[str, str] | None = None,
+        self, variables: tuple[TofuVar, ...], environ: Mapping[str, str]
     ) -> list[str]:
         """Render ``variables`` as an OpenTofu argument list.
 
@@ -137,7 +133,6 @@ class TofuModule:
         >>> MODULES["traefik"].var_arguments((), {})
         []
         """
-        environ = os.environ if environ is None else environ
         arguments: list[str] = []
         for variable in variables:
             arguments.extend(["-var", variable.render(environ)])
@@ -200,7 +195,7 @@ _FLUXCD_PLAN_VARS = (
 )
 
 
-MODULES: dict[str, TofuModule] = {
+_REGISTRY: dict[str, TofuModule] = {
     module.key: module
     for module in (
         TofuModule(
@@ -285,6 +280,11 @@ MODULES: dict[str, TofuModule] = {
         ),
     )
 }
+
+
+#: The registry is read-only: a caller that could replace an entry could
+#: change what a gate plans, from anywhere that imports this module.
+MODULES: Mapping[str, TofuModule] = types.MappingProxyType(_REGISTRY)
 
 
 def get_module(key: str) -> TofuModule:

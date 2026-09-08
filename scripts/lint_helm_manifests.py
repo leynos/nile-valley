@@ -9,11 +9,15 @@ The Make recipe used to enable ``pipefail`` and pipe ``helm template`` into
 yamllint on one line. Rendering and linting here keeps both exit statuses:
 a chart that fails to render stops the gate before yamllint is handed an
 empty document.
+
+The rendered manifests go to a temporary file rather than through this
+process, because a chart's size is a property of the chart.
 """
 
 from __future__ import annotations
 
 import sys
+import tempfile
 import typing as typ
 from pathlib import Path
 
@@ -28,10 +32,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts._gate_runner import (  # noqa: E402  # see the sys.path note above
     ToolRun,
-    capture_tool,
     require_tools,
     run_gate,
     run_tool,
+    write_tool_output,
 )
 
 REQUIRED_TOOLS = ("helm", "yamllint")
@@ -59,12 +63,15 @@ def main(
     >>> # main(release="example-app", chart=Path("deploy/charts/example-app"))
     """
     require_tools(REQUIRED_TOOLS)
-    rendered = capture_tool(
-        "helm",
-        ["template", release, str(chart), "--kube-version", kube_version],
-        ToolRun(label="helm template"),
-    )
-    run_tool("yamllint", ["-f", "parsable", "-"], ToolRun(stdin_text=rendered))
+    with tempfile.TemporaryDirectory(prefix="helm-manifests-") as raw:
+        rendered = Path(raw) / "rendered.yaml"
+        write_tool_output(
+            "helm",
+            ["template", release, str(chart), "--kube-version", kube_version],
+            destination=rendered,
+            run=ToolRun(label="helm template"),
+        )
+        run_tool("yamllint", ["-f", "parsable", "-"], ToolRun(stdin_path=rendered))
 
 
 if __name__ == "__main__":

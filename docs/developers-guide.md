@@ -54,8 +54,21 @@ chart that failed to render.
 The scripts share `scripts/_gate_runner.py`, which runs tools in sequence,
 stops at the first unexpected exit status and names the tool that failed.
 Standard input is closed unless a step supplies it, so a gate cannot hang on
-a tool that reads a terminal, and `capture_tool` replaces shell pipelines
-where one tool's output feeds the next.
+a tool that reads a terminal.
+
+Where one tool's output feeds the next, the shape depends on what the output
+is. A generated artefact goes to a file: `write_tool_output` redirects the
+tool's standard output into it, and a consumer reads it back through a run's
+`stdin_path`. That is how an OpenTofu plan reaches conftest as JSON and how a
+rendered chart reaches yamllint, so the size of a plan or a chart does not
+become the gate's memory footprint. `capture_tool` holds output in memory and
+is reserved for output bounded by construction, such as the list of tracked
+files the spelling gate checks.
+
+The gate scripts read the environment once, at the command line, and pass the
+mapping down. Nothing below that boundary consults `os.environ`, so the
+variables a decision was made from are the ones the caller can see, and the
+module registry is a read-only mapping for the same reason.
 
 | Script                   | Recipes it owns                              |
 | ------------------------ | -------------------------------------------- |
@@ -89,7 +102,9 @@ test; it fails for that target, for every target that reaches it, and for the
 whole-Makefile check. The suite carries the same mutation as a test of its
 own, against a temporary Makefile. A property test generates commands whose
 separators are hidden in quoting, escaping, substitutions, subshells and brace
-groups, with the real offsets known by construction.
+groups, with the real offsets known by construction. It uses Hypothesis, which
+the `scripts-test` recipe installs through its `uv run --with hypothesis`
+invocation alongside the other test dependencies.
 
 The contract resolves GNU Make before it measures anything, preferring
 `gmake`, and fails when `--version` does not report GNU Make. One shell per

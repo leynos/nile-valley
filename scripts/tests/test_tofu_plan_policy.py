@@ -15,9 +15,11 @@ import pytest
 from cmd_mox import Invocation, Response
 
 from scripts._gate_runner import GateError
+from scripts._tofu_modules import MODULES
 from scripts.tests.gate_test_support import activate, commands_run
 from scripts.tests.tofu_gate_test_support import (
     TRAEFIK_ENVIRONMENT,
+    module_environment,
     stub_tofu,
     tofu_calls,
 )
@@ -245,4 +247,104 @@ def test_flux_policy_accepts_a_data_path(
     arguments = list(cmd_mox.journal[2].args)
     assert arguments[arguments.index("-d") + 1] == str(data_file), (
         f"the supplied data path must be forwarded unchanged: {arguments}"
+    )
+
+
+MODULES_WITH_POLICY_DATA = tuple(
+    sorted(
+        key
+        for key, module in MODULES.items()
+        if module.policy is not None
+        and (module.policy.inline_data_env or module.policy.data_path_env)
+    )
+)
+
+
+def _observe_conftest(mox: CmdMox, observed: dict[str, typ.Any]) -> None:
+    """Record conftest's arguments and any data file it was handed.
+
+    The data file is read here because the gate deletes its workspace as soon
+    as the run finishes. Its contents are compared but never reported, so a
+    failing assertion cannot print policy data into a log.
+    """
+
+    def handler(invocation: Invocation) -> Response:
+        arguments = list(invocation.args)
+        observed["arguments"] = arguments
+        if "-d" in arguments:
+            data_path = Path(arguments[arguments.index("-d") + 1])
+            observed["data_path"] = data_path
+            observed["data"] = (
+                data_path.read_text(encoding="utf-8") if data_path.is_file() else None
+            )
+        return Response(exit_code=0)
+
+    mox.stub("conftest").runs(handler)
+
+
+@pytest.mark.parametrize("key", MODULES_WITH_POLICY_DATA, ids=str)
+def test_a_configured_data_path_reaches_conftest(
+    key: str, cmd_mox: CmdMox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A supplied path is forwarded unchanged."""
+    module = MODULES[key]
+    policy = module.policy
+    assert policy is not None and policy.data_path_env, f"{key} declares no data path"
+
+    data_file = tmp_path / "data.json"
+    data_file.write_text("{}", encoding="utf-8")
+    for name, value in module_environment(module).items():
+        monkeypatch.setenv(name, value)
+    if policy.inline_data_env:
+        monkeypatch.delenv(policy.inline_data_env, raising=False)
+    monkeypatch.setenv(policy.data_path_env, str(data_file))
+
+    observed: dict[str, typ.Any] = {}
+    stub_tofu(cmd_mox, {}, {"show": PLAN_JSON})
+    _observe_conftest(cmd_mox, observed)
+    activate(cmd_mox)
+
+    main(module=key)
+
+    assert observed["data_path"] == data_file, (
+        f"{key} did not forward the configured data path: {observed['data_path']}"
+    )
+
+
+@pytest.mark.parametrize("key", MODULES_WITH_POLICY_DATA, ids=str)
+def test_inline_data_wins_over_a_configured_path(
+    key: str, cmd_mox: CmdMox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With both set, conftest reads the inline parameters, not the path.
+
+    The precedence is documented and was inherited from the Flux policy shell
+    script, but nothing pinned it while both values were set at once.
+    """
+    module = MODULES[key]
+    policy = module.policy
+    assert policy is not None, f"{key} declares no policy"
+    if not (policy.inline_data_env and policy.data_path_env):
+        pytest.skip(f"{key} declares only one policy-data source")
+
+    unused_path = tmp_path / "unused.json"
+    unused_path.write_text("{}", encoding="utf-8")
+    inline = '{"allowed": true}'
+    for name, value in module_environment(module).items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv(policy.inline_data_env, inline)
+    monkeypatch.setenv(policy.data_path_env, str(unused_path))
+
+    observed: dict[str, typ.Any] = {}
+    stub_tofu(cmd_mox, {}, {"show": PLAN_JSON})
+    _observe_conftest(cmd_mox, observed)
+    activate(cmd_mox)
+
+    main(module=key)
+
+    assert observed["data_path"] != unused_path, (
+        f"{key} used the configured path while inline parameters were set"
+    )
+    # The value itself is not reported, so a failure cannot leak policy data.
+    assert observed["data"] == inline, (
+        f"{key} did not hand conftest the inline parameters"
     )

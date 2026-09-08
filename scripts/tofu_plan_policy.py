@@ -35,12 +35,12 @@ if str(REPO_ROOT) not in sys.path:
 from scripts._gate_runner import (  # noqa: E402  # see the sys.path note above
     GateError,
     ToolRun,
-    capture_tool,
     require_env,
     require_tools,
     run_gate,
     run_tool,
     skip,
+    write_tool_output,
 )
 from scripts._tofu_modules import get_module  # noqa: E402  # see above
 
@@ -48,6 +48,7 @@ if typ.TYPE_CHECKING:
     from collections.abc import Mapping
 
     from scripts._tofu_modules import PolicyCheck, TofuModule
+
 
 TOFU = "tofu"
 CONFTEST = "conftest"
@@ -61,7 +62,9 @@ app = App(
 )
 
 
-def write_plan(module: TofuModule, destination: Path) -> None:
+def write_plan(
+    module: TofuModule, destination: Path, environ: Mapping[str, str]
+) -> None:
     """Write a binary plan for ``module`` to ``destination``.
 
     Examples
@@ -75,7 +78,7 @@ def write_plan(module: TofuModule, destination: Path) -> None:
         "-no-color",
         f"-out={destination}",
         "-detailed-exitcode",
-        *module.var_arguments(module.plan_vars),
+        *module.var_arguments(module.plan_vars, environ),
     ]
     run_tool(
         TOFU,
@@ -92,20 +95,23 @@ def write_plan(module: TofuModule, destination: Path) -> None:
 def export_plan(module: TofuModule, plan_binary: Path, destination: Path) -> None:
     """Export ``plan_binary`` as JSON for conftest.
 
+    The JSON goes straight to ``destination``. A plan's size is set by the
+    infrastructure it describes, so it is not held in this process.
+
     Examples
     --------
     >>> # export_plan(get_module("traefik"), binary, Path("/tmp/plan.json"))
     """
-    rendered = capture_tool(
+    write_tool_output(
         TOFU,
         [f"-chdir={module.example_dir}", "show", "-json", str(plan_binary)],
-        ToolRun(
+        destination=destination,
+        run=ToolRun(
             cwd=REPO_ROOT,
             env=AUTOMATION_ENV,
             label=f"tofu show ({module.key})",
         ),
     )
-    destination.write_text(rendered, encoding="utf-8")
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -136,9 +142,7 @@ class PolicyData:
         return ["-d", self.path] if self.path else []
 
 
-def select_policy_data(
-    policy: PolicyCheck, environ: Mapping[str, str] | None = None
-) -> PolicyData:
+def select_policy_data(policy: PolicyCheck, environ: Mapping[str, str]) -> PolicyData:
     """Return the policy data the environment selects, reading nothing.
 
     Inline parameters take precedence over a supplied path, matching the
@@ -149,8 +153,6 @@ def select_policy_data(
     >>> select_policy_data(get_module("fluxcd").policy, {})
     PolicyData(inline=None, path=None)
     """
-    environ = os.environ if environ is None else environ
-
     inline = environ.get(policy.inline_data_env) if policy.inline_data_env else None
     if inline:
         return PolicyData(inline=inline)
@@ -182,12 +184,17 @@ def write_policy_data(data: PolicyData, workspace: Path) -> PolicyData:
     return PolicyData(path=str(data_file))
 
 
-def check_plan(module: TofuModule, plan_json: Path, workspace: Path) -> None:
+def check_plan(
+    module: TofuModule,
+    plan_json: Path,
+    workspace: Path,
+    environ: Mapping[str, str],
+) -> None:
     """Run conftest against the exported plan.
 
     Examples
     --------
-    >>> # check_plan(get_module("traefik"), plan_json, workspace)
+    >>> # check_plan(get_module("traefik"), plan_json, workspace, {})
     """
     policy = module.policy
     if policy is None:  # pragma: no cover - guarded by main()
@@ -199,7 +206,7 @@ def check_plan(module: TofuModule, plan_json: Path, workspace: Path) -> None:
         arguments.append("--fail-on-warn")
     if policy.namespace:
         arguments.extend(["--namespace", policy.namespace])
-    readable = write_policy_data(select_policy_data(policy), workspace)
+    readable = write_policy_data(select_policy_data(policy, environ), workspace)
     arguments.extend(readable.arguments())
 
     run_tool(
@@ -224,12 +231,16 @@ def main(*, module: typ.Annotated[str, Parameter(required=True)]) -> None:
 
     require_tools([TOFU, CONFTEST])
 
-    if not configuration.is_enabled():
+    # The environment is read once, here at the command-line boundary, and
+    # passed on explicitly. Nothing below decides from ambient state.
+    environ = dict(os.environ)
+
+    if not configuration.is_enabled(environ):
         skip(f"Skipping {module} plan policy; set {configuration.gate_env} to run")
         return
 
     require_env(
-        configuration.missing_requirements(),
+        configuration.missing_requirements(environ),
         because=f"when {configuration.gate_env} is set",
     )
 
@@ -237,9 +248,9 @@ def main(*, module: typ.Annotated[str, Parameter(required=True)]) -> None:
         workspace = Path(raw)
         plan_binary = workspace / "tfplan.binary"
         plan_json = workspace / "plan.json"
-        write_plan(configuration, plan_binary)
+        write_plan(configuration, plan_binary, environ)
         export_plan(configuration, plan_binary, plan_json)
-        check_plan(configuration, plan_json, workspace)
+        check_plan(configuration, plan_json, workspace, environ)
 
 
 if __name__ == "__main__":

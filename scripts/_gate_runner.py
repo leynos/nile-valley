@@ -106,6 +106,9 @@ class ToolRun:
         binary such as ``tofu validate`` and ``tofu plan``.
     stdin_text:
         Fed to the tool on standard input; input is closed when ``None``.
+    stdin_path:
+        Read into the tool's standard input, for output too large to hold in
+        memory. It takes precedence over ``stdin_text``.
 
     Examples
     --------
@@ -118,6 +121,7 @@ class ToolRun:
     allowed_exit_codes: Sequence[int] = SUCCESS_EXIT_CODES
     label: str | None = None
     stdin_text: str | None = None
+    stdin_path: Path | None = None
 
 
 @contextlib.contextmanager
@@ -149,22 +153,47 @@ def _check_status(status: int, name: str, run: ToolRun) -> int:
     return status
 
 
-def _spawn(command: BaseCommand, run: ToolRun, *, capture: bool) -> tuple[int, bytes]:
-    """Run ``command`` under ``run`` and return its status and captured output."""
-    # Standard input is closed unless the caller supplies text, so a tool that
+@contextlib.contextmanager
+def _stdin_target(run: ToolRun) -> typ.Iterator[tuple[typ.Any, bytes | None]]:
+    """Yield the child's standard input and any payload to write to it."""
+    # Standard input is closed unless the caller supplies one, so a tool that
     # reads a terminal fails fast instead of leaving the gate blocked.
-    stdin = subprocess.DEVNULL if run.stdin_text is None else subprocess.PIPE
-    payload = None if run.stdin_text is None else run.stdin_text.encode("utf-8")
+    if run.stdin_path is not None:
+        with run.stdin_path.open("rb") as handle:
+            yield handle, None
+    elif run.stdin_text is not None:
+        yield subprocess.PIPE, run.stdin_text.encode("utf-8")
+    else:
+        yield subprocess.DEVNULL, None
 
+
+@contextlib.contextmanager
+def _stdout_target(destination: Path | None, *, capture: bool) -> typ.Iterator[typ.Any]:
+    """Yield the child's standard output: a file, a pipe, or this process's."""
+    if destination is not None:
+        with destination.open("wb") as handle:
+            yield handle
+    else:
+        yield subprocess.PIPE if capture else None
+
+
+def _spawn(
+    command: BaseCommand,
+    run: ToolRun,
+    *,
+    destination: Path | None = None,
+    capture: bool = False,
+) -> tuple[int, bytes]:
+    """Run ``command`` under ``run`` and return its status and any output."""
     _flush_streams()
-    with _execution_context(run.cwd, run.env):
-        process = command.popen(
-            stdin=stdin,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=None,
-        )
-        stdout, _ = process.communicate(input=payload)
-    return process.returncode, stdout or b""
+    with (
+        _execution_context(run.cwd, run.env),
+        _stdin_target(run) as (stdin, payload),
+        _stdout_target(destination, capture=capture) as stdout,
+    ):
+        process = command.popen(stdin=stdin, stdout=stdout, stderr=None)
+        captured, _ = process.communicate(input=payload)
+    return process.returncode, captured or b""
 
 
 def run_tool(name: str, args: Sequence[str] = (), run: ToolRun | None = None) -> int:
@@ -181,7 +210,36 @@ def run_tool(name: str, args: Sequence[str] = (), run: ToolRun | None = None) ->
     0
     """
     run = run or ToolRun()
-    status, _ = _spawn(local[name][tuple(args)], run, capture=False)
+    status, _ = _spawn(local[name][tuple(args)], run)
+    return _check_status(status, name, run)
+
+
+def write_tool_output(
+    name: str,
+    args: Sequence[str] = (),
+    *,
+    destination: Path,
+    run: ToolRun | None = None,
+) -> int:
+    """Run ``name`` with its standard output redirected into ``destination``.
+
+    This is the path for a tool whose output is a generated artefact rather
+    than a diagnostic: an OpenTofu plan in JSON, or a rendered chart. The
+    bytes never enter this process, so the size of the artefact does not
+    become the gate's memory footprint.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as raw:
+    ...     out = Path(raw) / "rendered"
+    ...     write_tool_output("echo", ["rendered"], destination=out)
+    ...     out.read_text(encoding="utf-8").strip()
+    0
+    'rendered'
+    """
+    run = run or ToolRun()
+    status, _ = _spawn(local[name][tuple(args)], run, destination=destination)
     return _check_status(status, name, run)
 
 
@@ -189,6 +247,10 @@ def capture_tool(
     name: str, args: Sequence[str] = (), run: ToolRun | None = None
 ) -> str:
     """Run ``name`` and return its standard output as text.
+
+    Only for output that is bounded by construction, such as a list of tracked
+    files. Use :func:`write_tool_output` for a generated artefact, whose size
+    is set by the thing being generated rather than by the repository.
 
     Diagnostics still reach the gate log because standard error is inherited.
     A disallowed exit status raises :class:`GateError` naming the tool, so the

@@ -23,6 +23,7 @@ from scripts._gate_runner import (
     run_gate,
     run_tool,
     tool_path,
+    write_tool_output,
 )
 from scripts.tests.gate_test_support import activate, commands_run
 
@@ -189,6 +190,64 @@ def test_run_tool_can_supply_standard_input() -> None:
     output = capture_tool("cat", run=ToolRun(stdin_text="kind: Service\n"))
 
     assert output == "kind: Service\n", f"stdin text was not delivered: {output!r}"
+
+
+def test_write_tool_output_streams_to_a_file(cmd_mox: CmdMox, tmp_path: Path) -> None:
+    """A generated artefact lands in the file, not in this process."""
+    cmd_mox.mock("tofu").with_args("show").returns(stdout="{}\n", exit_code=0)
+    activate(cmd_mox)
+    destination = tmp_path / "plan.json"
+
+    assert write_tool_output("tofu", ["show"], destination=destination) == 0, (
+        "a successful producer must report exit status 0"
+    )
+    assert destination.read_text(encoding="utf-8") == "{}\n", (
+        "the artefact must be written verbatim to the destination"
+    )
+
+
+def test_write_tool_output_reports_a_failing_producer(
+    cmd_mox: CmdMox, tmp_path: Path
+) -> None:
+    """A failed producer is named, and its consumer never runs."""
+    cmd_mox.stub("tofu").returns(stdout="", exit_code=1)
+    cmd_mox.stub("conftest").returns(exit_code=0)
+    activate(cmd_mox)
+    destination = tmp_path / "plan.json"
+
+    with pytest.raises(GateError, match=r"tofu failed with exit status 1"):
+        write_tool_output("tofu", ["show"], destination=destination)
+
+    assert commands_run(cmd_mox) == ["tofu"], (
+        "the consumer must not run after the producer failed"
+    )
+
+
+def test_stdin_path_feeds_the_consumer(cmd_mox: CmdMox, tmp_path: Path) -> None:
+    """A file becomes the consumer's standard input."""
+    rendered = tmp_path / "rendered.yaml"
+    rendered.write_text("kind: Service\n", encoding="utf-8")
+    cmd_mox.mock("yamllint").with_args("-").returns(exit_code=0)
+    activate(cmd_mox)
+
+    run_tool("yamllint", ["-"], ToolRun(stdin_path=rendered))
+
+    assert cmd_mox.journal[0].stdin == "kind: Service\n", (
+        "the file's contents must reach the tool on standard input"
+    )
+
+
+def test_a_failing_consumer_of_a_file_is_reported(
+    cmd_mox: CmdMox, tmp_path: Path
+) -> None:
+    """A consumer reading a file still reports its own failure."""
+    rendered = tmp_path / "rendered.yaml"
+    rendered.write_text("kind: Service\n", encoding="utf-8")
+    cmd_mox.stub("yamllint").returns(exit_code=1)
+    activate(cmd_mox)
+
+    with pytest.raises(GateError, match=r"yamllint failed with exit status 1"):
+        run_tool("yamllint", ["-"], ToolRun(stdin_path=rendered))
 
 
 def test_run_gate_exits_zero_on_success(capsys: pytest.CaptureFixture[str]) -> None:

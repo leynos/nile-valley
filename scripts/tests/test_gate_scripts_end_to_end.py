@@ -282,3 +282,182 @@ def test_check_spelling_stops_when_the_listing_fails(harness: Harness) -> None:
     assert harness.calls() == ["git"], (
         f"typos ran after the listing failed: {harness.calls()}"
     )
+
+
+RENDERED_CHART = "apiVersion: v1\nkind: Service\n"
+PLAN_JSON = '{"resource_changes": []}'
+
+
+def _helm_arguments(harness: Harness) -> list[str]:
+    """Return the arguments the fake helm was called with."""
+    return harness.arguments_of("helm")
+
+
+def test_helm_gate_renders_then_lints(harness: Harness) -> None:
+    """helm renders the chart and yamllint reads the rendered file."""
+    harness.add_tool("helm", stdout=RENDERED_CHART)
+    harness.add_tool("yamllint")
+
+    result = _run(
+        "lint_helm_manifests.py",
+        ["--release", "example-app", "--kube-version", "1.33.1"],
+        harness,
+    )
+
+    assert result.returncode == 0, f"expected a clean exit, got {result.stderr}"
+    assert harness.calls() == ["helm", "yamllint"], (
+        f"the chart must be rendered before it is linted: {harness.calls()}"
+    )
+    arguments = _helm_arguments(harness)
+    assert arguments[:2] == ["template", "example-app"], (
+        f"helm must be asked to template the release: {arguments}"
+    )
+    assert "deploy/charts/example-app" in arguments, (
+        f"the chart path must be passed: {arguments}"
+    )
+    assert arguments[arguments.index("--kube-version") + 1] == "1.33.1", (
+        f"the requested Kubernetes version must reach helm: {arguments}"
+    )
+
+
+def test_helm_gate_reports_a_failed_render(harness: Harness) -> None:
+    """A chart that fails to render never reaches yamllint."""
+    harness.add_tool("helm", exit_code=1)
+    harness.add_tool("yamllint")
+
+    result = _run("lint_helm_manifests.py", [], harness)
+
+    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
+    assert "helm template" in result.stderr, (
+        f"the diagnostic must name the render step: {result.stderr!r}"
+    )
+    assert harness.calls() == ["helm"], (
+        f"yamllint must not lint a failed render: {harness.calls()}"
+    )
+
+
+def test_helm_gate_reports_a_lint_finding(harness: Harness) -> None:
+    """A yamllint finding fails the gate after a successful render."""
+    harness.add_tool("helm", stdout=RENDERED_CHART)
+    harness.add_tool("yamllint", exit_code=1)
+
+    result = _run("lint_helm_manifests.py", [], harness)
+
+    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
+    assert "yamllint" in result.stderr, (
+        f"the diagnostic must name yamllint: {result.stderr!r}"
+    )
+
+
+def _flux_environment() -> dict[str, str]:
+    """Return an environment that enables the Flux policy gate."""
+    return {"FLUX_KUBECONFIG_PATH": "/tmp/kubeconfig"}
+
+
+def test_policy_gate_plans_exports_then_checks(harness: Harness) -> None:
+    """The plan is written, exported and only then checked."""
+    harness.add_tool("tofu", stdout=PLAN_JSON)
+    harness.add_tool("conftest")
+
+    result = _run(
+        "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
+    )
+
+    assert result.returncode == 0, f"expected a clean exit, got {result.stderr}"
+    assert harness.calls() == ["tofu", "tofu", "conftest"], (
+        f"unexpected tool order: {harness.calls()}"
+    )
+    plan = harness.arguments_of("tofu")
+    assert plan[0] == "-chdir=infra/modules/fluxcd/examples/basic", (
+        f"the plan must select the module's example: {plan}"
+    )
+    assert any(argument.startswith("-out=") for argument in plan), (
+        f"the plan must be written to a file: {plan}"
+    )
+    assert "-detailed-exitcode" in plan, (
+        f"the plan must report pending changes distinctly: {plan}"
+    )
+    assert any(argument.startswith("kubeconfig_path=") for argument in plan), (
+        f"the module's variables must be passed: {plan}"
+    )
+
+
+def test_policy_gate_accepts_pending_changes(harness: Harness) -> None:
+    """Exit code 2 from the plan is drift, not failure."""
+    harness.add_tool("tofu", stdout=PLAN_JSON, exit_code=2)
+    harness.add_tool("conftest")
+
+    result = _run(
+        "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
+    )
+
+    # `tofu show` is stubbed by the same fake, so it also exits 2 here, which
+    # the gate must not accept; the plan alone allows it.
+    assert "tofu show" in result.stderr, (
+        f"only the plan may accept exit code 2: {result.stderr!r}"
+    )
+    assert harness.calls() == ["tofu", "tofu"], (
+        f"the plan must be accepted and the export attempted: {harness.calls()}"
+    )
+
+
+def test_policy_gate_stops_when_the_plan_fails(harness: Harness) -> None:
+    """A failed plan produces no policy verdict."""
+    harness.add_tool("tofu", exit_code=1)
+    harness.add_tool("conftest")
+
+    result = _run(
+        "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
+    )
+
+    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
+    assert "tofu plan" in result.stderr, (
+        f"the diagnostic must name the plan: {result.stderr!r}"
+    )
+    assert harness.calls() == ["tofu"], (
+        f"conftest must not run after a failed plan: {harness.calls()}"
+    )
+
+
+def test_policy_gate_reports_a_policy_violation(harness: Harness) -> None:
+    """A conftest violation fails the gate and names conftest."""
+    harness.add_tool("tofu", stdout=PLAN_JSON)
+    harness.add_tool("conftest", exit_code=1)
+
+    result = _run(
+        "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
+    )
+
+    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
+    assert "conftest" in result.stderr, (
+        f"the diagnostic must name conftest: {result.stderr!r}"
+    )
+
+
+def test_policy_gate_hands_conftest_the_exported_plan(harness: Harness) -> None:
+    """conftest reads the JSON the export produced."""
+    harness.add_tool("tofu", stdout=PLAN_JSON)
+    harness.add_tool("conftest")
+
+    result = _run(
+        "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
+    )
+
+    assert result.returncode == 0, f"expected a clean exit, got {result.stderr}"
+    arguments = harness.arguments_of("conftest")
+    assert arguments[0] == "test", f"conftest must be asked to test: {arguments}"
+    assert arguments[1].endswith("plan.json"), (
+        f"conftest must read the exported plan: {arguments}"
+    )
+
+
+def test_policy_gate_skips_when_disabled(harness: Harness) -> None:
+    """A disabled gate reports a skip and runs no tool."""
+    harness.add_tool("tofu")
+    harness.add_tool("conftest")
+
+    result = _run("tofu_plan_policy.py", ["--module", "fluxcd"], harness)
+
+    assert result.returncode == 0, f"a disabled gate must pass: {result.stderr}"
+    assert "Skipping fluxcd" in result.stdout, f"no skip reported: {result.stdout!r}"
+    assert harness.calls() == [], "no tool may run while the gate is disabled"

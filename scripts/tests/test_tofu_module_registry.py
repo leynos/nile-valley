@@ -196,3 +196,67 @@ def test_policy_options_match_the_registry(
     assert "-d" not in arguments, (
         f"{key} was given policy data it did not declare: {arguments}"
     )
+
+
+def test_the_registry_is_read_only() -> None:
+    """A caller cannot replace a module's configuration.
+
+    The registry is imported wherever a gate runs, so a mutable mapping would
+    let any importer change what another gate plans.
+    """
+    with pytest.raises(TypeError):
+        MODULES["traefik"] = MODULES["fluxcd"]  # type: ignore[index]
+
+
+@pytest.mark.parametrize("key", MODULE_KEYS, ids=str)
+def test_enablement_reads_only_the_given_environment(
+    key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A module decides from the mapping it is handed, not from the process.
+
+    The gate scripts capture the environment once at the command line and pass
+    it down, so a function that reached for ``os.environ`` would make a
+    decision the caller cannot see or reproduce.
+    """
+    module = _module(key)
+    monkeypatch.setenv(module.gate_env, "/tmp/kubeconfig")
+
+    assert not module.is_enabled({}), (
+        f"{key} read the ambient environment rather than the mapping given"
+    )
+    assert module.is_enabled({module.gate_env: "/tmp/kubeconfig"}), (
+        f"{key} ignored the mapping it was given"
+    )
+
+
+@pytest.mark.parametrize("key", MODULES_WITH_REQUIREMENTS, ids=str)
+def test_requirements_read_only_the_given_environment(
+    key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Companion variables are read from the mapping, not the process."""
+    module = _module(key)
+    for name in module.required_env:
+        monkeypatch.setenv(name, "set-in-the-process")
+
+    missing = module.missing_requirements({})
+
+    assert all(value is None for value in missing.values()), (
+        f"{key} read companion variables from the ambient environment: {missing}"
+    )
+
+
+@pytest.mark.parametrize("key", MODULE_KEYS, ids=str)
+def test_var_arguments_read_only_the_given_environment(
+    key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `-var` assignment carries the value from the mapping given."""
+    module = _module(key)
+    environment = module_environment(module)
+    for name in environment:
+        monkeypatch.setenv(name, "from-the-process")
+
+    arguments = module.var_arguments(module.plan_vars, environment)
+
+    assert "from-the-process" not in " ".join(arguments), (
+        f"{key} took a value from the ambient environment: {arguments}"
+    )
