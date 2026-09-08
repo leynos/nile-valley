@@ -18,14 +18,14 @@ security and persistence coordination. Only `scripts/typos_rollout.py` may
 compose it with dictionary validation; infrastructure scripts must not reuse
 these spelling-policy internals.
 
-
 ## CodeScene rule overrides
 
-This repository declares no CodeScene rule overrides. `.codescene/code-health-rules.json`
-was removed because the one rule set it held had never applied: the file used a
-top-level `rules` map with `threshold-by-pattern`, which CodeScene rejects, and
-its glob named Rust sources in a repository that contains none. Removing it
-changed no verdict, because CodeScene had never read it.
+This repository declares no CodeScene rule overrides. The file that held them,
+`.codescene/code-health-rules.json`, was removed because its one rule set had
+never applied: it used a top-level `rules` map with `threshold-by-pattern`,
+which CodeScene rejects, and its glob named Rust sources in a repository that
+contains none. Removing it changed no verdict, because CodeScene had never
+read it.
 
 The failure mode is worth knowing before writing a replacement. A rule set the
 tool cannot read is skipped, the verdicts carry on without the override, and
