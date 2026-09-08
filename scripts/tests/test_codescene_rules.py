@@ -14,9 +14,10 @@ each exemption to justify itself, and require each glob to still match
 something, because a glob left behind by a rename or a copy is an exemption
 that quietly stops applying.
 
-`cs rules-config validate` is the authoritative check and the developers'
-guide points at it, but the CodeScene command-line tool is not installed on
-the CI runners, so these tests hold the same line where the gates run.
+`cs rules-config validate` is the local check the developers' guide points at.
+The command-line tool does not belong in CI, because the GitHub integration
+reads the same rule set; these tests are a schema check rather than a stand-in
+for either.
 """
 
 from __future__ import annotations
