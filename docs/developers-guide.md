@@ -43,12 +43,15 @@ Validate it before pushing:
 cs rules-config validate
 ```
 
-That command is the authoritative check and needs no CodeScene licence. With
-no overrides declared it reports "No configuration file found" and exits
-non-zero, which is the expected state here rather than a fault. The
-CodeScene command-line tool is not installed on the CI runners, so
-`scripts/tests/test_codescene_rules.py` holds the same line where the gates
-run. It asserts the documented schema rather than merely that the file is
+That is a local check and stays one. The CodeScene command-line tool does not
+belong in CI or in a Makefile target: the GitHub integration reads the same
+rule set, so running the tool as well would duplicate the check under a
+licence the runners do not need. With no overrides declared the command
+reports "No configuration file found" and exits non-zero, which is the
+expected state here rather than a fault.
+
+`scripts/tests/test_codescene_rules.py` is a schema test, not a substitute for
+either. It asserts the documented shape rather than merely that the file is
 JSON, requires every rule set to justify itself, and requires every glob to
 match at least one file, since a glob left behind by a rename or a copy is an
 exemption that quietly stops applying.
