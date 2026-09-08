@@ -9,8 +9,8 @@ resolution, the process exit code, and the diagnostic on standard error.
 
 from __future__ import annotations
 
+import json
 import os
-import shutil
 import subprocess
 import sys
 import typing as typ
@@ -19,14 +19,42 @@ import pytest
 from makefile_contract_support import REPO_ROOT
 
 if typ.TYPE_CHECKING:
-    from collections.abc import Sequence
-    from pathlib import Path
+    from collections.abc import Mapping, Sequence
+
+from pathlib import Path
 
 TOOL_LOG = "GATE_TOOL_LOG"
+
 # The fake tools run with a search path holding only themselves, so their
-# interpreter has to be named absolutely.
-BASH = shutil.which("bash") or "/bin/bash"
-CAT = shutil.which("cat") or "/bin/cat"
+# interpreter is named absolutely. Python rather than a shell, because a fake
+# has to dispatch on its subcommand and record the bytes it was given.
+FAKE_TOOL_TEMPLATE = """#!{interpreter}
+import json
+import pathlib
+import sys
+
+plan = json.loads(r'''{plan}''')
+arguments = sys.argv[1:]
+with pathlib.Path(plan["log"]).open("a", encoding="utf-8") as log:
+    log.write(plan["name"] + " " + " ".join(arguments) + "\\n")
+
+if plan["stdin_path"] and not sys.stdin.isatty():
+    pathlib.Path(plan["stdin_path"]).write_bytes(sys.stdin.buffer.read())
+
+subcommand = next((word for word in arguments if not word.startswith("-")), "")
+behaviour = plan["behaviours"].get(subcommand) or plan["behaviours"][""]
+if behaviour["stdout_path"]:
+    sys.stdout.buffer.write(pathlib.Path(behaviour["stdout_path"]).read_bytes())
+    sys.stdout.buffer.flush()
+sys.exit(behaviour["exit_code"])
+"""
+
+
+class Behaviour(typ.NamedTuple):
+    """What a fake tool should do for one invocation."""
+
+    exit_code: int = 0
+    stdout: str = ""
 
 
 class Harness(typ.NamedTuple):
@@ -35,24 +63,64 @@ class Harness(typ.NamedTuple):
     bin_dir: Path
     log: Path
 
-    def add_tool(self, name: str, *, exit_code: int = 0, stdout: str = "") -> Path:
+    def add_tool(
+        self,
+        name: str,
+        *,
+        exit_code: int = 0,
+        stdout: str = "",
+        by_subcommand: Mapping[str, Behaviour] | None = None,
+    ) -> Path:
         """Install a fake executable that records its call and exits.
 
-        The output is written to a companion file and copied out verbatim
-        rather than passed through ``printf``, so a payload containing a NUL
-        or a backslash reaches the caller as the bytes the test wrote.
+        ``by_subcommand`` selects behaviour from the first argument that is
+        not an option, which is how OpenTofu names its subcommand. That lets
+        one fake accept a plan's exit status of 2 while its export succeeds.
+
+        Output is written as bytes read back from a file rather than passed
+        through the shell, so a payload containing a NUL or a backslash
+        reaches the caller as the bytes the test wrote. Every fake records the
+        input it was given, which is how a test proves a consumer received
+        what its producer rendered.
         """
+        behaviours = {
+            "": Behaviour(exit_code=exit_code, stdout=stdout),
+            **{key: value for key, value in (by_subcommand or {}).items()},
+        }
+        plan = {
+            "log": str(self.log),
+            "name": name,
+            "stdin_path": str(self._stdin_path(name)),
+            "behaviours": {
+                key: {"exit_code": value.exit_code, "stdout_path": None}
+                for key, value in behaviours.items()
+            },
+        }
+        for key, value in behaviours.items():
+            if not value.stdout:
+                continue
+            payload = self.bin_dir / f"{name}.{key or 'default'}.stdout"
+            payload.write_bytes(value.stdout.encode("utf-8"))
+            plan["behaviours"][key]["stdout_path"] = str(payload)
+
         script = self.bin_dir / name
-        body = f"#!{BASH}\n"
-        body += f'printf "%s %s\\n" "{name}" "$*" >> "${TOOL_LOG}"\n'
-        if stdout:
-            payload = self.bin_dir / f"{name}.stdout"
-            payload.write_bytes(stdout.encode("utf-8"))
-            body += f'"{CAT}" "{payload}"\n'
-        body += f"exit {exit_code}\n"
-        script.write_text(body, encoding="utf-8")
+        script.write_text(
+            FAKE_TOOL_TEMPLATE.format(
+                interpreter=sys.executable, plan=json.dumps(plan)
+            ),
+            encoding="utf-8",
+        )
         script.chmod(0o755)
         return script
+
+    def _stdin_path(self, name: str) -> Path:
+        """Return where a fake tool records the input it was given."""
+        return self.bin_dir / f"{name}.stdin"
+
+    def stdin_of(self, name: str) -> bytes:
+        """Return the bytes the named tool received on standard input."""
+        path = self._stdin_path(name)
+        return path.read_bytes() if path.exists() else b""
 
     def calls(self) -> list[str]:
         """Return the names of the tools that ran, in order."""
@@ -65,11 +133,16 @@ class Harness(typ.NamedTuple):
         ]
 
     def arguments_of(self, name: str) -> list[str]:
-        """Return the arguments the named tool was called with."""
-        for line in self.log.read_text(encoding="utf-8").splitlines():
-            if line.startswith(f"{name} "):
-                return line.split(" ", 1)[1].split()
-        return []
+        """Return the arguments of the named tool's first call."""
+        return next(iter(self.all_arguments_of(name)), [])
+
+    def all_arguments_of(self, name: str) -> list[list[str]]:
+        """Return the arguments of every call to the named tool, in order."""
+        return [
+            line.split(" ", 1)[1].split() if " " in line else []
+            for line in self.log.read_text(encoding="utf-8").splitlines()
+            if line.split(" ", 1)[0] == name
+        ]
 
 
 @pytest.fixture(name="harness")
@@ -318,6 +391,9 @@ def test_helm_gate_renders_then_lints(harness: Harness) -> None:
     assert arguments[arguments.index("--kube-version") + 1] == "1.33.1", (
         f"the requested Kubernetes version must reach helm: {arguments}"
     )
+    assert harness.stdin_of("yamllint") == RENDERED_CHART.encode("utf-8"), (
+        "yamllint must receive the rendered manifests, not an empty document"
+    )
 
 
 def test_helm_gate_reports_a_failed_render(harness: Harness) -> None:
@@ -383,21 +459,59 @@ def test_policy_gate_plans_exports_then_checks(harness: Harness) -> None:
 
 
 def test_policy_gate_accepts_pending_changes(harness: Harness) -> None:
-    """Exit code 2 from the plan is drift, not failure."""
-    harness.add_tool("tofu", stdout=PLAN_JSON, exit_code=2)
+    """A plan reporting drift is accepted and the gate completes.
+
+    `tofu plan -detailed-exitcode` exits 2 when changes are pending, which is
+    the normal state against a live cluster. The export and the policy check
+    must still run, and the gate must pass.
+    """
+    harness.add_tool(
+        "tofu",
+        by_subcommand={
+            "plan": Behaviour(exit_code=2),
+            "show": Behaviour(exit_code=0, stdout=PLAN_JSON),
+        },
+    )
     harness.add_tool("conftest")
 
     result = _run(
         "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
     )
 
-    # `tofu show` is stubbed by the same fake, so it also exits 2 here, which
-    # the gate must not accept; the plan alone allows it.
+    assert result.returncode == 0, (
+        f"pending changes must not fail the gate: {result.stderr}"
+    )
+    assert harness.calls() == ["tofu", "tofu", "conftest"], (
+        f"the accepted plan must be exported and checked: {harness.calls()}"
+    )
+    plan, show = harness.all_arguments_of("tofu")[:2]
+    assert "-detailed-exitcode" in plan, (
+        f"the plan must ask for the distinct drift status: {plan}"
+    )
+    assert "show" in show, f"the export must follow the accepted plan: {show}"
+
+
+def test_policy_gate_stops_when_the_export_fails(harness: Harness) -> None:
+    """A failed export never reaches conftest as an empty document."""
+    harness.add_tool(
+        "tofu",
+        by_subcommand={
+            "plan": Behaviour(exit_code=0),
+            "show": Behaviour(exit_code=1),
+        },
+    )
+    harness.add_tool("conftest")
+
+    result = _run(
+        "tofu_plan_policy.py", ["--module", "fluxcd"], harness, _flux_environment()
+    )
+
+    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
     assert "tofu show" in result.stderr, (
-        f"only the plan may accept exit code 2: {result.stderr!r}"
+        f"the diagnostic must name the export: {result.stderr!r}"
     )
     assert harness.calls() == ["tofu", "tofu"], (
-        f"the plan must be accepted and the export attempted: {harness.calls()}"
+        f"conftest must not run after a failed export: {harness.calls()}"
     )
 
 
