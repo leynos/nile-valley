@@ -22,11 +22,16 @@ for either.
 
 from __future__ import annotations
 
+import collections.abc as cabc
+import contextlib
 import json
+import tempfile
 import typing as typ
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RULES_PATH = REPOSITORY_ROOT / ".codescene" / "code-health-rules.json"
@@ -39,6 +44,20 @@ class RuleRecord(typ.TypedDict):
     weight: float
 
 
+class ThresholdRecord(typ.TypedDict):
+    """One threshold override: a name and the value to use instead.
+
+    An array entry rather than a mapping key, which is the shape
+    `cs docs code-health-rules-template` prints. The distinction is not
+    cosmetic: given a mapping here the CodeScene CLI does not report a
+    schema problem, it terminates with an unhandled exception and asks
+    for the stack trace to be sent to support.
+    """
+
+    name: str
+    value: float
+
+
 class RuleSetRecord(typ.TypedDict, total=False):
     """One rule set, as `cs docs code-health-rules-template` emits it."""
 
@@ -46,7 +65,7 @@ class RuleSetRecord(typ.TypedDict, total=False):
     matching_content_path_doc: str
     content_filter: str
     rules: list[RuleRecord]
-    thresholds: dict[str, float]
+    thresholds: list[ThresholdRecord]
 
 
 class RulesDocument(typ.TypedDict, total=False):
@@ -54,6 +73,7 @@ class RulesDocument(typ.TypedDict, total=False):
 
     usage: str
     rule_sets: list[RuleSetRecord]
+
 
 #: Keys `cs docs code-health-rules-template` emits for a rule set. `usage` and
 #: the `_doc` suffixes are documentation the template carries itself, so they
@@ -81,8 +101,14 @@ RULE_SET_FIELD_TYPES: dict[str, type | tuple[type, ...]] = {
     "matching_content_path_doc": str,
     "content_filter": str,
     "rules": list,
-    "thresholds": dict,
+    "thresholds": list,
 }
+
+#: The template's placeholder for a threshold nobody has set. It leaves
+#: the default in place, so a rule set still carrying one is template
+#: residue rather than an override: the file's own usage text says to
+#: keep the rules you want and remove the rest.
+UNSET_THRESHOLD = "-"
 
 
 def _rule_sets() -> list[RuleSetRecord]:
@@ -142,6 +168,54 @@ def check_schema() -> None:
         _check_field_types(rule_set)
         for rule in rule_set.get("rules", []):
             _check_rule(rule)
+        for threshold in rule_set.get("thresholds", []):
+            _check_threshold(threshold)
+
+
+def _check_threshold(threshold: ThresholdRecord | dict[str, object]) -> None:
+    """Assert one threshold override names a rule and a positive number.
+
+    The bounds come from the tool rather than from taste. CodeScene
+    rejects an entry whose value is absent, zero, negative or
+    non-numeric with "Make sure all thresholds are positive integers",
+    and it accepts a fractional one, so positive is the rule and integer
+    is not.
+
+    Parameters
+    ----------
+    threshold : ThresholdRecord or dict
+        The threshold entry to check.
+    """
+    assert isinstance(threshold, dict), (
+        f"each threshold override is an object, not a bare value: {threshold!r}"
+    )
+    assert set(threshold) == {"name", "value"}, (
+        f"a threshold override carries exactly a name and a value: {threshold}"
+    )
+    name = threshold["name"]
+    assert isinstance(name, str) and name, (
+        f"a threshold names the code-health measure it overrides: {name!r}"
+    )
+    value = threshold["value"]
+    assert value != UNSET_THRESHOLD, (
+        f"{name} still carries the template's {UNSET_THRESHOLD!r} placeholder, "
+        "which overrides nothing; set the value or remove the entry"
+    )
+    # A Boolean is an int and would fall inside the bound, as it would
+    # for a rule's weight.
+    assert not isinstance(value, bool), (
+        f"a threshold's value is a number, not a Boolean: {value!r}"
+    )
+    assert isinstance(value, int | float), (
+        "a threshold's value is a number. CodeScene coerces a numeric string "
+        "rather than refusing it, so a quoted value is accepted today and is "
+        f"a difference between the file and its schema that nothing reports: "
+        f"{value!r}"
+    )
+    assert value > 0, (
+        "CodeScene refuses a value that is not positive, naming the whole "
+        f"file rather than this entry: {value!r}"
+    )
 
 
 def _check_field_types(rule_set: RuleSetRecord | dict[str, object]) -> None:
@@ -300,9 +374,7 @@ def test_a_rule_file_would_have_to_pass_each_check(
                     {
                         "matching_content_path": "scripts/*.py",
                         "matching_content_path_doc": "x" * 200,
-                        "rules": [
-                            {"name": "string-heavy-arguments", "weight": 0.0}
-                        ],
+                        "rules": [{"name": "string-heavy-arguments", "weight": 0.0}],
                     }
                 ]
             },
@@ -315,9 +387,7 @@ def test_a_rule_file_would_have_to_pass_each_check(
                     {
                         "matching_content_path": "**/domain/*.rs",
                         "matching_content_path_doc": "x" * 200,
-                        "rules": [
-                            {"name": "String Heavy Arguments", "weight": 0.0}
-                        ],
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
                     }
                 ]
             },
@@ -329,9 +399,7 @@ def test_a_rule_file_would_have_to_pass_each_check(
                 "rule_sets": [
                     {
                         "matching_content_path": "scripts/*.py",
-                        "rules": [
-                            {"name": "String Heavy Arguments", "weight": 0.0}
-                        ],
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
                     }
                 ]
             },
@@ -344,9 +412,7 @@ def test_a_rule_file_would_have_to_pass_each_check(
                     {
                         "matching_content_path": "scripts",
                         "matching_content_path_doc": "x" * 200,
-                        "rules": [
-                            {"name": "String Heavy Arguments", "weight": 0.0}
-                        ],
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
                     }
                 ]
             },
@@ -359,9 +425,7 @@ def test_a_rule_file_would_have_to_pass_each_check(
                     {
                         "matching_content_path": "scripts/*.py",
                         "matching_content_path_doc": "x" * 200,
-                        "rules": [
-                            {"name": "String Heavy Arguments", "weight": True}
-                        ],
+                        "rules": [{"name": "String Heavy Arguments", "weight": True}],
                     }
                 ]
             },
@@ -374,9 +438,7 @@ def test_a_rule_file_would_have_to_pass_each_check(
                     {
                         "matching_content_path": "scripts/*.py",
                         "matching_content_path_doc": "x" * 200,
-                        "rules": [
-                            {"name": "String Heavy Arguments", "weight": False}
-                        ],
+                        "rules": [{"name": "String Heavy Arguments", "weight": False}],
                     }
                 ]
             },
@@ -395,6 +457,82 @@ def test_a_rule_file_would_have_to_pass_each_check(
             },
             (check_schema, check_justifications),
             id="wrong-types-that-read-as-absences",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": {"function_lines_of_code_warning": 100},
+                    }
+                ]
+            },
+            (check_schema,),
+            id="thresholds-as-a-mapping",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": [
+                            {"name": "function_lines_of_code_warning", "value": "100"}
+                        ],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-threshold-value-that-is-a-string",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": [
+                            {"name": "function_lines_of_code_warning", "value": 0}
+                        ],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-threshold-value-of-zero",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": [
+                            {"name": "function_lines_of_code_warning", "value": "-"}
+                        ],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-threshold-left-on-the-template-placeholder",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": [{"name": "function_lines_of_code_warning"}],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-threshold-with-no-value",
         ),
     ],
 )
@@ -416,3 +554,200 @@ def test_the_checks_reject_known_bad_shapes(
     for check in failing_checks:
         with pytest.raises(AssertionError):
             check()
+
+
+# --- properties over documents nobody wrote down ----------------------------
+
+#: A rule name in the prose form CodeScene uses, as two or more words.
+PROSE_NAMES = st.lists(
+    st.text(alphabet=st.characters(min_codepoint=65, max_codepoint=90), min_size=1),
+    min_size=2,
+    max_size=4,
+).map(" ".join)
+
+#: A weight inside the documented range, Booleans excluded by construction.
+WEIGHTS = st.one_of(
+    st.integers(min_value=0, max_value=1).map(float),
+    st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+)
+
+RULES = st.lists(
+    st.builds(lambda n, w: {"name": n, "weight": w}, PROSE_NAMES, WEIGHTS),
+    min_size=0,
+    max_size=4,
+)
+
+THRESHOLDS = st.lists(
+    st.builds(
+        lambda n, v: {"name": n, "value": v},
+        st.text(
+            alphabet=st.characters(min_codepoint=97, max_codepoint=122), min_size=1
+        ),
+        st.floats(
+            min_value=1.0, max_value=10000.0, allow_nan=False, allow_infinity=False
+        ),
+    ),
+    min_size=0,
+    max_size=3,
+)
+
+JUSTIFICATIONS = st.text(
+    alphabet=st.characters(min_codepoint=97, max_codepoint=122),
+    min_size=MINIMUM_JUSTIFICATION + 1,
+    max_size=MINIMUM_JUSTIFICATION + 40,
+)
+
+#: A rule set that satisfies every check by construction. The glob is
+#: fixed because the glob check reads the real repository, and the point
+#: of these properties is the schema rather than the tree.
+VALID_RULE_SETS = st.builds(
+    lambda doc, rules, thresholds: {
+        "matching_content_path": "scripts/*.py",
+        "matching_content_path_doc": doc,
+        "rules": rules,
+        "thresholds": thresholds,
+    },
+    JUSTIFICATIONS,
+    RULES,
+    THRESHOLDS,
+)
+
+VALID_DOCUMENTS = st.builds(
+    lambda rule_sets: {"usage": "generated", "rule_sets": rule_sets},
+    st.lists(VALID_RULE_SETS, min_size=1, max_size=3),
+)
+
+
+@contextlib.contextmanager
+def _rules_file(document: dict[str, object]) -> cabc.Iterator[None]:
+    """Point `RULES_PATH` at a temporary file holding *document*.
+
+    A context manager rather than the `tmp_path` and `monkeypatch`
+    fixtures, because a function-scoped fixture is created once for a
+    `@given` test and not reset between generated inputs, so every input
+    after the first would read the file the first one wrote.
+
+    Parameters
+    ----------
+    document : dict
+        The rule document to write.
+
+    Yields
+    ------
+    None
+        With `RULES_PATH` pointing at the written file.
+    """
+    original = RULES_PATH
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "code-health-rules.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        globals()["RULES_PATH"] = path
+        try:
+            yield
+        finally:
+            globals()["RULES_PATH"] = original
+
+
+@given(document=VALID_DOCUMENTS)
+def test_a_well_formed_document_passes_every_check(
+    document: dict[str, object],
+) -> None:
+    """Every check accepts any document built to the documented schema.
+
+    The named fixtures pin a handful of good and bad shapes. They cannot
+    show that the checks accept the schema generally rather than the one
+    example written for them, and a check that rejected, say, an empty
+    `rules` list or a rule set carrying no thresholds would pass all of
+    them. These generate the schema instead.
+    """
+    with _rules_file(document):
+        for check in CHECKS:
+            check()
+
+
+#: Each mutation of a valid document, with the check it must break. The
+#: set is the fields the schema declares, so this is exhaustive over what
+#: a rule set can carry rather than a sample of it.
+MUTATIONS = (
+    pytest.param(
+        lambda rs: {**rs, "matching_content_path": "**/domain/*.rs"},
+        check_globs_match,
+        id="a-glob-that-matches-nothing",
+    ),
+    pytest.param(
+        lambda rs: {k: v for k, v in rs.items() if k != "matching_content_path_doc"},
+        check_justifications,
+        id="the-justification-removed",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "matching_content_path_doc": "too short"},
+        check_justifications,
+        id="a-justification-below-the-minimum",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "matching_content_path_doc": ["x"] * 200},
+        check_justifications,
+        id="a-justification-that-is-not-prose",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "rules": [{"name": "hyphenated-slug", "weight": 0.0}]},
+        check_schema,
+        id="a-slug-where-a-prose-name-belongs",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "rules": [{"name": "String Heavy Arguments", "weight": 100}]},
+        check_schema,
+        id="a-threshold-where-a-weight-belongs",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "rules": ""},
+        check_schema,
+        id="rules-that-are-not-a-list",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "thresholds": {"function_lines_of_code_warning": 100}},
+        check_schema,
+        id="thresholds-as-a-mapping",
+    ),
+    pytest.param(
+        lambda rs: {
+            **rs,
+            "thresholds": [{"name": "function_lines_of_code_warning", "value": "-"}],
+        },
+        check_schema,
+        id="a-threshold-on-the-template-placeholder",
+    ),
+    pytest.param(
+        lambda rs: {**rs, "unrecognized_key": "anything"},
+        check_schema,
+        id="a-key-codescene-would-ignore",
+    ),
+)
+
+
+# `a-glob-that-matches-nothing` makes `check_globs_match` walk the whole
+# repository for `**/domain/*.rs` and find none, which takes about a
+# second here. That is filesystem traversal rather than the property, and
+# it happens once per generated input, so the per-input deadline is not a
+# meaningful bound on this test.
+@settings(deadline=None)
+@given(document=VALID_DOCUMENTS)
+@pytest.mark.parametrize(("mutate", "broken"), MUTATIONS)
+def test_each_mutation_of_a_valid_document_fails_its_check(
+    document: dict[str, object],
+    mutate: typ.Callable[[dict[str, object]], dict[str, object]],
+    broken: typ.Callable[[], None],
+) -> None:
+    """Breaking one field of an otherwise valid document fails its check.
+
+    Stated over generated documents rather than one fixture, so a check
+    that happened to reject the fixture for an unrelated reason cannot
+    stand in for the rule. The mutation is applied to the first rule set,
+    which is enough: a check that stopped at the first offending entry
+    and one that examined all of them both fail here, and the named
+    fixtures cover the rest of the surface.
+    """
+    rule_sets = typ.cast("list[dict[str, object]]", document["rule_sets"])
+    mutated = {**document, "rule_sets": [mutate(rule_sets[0]), *rule_sets[1:]]}
+    with _rules_file(mutated), pytest.raises(AssertionError):
+        broken()
