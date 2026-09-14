@@ -70,6 +70,20 @@ RULE_SET_KEYS = frozenset(
 
 MINIMUM_JUSTIFICATION = 80
 
+#: The type each rule-set field must have when it is present. Checking
+#: this before anything reads a field is what stops a wrong type from
+#: passing as an absence: `"rules": ""` iterates zero times and so
+#: satisfies every rule check, and a list of 81 strings has a length
+#: above the justification minimum without being prose at all. Either
+#: one alone would sail through with a glob that matches.
+RULE_SET_FIELD_TYPES: dict[str, type | tuple[type, ...]] = {
+    "matching_content_path": str,
+    "matching_content_path_doc": str,
+    "content_filter": str,
+    "rules": list,
+    "thresholds": dict,
+}
+
 
 def _rule_sets() -> list[RuleSetRecord]:
     """Return the file's rule sets, failing if the top-level shape is wrong."""
@@ -125,8 +139,41 @@ def check_schema() -> None:
             f"unrecognized rule set keys {sorted(unexpected)}; CodeScene "
             "ignores what it does not recognize"
         )
+        _check_field_types(rule_set)
         for rule in rule_set.get("rules", []):
             _check_rule(rule)
+
+
+def _check_field_types(rule_set: RuleSetRecord | dict[str, object]) -> None:
+    """Assert every field a rule set declares has its documented type.
+
+    Checked before anything reads a field, because a wrong type does not
+    announce itself downstream: it reads as an absence. A ``rules`` value
+    of ``""`` iterates zero times and so satisfies every rule check, and
+    a ``matching_content_path_doc`` of eighty-one list items is longer
+    than the justification minimum without being prose. A rule set
+    carrying both, over a glob that matches, passed every check here
+    while violating the schema twice.
+
+    Parameters
+    ----------
+    rule_set : RuleSetRecord or dict
+        The rule set to check.
+    """
+    for field, expected in RULE_SET_FIELD_TYPES.items():
+        if field not in rule_set:
+            continue
+        value = rule_set[field]  # type: ignore[literal-required]
+        # A Boolean is an int, so the same trap as a rule's weight
+        # applies to any field whose type is not bool.
+        assert not isinstance(value, bool), (
+            f"{field} is a {expected}, not a Boolean: {value!r}"
+        )
+        assert isinstance(value, expected), (
+            f"{field} must be a {getattr(expected, '__name__', expected)}; "
+            f"a wrong type here reads downstream as an absence rather than "
+            f"as an error: {value!r}"
+        )
 
 
 def check_justifications() -> None:
@@ -137,6 +184,10 @@ def check_justifications() -> None:
     """
     for rule_set in _rule_sets():
         justification = rule_set.get("matching_content_path_doc", "")
+        assert isinstance(justification, str), (
+            "matching_content_path_doc is prose; a list of eighty-one items "
+            f"is long without saying anything: {justification!r}"
+        )
         assert len(justification) > MINIMUM_JUSTIFICATION, (
             "each rule set needs a matching_content_path_doc saying why the "
             f"exemption is deliberate: {rule_set.get('matching_content_path')!r}"
@@ -169,17 +220,27 @@ def check_globs_match() -> None:
 CHECKS = (check_schema, check_justifications, check_globs_match)
 
 
-def test_the_repository_declares_no_codescene_overrides() -> None:
-    """There is no rule file, because the only rule set was dead.
+@pytest.mark.parametrize("check", CHECKS, ids=lambda check: check.__name__)
+def test_any_committed_rule_file_passes_each_check(
+    check: typ.Callable[[], None],
+) -> None:
+    """The committed rule file, if there is one, satisfies every check.
 
-    Removing it changed no verdict: CodeScene never read the file. This test
-    states the current position, so re-adding a rule file is a deliberate act
-    that arrives with the checks below.
+    There is none today: the only rule set was dead as well as unreadable,
+    and removing it changed no verdict because CodeScene never read the file.
+    So this skips rather than asserting the absence.
+
+    Asserting the absence was the wrong shape. It made re-adding a rule file
+    fail a test whose message said to delete it, and a deleted test validates
+    nothing: every other test here patches `RULES_PATH` to a temporary file,
+    so a malformed committed `.codescene/code-health-rules.json` would have
+    received no schema, justification or glob check at all. Skipping while the
+    file is absent means the checks arrive with the file rather than after
+    someone remembers to reinstate them.
     """
-    assert not RULES_PATH.exists(), (
-        f"{RULES_PATH.name} is back; delete this test and let the checks below "
-        "run against it, having validated it with `cs rules-config validate`"
-    )
+    if not RULES_PATH.exists():
+        pytest.skip(f"{RULES_PATH.name} is absent, so there is nothing to check")
+    check()
 
 
 @pytest.mark.parametrize("check", CHECKS, ids=lambda check: check.__name__)
@@ -321,6 +382,19 @@ def test_a_rule_file_would_have_to_pass_each_check(
             },
             (check_schema,),
             id="a-boolean-weight-false",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": ["x"] * 81,
+                        "rules": "",
+                    }
+                ]
+            },
+            (check_schema, check_justifications),
+            id="wrong-types-that-read-as-absences",
         ),
     ],
 )
