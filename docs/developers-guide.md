@@ -53,9 +53,17 @@ expected state here rather than a fault.
 
 `scripts/tests/test_codescene_rules.py` is a schema test, not a substitute for
 either. It asserts the documented shape rather than merely that the file is
-JSON, requires every rule set to justify itself, and requires every glob to
-match at least one file, since a glob left behind by a rename or a copy is an
-exemption that quietly stops applying.
+JSON, requires every rule set to justify itself, requires every glob to match
+at least one file, since a glob left behind by a rename or a copy is an
+exemption that quietly stops applying, and checks the type of every field a
+rule set declares before anything reads it, because a wrong type does not
+announce itself downstream: a `rules` value of `""` iterates zero times and
+so satisfies every rule check.
+
+Those checks run against the committed `.codescene/code-health-rules.json`
+whenever there is one, and skip while there is none. They are not something
+to reinstate later: a rule file added without them would be validated by
+nothing, which is how the removed one survived.
 
 ## Gate recipes
 
