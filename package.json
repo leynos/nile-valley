@@ -1,7 +1,7 @@
 {
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^11.16.0",
-    "puppeteer": "^23.11.1"
+    "puppeteer": "^25.9.0"
   },
   "name": "nile-valley",
   "private": true,
