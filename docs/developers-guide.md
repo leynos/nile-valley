@@ -56,9 +56,22 @@ either. It asserts the documented shape rather than merely that the file is
 JSON, requires every rule set to justify itself, requires every glob to match
 at least one file, since a glob left behind by a rename or a copy is an
 exemption that quietly stops applying, and checks the type of every field a
-rule set declares before anything reads it, because a wrong type does not
+rule set declares before anything reads it because a wrong type does not
 announce itself downstream: a `rules` value of `""` iterates zero times and
 so satisfies every rule check.
+
+`thresholds` is the field that repays the most care. It is an array of
+`{name, value}` objects rather than a mapping, and given a mapping the
+CodeScene command-line tool does not report a schema problem: it exits with an
+unhandled exception and asks for the stack trace to be sent to support. The
+value must be a positive number; the tool refuses zero, a negative and a
+non-numeric string, while accepting a fraction and coercing a numeric string.
+An entry still carrying the template's `"-"` placeholder overrides nothing, so
+the contract rejects it as residue.
+
+Beyond the named shapes, the checks are stated as properties over generated
+documents: any document built to the schema passes every check, and each
+single-field mutation of one fails the check that owns that field.
 
 Those checks run against the committed `.codescene/code-health-rules.json`
 whenever there is one, and skip while there is none. They are not something
