@@ -24,7 +24,12 @@ def write_tfvars(path: Path, variables: dict[str, object]) -> None:
 
     Examples
     --------
-    >>> write_tfvars(Path("/tmp/vars.tfvars.json"), {"cluster_name": "preview-1"})
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     destination = Path(directory) / "vars.tfvars.json"
+    ...     write_tfvars(destination, {"cluster_name": "preview-1"})
+    ...     json.loads(destination.read_text(encoding="utf-8"))
+    {'cluster_name': 'preview-1'}
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(variables, indent=2), encoding="utf-8")
@@ -47,7 +52,9 @@ def write_manifests(output_dir: Path, manifests: dict[str, str]) -> int:
 
     Examples
     --------
-    >>> write_manifests(Path("/tmp/out"), {"ns.yaml": "apiVersion: v1"})
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     write_manifests(Path(directory), {"ns.yaml": "apiVersion: v1"})
     1
     """
     count = 0
