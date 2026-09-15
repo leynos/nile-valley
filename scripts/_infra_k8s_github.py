@@ -180,11 +180,16 @@ def append_github_output(output_file: Path, outputs: dict[str, str]) -> None:
 
     Examples
     --------
+    Appending twice adds to the file rather than replacing it, which is
+    what the workflow relies on when several steps each contribute an
+    output.
+
     >>> import tempfile
     >>> with tempfile.TemporaryDirectory() as directory:
     ...     output_file = Path(directory) / "out"
     ...     append_github_output(output_file, {"cluster_id": "abc"})
-    ...     output_file.read_text(encoding="utf-8").splitlines()
-    ['cluster_id=abc']
+    ...     append_github_output(output_file, {"endpoint": "https://example"})
+    ...     sorted(output_file.read_text(encoding="utf-8").splitlines())
+    ['cluster_id=abc', 'endpoint=https://example']
     """
     _append_github_kv(output_file, outputs)
