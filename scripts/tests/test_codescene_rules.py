@@ -127,8 +127,16 @@ def _rule_sets() -> list[RuleSetRecord]:
     return typ.cast("list[RuleSetRecord]", rule_sets)
 
 
-def _check_rule(rule: RuleSetRecord | dict[str, object]) -> None:
-    """Assert one rule override carries a prose name and a weight."""
+def _check_rule(rule: RuleRecord | dict[str, object]) -> None:
+    """Assert one rule override carries a prose name and a weight.
+
+    Parameters
+    ----------
+    rule : RuleRecord or dict
+        One entry of a rule set's ``rules`` array. That is a rule
+        override, not a rule set: only `RuleRecord` declares `name` and
+        `weight`, so only it makes the two reads below well typed.
+    """
     assert set(rule) == {"name", "weight"}, (
         f"a rule override carries exactly a name and a weight: {rule}"
     )
@@ -234,10 +242,16 @@ def _check_field_types(rule_set: RuleSetRecord | dict[str, object]) -> None:
     rule_set : RuleSetRecord or dict
         The rule set to check.
     """
+    # Read through a plain mapping. The field names come from
+    # RULE_SET_FIELD_TYPES at runtime, and a TypedDict may only be
+    # indexed by a literal, so the alternative is a suppression that
+    # Pyright reads as covering the whole line and every future
+    # diagnostic on it.
+    fields = typ.cast("dict[str, object]", rule_set)
     for field, expected in RULE_SET_FIELD_TYPES.items():
-        if field not in rule_set:
+        if field not in fields:
             continue
-        value = rule_set[field]  # type: ignore[literal-required]
+        value = fields[field]
         # A Boolean is an int, so the same trap as a rule's weight
         # applies to any field whose type is not bool.
         assert not isinstance(value, bool), (
