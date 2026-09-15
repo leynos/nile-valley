@@ -207,6 +207,69 @@ forbidden recipe shape work rather than removing it, weakening the contract,
 and it would change the meaning of every existing recipe line at once. The
 mechanism this repository relies on is one command per line.
 
+## The documented-example gate
+
+Repository policy is that a function's documentation carries an example
+showing use and outcome. An example that has drifted from the code is worse
+than none, so `scripts/tests/test_gate_script_docs.py` runs every example in
+every module under `scripts` as part of `make test`.
+
+The module list is walked rather than written down. The hand-written list it
+replaces named eleven modules while thirty-four carried examples, so 199 of
+269 example lines were never run, and adding a module with a stale example
+changed nothing a reader would notice.
+
+### What the walk reaches
+
+Every `.py` under `scripts`, except `conftest.py`, `__init__.py`, and anything
+under `scripts/tests`. The suite is pytest's to import: a second import under
+a dotted name re-runs every module-level statement against a different module
+object, and three modules there import `cmd_mox` at module level while
+`conftest` registers its plugin only when the package is present. Executing
+those modules' own examples is `--doctest-modules` on the suite's invocation,
+which is a separate thing from this gate.
+
+Discovery is asserted against an independently built set rather than against
+itself, and the walk is checked to be neither empty nor missing a named
+module, so a filter that excluded everything would not pass.
+
+### Where the examples run
+
+In a temporary directory the gate creates and throws away, with the process
+returned to where it started. Documented examples are ordinary code and some
+of them write: two in the manifest writer named absolute paths under `/tmp`
+and created them on every run of this suite. Those two are repaired at the
+source to use a temporary directory and to assert what they produce, which
+retired that module's exemption the same day. The isolation stays because the
+next careless example is not hypothetical, and it is asserted: a relative
+write from inside the boundary lands in the scratch directory and the
+repository root is unchanged afterwards.
+
+### The two exemption lists
+
+Both shrink and neither grows by accident: a module named in neither is
+checked from the moment it exists.
+
+`KNOWN_STALE_EXAMPLES` holds modules whose examples did not hold when the walk
+replaced the hand list. `test_a_listed_module_is_still_stale` fails when a
+listed module starts passing, so a repair cannot leave its entry behind.
+
+`NOT_IMPORTABLE_HERE` holds modules this gate cannot import at all. Each
+imports a sibling by bare name, which resolves only when `scripts` is itself
+on the path; the spelling gate runs that way and they work there. Adding
+`scripts` to `sys.path` here would import each of them twice under two names,
+which is the fault the walk was scoped to avoid, so the fix belongs in the
+modules.
+
+Keeping them apart is the point rather than tidiness. An import failure is a
+reason a module's examples did not hold, so collapsing the two states let an
+exemption for a module that had been deleted satisfy the shrink-only rule
+forever, and it equally hid three modules whose examples had never run. The
+outcome of a run is now one of three named verdicts, membership of the walk is
+checked before the verdict, the two lists are asserted not to overlap, and the
+checked set is asserted to be larger than the exempted one. Both lists are
+tracked in [#103](https://github.com/leynos/nile-valley/issues/103).
+
 ## Continuous integration
 
 The `ci` workflow runs a single `build` job on `ubicloud-standard-8`. It is the
