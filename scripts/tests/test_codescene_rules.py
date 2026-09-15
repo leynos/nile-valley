@@ -23,9 +23,7 @@ for either.
 from __future__ import annotations
 
 import collections.abc as cabc
-import contextlib
 import json
-import tempfile
 import typing as typ
 from pathlib import Path
 
@@ -111,9 +109,77 @@ RULE_SET_FIELD_TYPES: dict[str, type | tuple[type, ...]] = {
 UNSET_THRESHOLD = "-"
 
 
-def _rule_sets() -> list[RuleSetRecord]:
-    """Return the file's rule sets, failing if the top-level shape is wrong."""
-    document = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+class RuleSets(typ.NamedTuple):
+    """A parsed rule document and the tree its globs resolve against.
+
+    The checks take this rather than reaching for `RULES_PATH`
+    themselves. Reading a file and parsing JSON behind a zero-argument
+    call made every check fallible for reasons that had nothing to do
+    with the rule it states, and made the tests patch a module global to
+    say anything at all. With the document passed in, each check is a
+    function of its argument, and the one that resolves globs takes the
+    tree it resolves them against instead of assuming the repository.
+
+    Attributes
+    ----------
+    document : RulesDocument or dict
+        The parsed rule file.
+    root : Path
+        The tree `matching_content_path` patterns are resolved against.
+    """
+
+    document: RulesDocument | dict[str, object]
+    root: Path
+
+
+def read_rules(
+    path: Path | None = None, *, root: Path = REPOSITORY_ROOT
+) -> RuleSets:
+    """Read and parse one rule file, and do nothing else with it.
+
+    The only filesystem access in this module's checking path, kept
+    apart from them so that none of them has to be driven through a
+    patched global to be exercised.
+
+    Parameters
+    ----------
+    path : Path, optional
+        The file to read. Defaults to the committed rule file.
+    root : Path
+        The tree globs are resolved against.
+
+    Returns
+    -------
+    RuleSets
+        The parsed document and its root.
+
+    Raises
+    ------
+    AssertionError
+        If the file does not hold a JSON object.
+    """
+    source = RULES_PATH if path is None else path
+    document = json.loads(source.read_text(encoding="utf-8"))
+    assert isinstance(document, dict), (
+        f"the rule file must be a JSON object: {source}"
+    )
+    return RuleSets(document=document, root=root)
+
+
+def _rule_sets(subject: RuleSets) -> list[RuleSetRecord]:
+    """Return the document's rule sets, failing if the shape is wrong.
+
+    Parameters
+    ----------
+    subject : RuleSets
+        The document to read.
+
+    Returns
+    -------
+    list[RuleSetRecord]
+        The rule sets.
+    """
+    document = subject.document
     assert isinstance(document, dict), "the rule file must be a JSON object"
     rule_sets = document.get("rule_sets")
     assert isinstance(rule_sets, list), (
@@ -158,15 +224,20 @@ def _check_rule(rule: RuleRecord | dict[str, object]) -> None:
     )
 
 
-def check_schema() -> None:
+def check_schema(subject: RuleSets) -> None:
     """Assert the rule file uses the keys CodeScene reads.
 
     Asserting the key names matters more than it looks. The shape this
     replaces used hyphenated keys, which CodeScene's parser reads as
     namespaced keywords and refuses, so a typo here fails the same way:
     silently, with the override ignored.
+
+    Parameters
+    ----------
+    subject : RuleSets
+        The document to check.
     """
-    for rule_set in _rule_sets():
+    for rule_set in _rule_sets(subject):
         assert isinstance(rule_set, dict), "each rule set must be an object"
         unexpected = set(rule_set) - RULE_SET_KEYS
         assert not unexpected, (
@@ -264,13 +335,18 @@ def _check_field_types(rule_set: RuleSetRecord | dict[str, object]) -> None:
         )
 
 
-def check_justifications() -> None:
+def check_justifications(subject: RuleSets) -> None:
     """Assert each rule set explains itself, so a reader can judge it.
 
     An exemption without a stated reason is indistinguishable from one nobody
     revisited, which is how a narrow allowance becomes a permanent blind spot.
+
+    Parameters
+    ----------
+    subject : RuleSets
+        The document to check.
     """
-    for rule_set in _rule_sets():
+    for rule_set in _rule_sets(subject):
         justification = rule_set.get("matching_content_path_doc", "")
         assert isinstance(justification, str), (
             "matching_content_path_doc is prose; a list of eighty-one items "
@@ -282,20 +358,28 @@ def check_justifications() -> None:
         )
 
 
-def check_globs_match() -> None:
+def check_globs_match(subject: RuleSets) -> None:
     """Assert each rule set's glob matches at least one file.
 
     A path left behind by a rename, or copied from another repository, leaves
     an exemption that quietly stops applying. That was half of this file's
     defect: its glob named Rust sources in a repository that has none.
+
+    The tree is `subject.root` rather than `REPOSITORY_ROOT`, so a test
+    can ask what this check says about a directory it controls.
+
+    Parameters
+    ----------
+    subject : RuleSets
+        The document to check, and the tree to resolve globs against.
     """
-    for rule_set in _rule_sets():
+    for rule_set in _rule_sets(subject):
         pattern = rule_set.get("matching_content_path")
         assert isinstance(pattern, str) and pattern, (
             "each rule set must declare a matching_content_path"
         )
         matched = next(
-            (path for path in REPOSITORY_ROOT.glob(pattern) if path.is_file()),
+            (path for path in subject.root.glob(pattern) if path.is_file()),
             None,
         )
         assert matched is not None, (
@@ -305,13 +389,98 @@ def check_globs_match() -> None:
         )
 
 
-CHECKS = (check_schema, check_justifications, check_globs_match)
+#: Every check, as a function of the document it checks. The uniform
+#: signature is what lets the tests below drive all three from one
+#: parametrisation.
+Check: typ.TypeAlias = cabc.Callable[[RuleSets], None]
+CHECKS: tuple[Check, ...] = (check_schema, check_justifications, check_globs_match)
+
+
+#: One rule file in the documented shape, shared by the driver that
+#: checks a document directly and the one that reads it from disk, so
+#: the two cannot disagree about what "well formed" means.
+A_VALID_DOCUMENT: dict[str, object] = {
+    "usage": "Repo-scoped CodeScene overrides.",
+    "rule_sets": [
+        {
+            "matching_content_path": "scripts/*.py",
+            "matching_content_path_doc": (
+                "A justification long enough to say why the exemption is "
+                "deliberate, what it covers, and when to reassess it."
+            ),
+            "rules": [{"name": "String Heavy Function Arguments", "weight": 0.0}],
+        }
+    ],
+}
+
+
+class TestTheReadBoundary:
+    """`read_rules` does one job: turn a file into a `RuleSets`.
+
+    It is the only part of this module that touches the filesystem, so
+    it is the only part that needs a file to exercise it. Separating it
+    is what let every check above become a function of its argument.
+    """
+
+    def test_a_representative_valid_file_is_read_and_passes_every_check(
+        self, tmp_path: Path
+    ) -> None:
+        """A well-formed rule file on disk reaches the checks intact.
+
+        End to end over the boundary: written as JSON, read back, and
+        put through all three checks. A parse that dropped or reshaped
+        a field would pass the pure tests above and fail here.
+        """
+        path = tmp_path / "code-health-rules.json"
+        path.write_text(json.dumps(A_VALID_DOCUMENT), encoding="utf-8")
+
+        subject = read_rules(path)
+
+        assert subject.root == REPOSITORY_ROOT, "the default root is the repository"
+        for check in CHECKS:
+            check(subject)
+
+    def test_a_representative_invalid_file_is_read_and_fails_its_check(
+        self, tmp_path: Path
+    ) -> None:
+        """A rule file whose glob matches nothing fails, read from disk.
+
+        The invalid half of the pair, so the boundary is shown to carry
+        a rejection through and not only an acceptance.
+        """
+        document = {
+            "usage": "Repo-scoped CodeScene overrides.",
+            "rule_sets": [
+                {
+                    "matching_content_path": "**/domain/*.rs",
+                    "matching_content_path_doc": "x" * 200,
+                    "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                }
+            ],
+        }
+        path = tmp_path / "code-health-rules.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="no file matches"):
+            check_globs_match(read_rules(path))
+
+    def test_a_file_holding_something_other_than_an_object_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """A JSON array parses, and is still not a rule file.
+
+        The read is where this belongs: a check taking the document can
+        assume it was given one, and saying so here names the file.
+        """
+        path = tmp_path / "code-health-rules.json"
+        path.write_text(json.dumps(["rule_sets"]), encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="must be a JSON object"):
+            read_rules(path)
 
 
 @pytest.mark.parametrize("check", CHECKS, ids=lambda check: check.__name__)
-def test_any_committed_rule_file_passes_each_check(
-    check: typ.Callable[[], None],
-) -> None:
+def test_any_committed_rule_file_passes_each_check(check: Check) -> None:
     """The committed rule file, if there is one, satisfies every check.
 
     There is none today: the only rule set was dead as well as unreadable,
@@ -328,39 +497,19 @@ def test_any_committed_rule_file_passes_each_check(
     """
     if not RULES_PATH.exists():
         pytest.skip(f"{RULES_PATH.name} is absent, so there is nothing to check")
-    check()
+    check(read_rules())
 
 
 @pytest.mark.parametrize("check", CHECKS, ids=lambda check: check.__name__)
-def test_a_rule_file_would_have_to_pass_each_check(
-    check: typ.Callable[[], None], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A well-formed rule file satisfies every check.
+def test_a_rule_file_would_have_to_pass_each_check(check: Check) -> None:
+    """A well-formed rule document satisfies every check.
 
-    The file is written here rather than committed, so the checks stay
-    exercised while the repository declares no overrides.
+    The document is built here rather than committed, so the checks stay
+    exercised while the repository declares no overrides. It is passed
+    in rather than written to a file and reached through a patched
+    global, which is what taking the document as an argument bought.
     """
-    document = {
-        "usage": "Repo-scoped CodeScene overrides.",
-        "rule_sets": [
-            {
-                "matching_content_path": "scripts/*.py",
-                "matching_content_path_doc": (
-                    "A justification long enough to say why the exemption is "
-                    "deliberate, what it covers, and when to reassess it."
-                ),
-                "rules": [{"name": "String Heavy Function Arguments", "weight": 0.0}],
-            }
-        ],
-    }
-    path = tmp_path / "code-health-rules.json"
-    path.write_text(json.dumps(document), encoding="utf-8")
-    # `raising` is left at its default on purpose: if this module is ever
-    # imported under a different name the patch must fail loudly rather than
-    # create a new attribute and let the test pass having patched nothing.
-    monkeypatch.setattr(f"{__name__}.RULES_PATH", path)
-
-    check()
+    check(RuleSets(document=A_VALID_DOCUMENT, root=REPOSITORY_ROOT))
 
 
 @pytest.mark.parametrize(
@@ -551,23 +700,18 @@ def test_a_rule_file_would_have_to_pass_each_check(
     ],
 )
 def test_the_checks_reject_known_bad_shapes(
-    document: dict[str, object],
-    failing_checks: tuple[typ.Callable[[], None], ...],
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    document: dict[str, object], failing_checks: tuple[Check, ...]
 ) -> None:
     """Each check must fail on the shapes that caused this.
 
     Without this the checks could assert nothing and still pass, which is the
     defect they exist to catch, one level up.
     """
-    path = tmp_path / "code-health-rules.json"
-    path.write_text(json.dumps(document), encoding="utf-8")
-    monkeypatch.setattr(f"{__name__}.RULES_PATH", path)
+    subject = RuleSets(document=document, root=REPOSITORY_ROOT)
 
     for check in failing_checks:
         with pytest.raises(AssertionError):
-            check()
+            check(subject)
 
 
 # --- properties over documents nobody wrote down ----------------------------
@@ -632,35 +776,6 @@ VALID_DOCUMENTS = st.builds(
 )
 
 
-@contextlib.contextmanager
-def _rules_file(document: dict[str, object]) -> cabc.Iterator[None]:
-    """Point `RULES_PATH` at a temporary file holding *document*.
-
-    A context manager rather than the `tmp_path` and `monkeypatch`
-    fixtures, because a function-scoped fixture is created once for a
-    `@given` test and not reset between generated inputs, so every input
-    after the first would read the file the first one wrote.
-
-    Parameters
-    ----------
-    document : dict
-        The rule document to write.
-
-    Yields
-    ------
-    None
-        With `RULES_PATH` pointing at the written file.
-    """
-    original = RULES_PATH
-    with tempfile.TemporaryDirectory() as directory:
-        path = Path(directory) / "code-health-rules.json"
-        path.write_text(json.dumps(document), encoding="utf-8")
-        globals()["RULES_PATH"] = path
-        try:
-            yield
-        finally:
-            globals()["RULES_PATH"] = original
-
 
 @given(document=VALID_DOCUMENTS)
 def test_a_well_formed_document_passes_every_check(
@@ -674,9 +789,9 @@ def test_a_well_formed_document_passes_every_check(
     `rules` list or a rule set carrying no thresholds would pass all of
     them. These generate the schema instead.
     """
-    with _rules_file(document):
-        for check in CHECKS:
-            check()
+    subject = RuleSets(document=document, root=REPOSITORY_ROOT)
+    for check in CHECKS:
+        check(subject)
 
 
 #: Each mutation of a valid document, with the check it must break. The
@@ -750,7 +865,7 @@ MUTATIONS = (
 def test_each_mutation_of_a_valid_document_fails_its_check(
     document: dict[str, object],
     mutate: typ.Callable[[dict[str, object]], dict[str, object]],
-    broken: typ.Callable[[], None],
+    broken: Check,
 ) -> None:
     """Breaking one field of an otherwise valid document fails its check.
 
@@ -763,5 +878,5 @@ def test_each_mutation_of_a_valid_document_fails_its_check(
     """
     rule_sets = typ.cast("list[dict[str, object]]", document["rule_sets"])
     mutated = {**document, "rule_sets": [mutate(rule_sets[0]), *rule_sets[1:]]}
-    with _rules_file(mutated), pytest.raises(AssertionError):
-        broken()
+    with pytest.raises(AssertionError):
+        broken(RuleSets(document=mutated, root=REPOSITORY_ROOT))
