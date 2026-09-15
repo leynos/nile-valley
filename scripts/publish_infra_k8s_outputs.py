@@ -152,7 +152,12 @@ def publish_outputs(values: OutputValues, github_output: Path) -> None:
 
     Examples
     --------
-    >>> publish_outputs(OutputValues(None, None, None, None, None), Path("/tmp/out"))
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     output_file = Path(directory) / "out"
+    ...     publish_outputs(OutputValues(None, None, None, None, None), output_file)
+    ...     output_file.read_text(encoding="utf-8").splitlines()
+    []
     """
     outputs = {
         key: value
