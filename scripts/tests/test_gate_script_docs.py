@@ -18,6 +18,7 @@ import enum
 import importlib
 import os
 import re
+import stat
 import sys
 import tempfile
 import typing as typ
@@ -327,6 +328,39 @@ def _absolute_paths_named_in_examples() -> tuple[Path, ...]:
     return tuple(Path(name) for name in sorted(found))
 
 
+def _signature(path: Path) -> object | None:
+    """Return a value that changes if ``path`` is created or written.
+
+    Existence alone is not enough. This gate first ran green on a host
+    where an earlier run had already made the files, so the run that
+    made them again looked like it had made nothing; the same check
+    failed on CI's clean machine. History must not be able to mask the
+    run.
+
+    A directory is compared by existence only. The ones named here are
+    shared, `/tmp` among them, and their modification time moves
+    whenever anything else on the machine touches them.
+
+    Parameters
+    ----------
+    path : Path
+        The path to read.
+
+    Returns
+    -------
+    object or None
+        None when absent, a marker for a directory, and the size and
+        modification time for a file.
+    """
+    try:
+        status = path.stat()
+    except OSError:
+        return None
+    if stat.S_ISDIR(status.st_mode):
+        return "a directory"
+    return (status.st_size, status.st_mtime_ns)
+
+
 def test_running_every_example_creates_nothing_on_the_host() -> None:
     """Executing the examples leaves the paths they name as it found them.
 
@@ -339,22 +373,23 @@ def test_running_every_example_creates_nothing_on_the_host() -> None:
     stop that, so what the run creates is watched instead.
 
     Naming an absolute path is not the offence, which is why this
-    asserts existence rather than mentions. Most of the paths named
-    here are handed to a value object that nothing writes, and those
+    watches the paths rather than the mentions. Most of those named
+    here are handed to a value object that nothing writes, and they
     stay absent whatever the example does with them.
     """
     watched = _absolute_paths_named_in_examples()
     assert watched, "no example names an absolute path; this now asserts nothing"
-    before = {path for path in watched if path.exists()}
+    before = {path: _signature(path) for path in watched}
 
     for module_name in (*CHECKED_MODULES, *sorted(KNOWN_STALE_EXAMPLES)):
         run_examples(module_name)
 
-    created = sorted(str(path) for path in watched if path.exists() and path not in before)
-    assert not created, (
-        f"running the examples created {created} on the host. An example that "
+    touched = sorted(str(path) for path in watched if _signature(path) != before[path])
+
+    assert not touched, (
+        f"running the examples wrote {touched} on the host. An example that "
         "needs a file should make its own tempfile.TemporaryDirectory, which "
-        "also lets it assert what it wrote."
+        "also lets it assert what it produced instead of asserting nothing."
     )
 
 

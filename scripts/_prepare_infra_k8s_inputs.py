@@ -5,8 +5,13 @@ for the nile-valley-infra-k8s GitHub Action.
 
 Examples
 --------
-Resolve inputs and export them for downstream steps:
+Resolve inputs and export them for downstream steps. The export writes a
+file, so the example makes somewhere of its own to write it and clears up
+after itself; naming a path under `/tmp` would create one on whatever
+machine ran the documentation gate.
 
+>>> import shutil, tempfile
+>>> workspace = Path(tempfile.mkdtemp())
 >>> raw = RawInputs(
 ...     cluster_name="preview-1",
 ...     environment="preview",
@@ -32,11 +37,14 @@ Resolve inputs and export them for downstream steps:
 ...     enable_vault_eso="true",
 ...     enable_cnpg="true",
 ...     dry_run="false",
-...     runner_temp=Path("/tmp"),
-...     github_env=Path("/tmp/github-env"),
+...     runner_temp=workspace,
+...     github_env=workspace / "github-env",
 ... )
 >>> inputs = _resolve_all_inputs(raw)
 >>> prepare_inputs(inputs)
+>>> (workspace / "github-env").is_file()
+True
+>>> shutil.rmtree(workspace)
 """
 
 from __future__ import annotations
@@ -376,6 +384,8 @@ def prepare_inputs(inputs: ResolvedInputs, mask: Mask = mask_secret) -> None:
 
     Examples
     --------
+    >>> import shutil, tempfile
+    >>> workspace = Path(tempfile.mkdtemp())
     >>> raw = RawInputs(
     ...     cluster_name="preview-1",
     ...     environment="preview",
@@ -390,10 +400,13 @@ def prepare_inputs(inputs: ResolvedInputs, mask: Mask = mask_secret) -> None:
     ...     digitalocean_token="do-token",
     ...     spaces_access_key="access",
     ...     spaces_secret_key="secret",
-    ...     runner_temp=Path("/tmp"),
-    ...     github_env=Path("/tmp/github-env"),
+    ...     runner_temp=workspace,
+    ...     github_env=workspace / "github-env",
     ... )
     >>> prepare_inputs(_resolve_all_inputs(raw))
+    >>> (workspace / "github-env").is_file()
+    True
+    >>> shutil.rmtree(workspace)
     """
     _mask_inputs(inputs, mask)
     env_vars = _build_env_vars(inputs)
