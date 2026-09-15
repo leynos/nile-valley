@@ -23,6 +23,20 @@ import pytest
 #: different module object, so its own examples are left to pytest.
 NOT_OURS_TO_IMPORT = frozenset({"conftest", "__init__"})
 
+#: Directories under `scripts` this gate does not import, for the same
+#: reason as `conftest`: the suite is pytest's, and a second import
+#: under a dotted name re-runs every module-level statement against a
+#: different module object. It is also not merely untidy. The spelling
+#: gate runs a narrower pytest invocation that omits `cmd-mox` on
+#: purpose, and three modules here import it at module level, so under
+#: that invocation the second import raises and this gate reports a
+#: missing package as a stale example.
+#:
+#: Their own examples are not abandoned: executing them is
+#: `--doctest-modules` on the suite's own invocation, which is where a
+#: module pytest already imports belongs.
+NOT_OURS_TO_WALK = frozenset({"tests"})
+
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PACKAGE_ROOT.parent
 
@@ -45,6 +59,7 @@ def _module_names() -> tuple[str, ...]:
         ".".join(path.relative_to(REPOSITORY_ROOT).with_suffix("").parts)
         for path in sorted(PACKAGE_ROOT.rglob("*.py"))
         if path.stem not in NOT_OURS_TO_IMPORT
+        and NOT_OURS_TO_WALK.isdisjoint(path.relative_to(PACKAGE_ROOT).parts[:-1])
     ]
     assert names, f"no modules found under {PACKAGE_ROOT}; the walk is wrong"
     return tuple(names)
@@ -119,6 +134,42 @@ def _why_examples_fail(module_name: str) -> str | None:
     return None
 
 
+def test_the_walk_leaves_the_suite_to_pytest() -> None:
+    """No module this gate imports is one pytest has already imported.
+
+    The walk found every `.py` under `scripts`, which includes the
+    thirty-eight modules of this suite. Importing them again under
+    `scripts.tests.*` re-runs every module-level statement against a
+    second module object, so a fixture registration, a `sys.path` edit
+    or a decorator runs twice with the two copies unable to see each
+    other.
+
+    It is also a trap rather than merely untidy: three modules here
+    import `cmd_mox` at module level, and `conftest` registers its
+    plugin only when it is installed, precisely because one gate runs a
+    narrower invocation without it. Under such an invocation the second
+    import raises, and this gate reports a missing package as a stale
+    example.
+    """
+    intruders = [name for name in GATE_MODULES if ".tests." in f"{name}."]
+
+    assert not intruders, (
+        f"the walk reached {len(intruders)} module(s) of this suite, which "
+        f"pytest has already imported: {intruders[:3]}"
+    )
+
+
+def test_the_walk_still_reaches_the_scripts_themselves() -> None:
+    """Scoping the walk must not empty it.
+
+    A filter that excluded everything would satisfy the rule above on
+    its own, so the two are asserted together. The named module is one
+    of the scripts the gate exists for.
+    """
+    assert len(GATE_MODULES) > 20, GATE_MODULES
+    assert "scripts.check_spelling" in GATE_MODULES, GATE_MODULES
+
+
 @pytest.mark.parametrize("module_name", CHECKED_MODULES, ids=str)
 def test_documented_examples_hold(module_name: str) -> None:
     """Every doctest in the module runs and matches its stated output."""
@@ -135,7 +186,20 @@ def test_a_listed_module_is_still_stale(module_name: str) -> None:
     repaired module keeps its exemption, and the next module to break
     could simply be added beside it. Failing here is good news: remove
     the entry.
+
+    Presence is checked before the reason, and separately, because a
+    module that has been deleted or renamed fails to import, an import
+    failure is a reason, and a reason is what this test is looking for.
+    An exemption for a module that no longer exists would therefore
+    satisfy the shrink-only rule forever, which is the one way the list
+    can outlive the problem without anyone noticing.
     """
+    assert module_name in GATE_MODULES, (
+        f"{module_name} is exempted but no longer discovered. Remove it from "
+        "KNOWN_STALE_EXAMPLES: an exemption for a module that is gone can "
+        "never be retired by repairing it."
+    )
+
     reason = _why_examples_fail(module_name)
 
     assert reason is not None, (
