@@ -5,7 +5,12 @@ Actions behaviour for ``GITHUB_ENV`` and ``GITHUB_OUTPUT`` files.
 
 Examples
 --------
->>> append_github_env(Path("/tmp/github-env"), {"CLUSTER_NAME": "demo"})
+>>> import tempfile
+>>> with tempfile.TemporaryDirectory() as directory:
+...     env_file = Path(directory) / "github-env"
+...     append_github_env(env_file, {"CLUSTER_NAME": "demo"})
+...     env_file.read_text(encoding="utf-8").splitlines()
+['CLUSTER_NAME=demo']
 >>> parse_bool("true")
 True
 """
@@ -148,7 +153,12 @@ def append_github_env(env_file: Path, variables: dict[str, str]) -> None:
 
     Examples
     --------
-    >>> append_github_env(Path("/tmp/env"), {"CLUSTER_NAME": "preview-1"})
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     env_file = Path(directory) / "env"
+    ...     append_github_env(env_file, {"CLUSTER_NAME": "preview-1"})
+    ...     env_file.read_text(encoding="utf-8").splitlines()
+    ['CLUSTER_NAME=preview-1']
     """
     _append_github_kv(env_file, variables)
 
@@ -170,6 +180,16 @@ def append_github_output(output_file: Path, outputs: dict[str, str]) -> None:
 
     Examples
     --------
-    >>> append_github_output(Path("/tmp/out"), {"cluster_id": "abc"})
+    Appending twice adds to the file rather than replacing it, which is
+    what the workflow relies on when several steps each contribute an
+    output.
+
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     output_file = Path(directory) / "out"
+    ...     append_github_output(output_file, {"cluster_id": "abc"})
+    ...     append_github_output(output_file, {"endpoint": "https://example"})
+    ...     sorted(output_file.read_text(encoding="utf-8").splitlines())
+    ['cluster_id=abc', 'endpoint=https://example']
     """
     _append_github_kv(output_file, outputs)
