@@ -168,7 +168,7 @@ jobs:
       # `cargo install merman-cli` source build and its Rust toolchain.
       - name: Install Nixie and Merman
         id: install-nixie
-        uses: leynos/shared-actions/.github/actions/install-nixie@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/install-nixie@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
         with:
           nixie-version: ${{ env.NIXIE_VERSION }}
           merman-version: ${{ env.MERMAN_VERSION }}

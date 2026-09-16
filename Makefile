@@ -72,7 +72,7 @@ clean:
 
 fmt:
 	$(MDTABLEFIX) --in-place $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
-	@unset FORCE_COLOR; $(MDLINT) --fix "**/*.md"
+	$(MDLINT) --fix "**/*.md"
 
 lint:
 	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))

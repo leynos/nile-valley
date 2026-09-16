@@ -28,9 +28,11 @@ if typ.TYPE_CHECKING:
     from workflow_gate_support import Document
 
 # The gates the workflow must run. `make deps` is setup, not a gate.
+# `make markdownlint` is deliberately absent: Markdown linting runs through
+# the pinned markdownlint-cli2 action, as the estate's
+# markdown-formatting-baseline rule requires, not through a Make invocation.
 REQUIRED_GATES = (
     "make spelling",
-    "make markdownlint",
     "make nixie",
     "make yamllint",
     "make lint",
