@@ -26,6 +26,7 @@ from scripts.tests.gate_script_docs_support import (
     NOT_OURS_TO_IMPORT,
     PACKAGE_ROOT,
     REPOSITORY_ROOT,
+    SUITE_SUPPORT_MODULES,
     Verdict,
     run_examples,
 )
@@ -193,3 +194,45 @@ def test_a_listed_module_is_still_stale(module_name: str) -> None:
         f"{module_name} now passes its own examples ({outcome.detail}). Remove "
         "it from KNOWN_STALE_EXAMPLES; the list is allowed to shrink only."
     )
+
+
+def test_the_suite_has_support_modules_to_check() -> None:
+    """Discovery of this suite's helper modules is not empty.
+
+    The list it replaces named three by hand. A glob that matched
+    nothing would satisfy the parametrised test below by having no cases
+    at all, which is the way this coverage was lost the first time.
+    """
+    assert len(SUITE_SUPPORT_MODULES) >= 3, SUITE_SUPPORT_MODULES
+    assert "scripts.tests.makefile_contract_support" in SUITE_SUPPORT_MODULES, (
+        SUITE_SUPPORT_MODULES
+    )
+
+
+@pytest.mark.parametrize("module_name", SUITE_SUPPORT_MODULES, ids=str)
+def test_a_support_module_of_this_suite_holds_its_examples(module_name: str) -> None:
+    """This suite's own helpers are checked, unlike its test modules.
+
+    `scripts/tests` holds two kinds of file and the walk's exclusion
+    treated them as one. A test module is pytest's: importing it again
+    under a dotted name runs its registrations a second time against a
+    second module object. A support module is an ordinary library the
+    test modules import, nothing else claims it, and its examples are as
+    much documentation as any script's.
+
+    The hand list this gate replaced named three support modules and ran
+    them. The walk dropped the whole directory, and the exclusion's
+    stated replacement, `--doctest-modules` on the suite's own
+    invocation, does not exist: no pytest invocation in this repository
+    passes that flag and there is no configuration file to carry it.
+    Twenty-eight example lines stopped running and the gate reported
+    nothing, which is the failure this whole file exists to prevent
+    happening to the scripts.
+
+    Run through `run_examples` rather than a separate importer, so these
+    get the same scratch directory and the same environment restore as
+    everything else.
+    """
+    outcome = run_examples(module_name)
+
+    assert outcome.held, f"{module_name}: {outcome.verdict} - {outcome.detail}"
