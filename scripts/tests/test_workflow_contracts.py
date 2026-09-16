@@ -37,6 +37,17 @@ GITHUB_HOSTED_LABELS = frozenset(
 CACHE_ACTION_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 SHARED_ACTIONS_SHA = "c5a54701c8603a0fa756a6b34c49bc2af75a6c11"
 TRUNK_REFERENCE = "refs/heads/main"
+#: The short name of the branch `TRUNK_REFERENCE` names. Both spellings
+#: are needed: a step's guard compares the full ref, a trigger's filter
+#: lists the short name, and the reachability contract reads one against
+#: the other.
+TRUNK_BRANCH = "main"
+GATE_WORKFLOW = "ci.yml"
+#: The event field that distinguishes a fork's pull request. Named here
+#: so the placement contract asserts this field rather than matching the
+#: expression loosely: `head.repo.private` reads almost identically and
+#: would send every private-repository pull request to a hosted runner.
+FORK_FIELD = "github.event.pull_request.head.repo.fork"
 
 # Forms that compile a tool from source inside CI. `uv tool install` is absent
 # from this list because uv resolves published wheels rather than building the
@@ -108,6 +119,13 @@ def _build_job(workflows: tuple[Workflow, ...]) -> Job:
         if job.qualified_name in BUILD_JOBS:
             return job
     pytest.fail("the ci.yml build job is missing")
+
+
+def _workflow_named(workflows: tuple[Workflow, ...], name: str) -> Workflow:
+    for workflow in workflows:
+        if workflow.name == name:
+            return workflow
+    pytest.fail(f"no workflow named {name!r}")
 
 
 def _step_by_id(job: Job, identifier: str) -> Step:
@@ -347,4 +365,122 @@ def test_downloaded_archives_are_checksum_verified(
     step = _step_by_id(_build_job(workflows), identifier)
     assert "sha256sum --check --strict" in step.run, (
         f"{identifier} must verify the downloaded artefact against a pinned digest"
+    )
+
+
+def test_the_gate_runs_on_trunk_as_well_as_on_a_pull_request(
+    workflows: tuple[Workflow, ...],
+) -> None:
+    """The gate fires on a push to trunk, not only before one.
+
+    Without it a merge that breaks the gate is invisible until somebody
+    opens the next pull request, and the trunk-guarded cache saves below
+    have no event that can reach them.
+
+    Mutation: deleting the `push` trigger from `ci.yml` failed this.
+    """
+    gate = _workflow_named(workflows, GATE_WORKFLOW)
+    push = gate.triggers.get("push")
+
+    assert "push" in gate.triggers, f"{GATE_WORKFLOW} declares no push trigger"
+    assert isinstance(push, dict) and TRUNK_BRANCH in push.get("branches", []), (
+        f"{GATE_WORKFLOW}'s push trigger must name {TRUNK_BRANCH}: {push!r}"
+    )
+
+
+def test_every_trunk_guarded_step_has_an_event_that_reaches_it(
+    workflows: tuple[Workflow, ...],
+) -> None:
+    """A step guarded on trunk must have an automatic trigger that produces it.
+
+    This is the contract the other two could not supply.
+    `test_cache_writes_are_restricted_to_trunk` asserts each save carries
+    the guard and `test_every_restored_cache_has_a_matching_save` asserts
+    the keys pair, and both passed for months while `ci.yml` had no push
+    trigger at all: every save was skipped on every run, the repository
+    held zero cache entries, and each restore found nothing. A guard
+    asserted on a step that nothing can reach is worse than no guard,
+    because it reads as a mechanism.
+
+    A `workflow_dispatch` is deliberately not counted. It can be aimed at
+    trunk, so it satisfies the guard in principle, and a cache written
+    only when somebody presses a button is written never.
+
+    Mutation: deleting the `push` trigger failed this as well as the test
+    above, which is the point; restoring only `workflow_dispatch`, the
+    state before this branch, also failed it.
+    """
+    for workflow in workflows:
+        guarded = [
+            (job, step)
+            for job, step in iter_steps((workflow,))
+            if TRUNK_REFERENCE in step.condition
+        ]
+        if not guarded:
+            continue
+        assert workflow.writes_trunk_automatically(TRUNK_BRANCH), (
+            f"{workflow.name} guards "
+            f"{[f'{job.qualified_name}/{step.name}' for job, step in guarded]} "
+            f"on {TRUNK_REFERENCE}, but declares no trigger that produces it "
+            f"without a person: {sorted(workflow.triggers)}"
+        )
+
+
+def test_no_runner_selection_hides_a_line_break(
+    workflows: tuple[Workflow, ...],
+) -> None:
+    """A `runs-on` expression must parse to a single line.
+
+    A folded scalar keeps the break of a more-indented continuation, so
+    the parsed value carries a newline inside the expression. GitHub
+    evaluates it regardless and the job lands on the right runner, which
+    is exactly why a green run proves nothing and this is read from the
+    parsed document instead.
+
+    Mutation: indenting the continuation of `build`'s `runs-on` one level
+    deeper failed this.
+    """
+    for job in iter_jobs(workflows):
+        assert "\n" not in job.raw_runs_on, (
+            f"{job.qualified_name}'s runs-on carries a line break, so the "
+            f"expression is split across lines: {job.raw_runs_on!r}"
+        )
+
+
+def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
+    workflows: tuple[Workflow, ...],
+) -> None:
+    """A fork's pull request must land on a GitHub-hosted runner.
+
+    A fork cannot obtain an Ubicloud runner, so a bare Ubicloud label
+    leaves the only required check unable to start and the pull request
+    waiting on a job that will never be scheduled.
+
+    The fork field is asserted by name rather than the expression being
+    matched loosely, because the failure this guards against is a
+    plausible sibling field in an otherwise identical expression.
+
+    Mutation: replacing `head.repo.fork` with `head.repo.private` failed
+    this; so did removing the expression for a bare label.
+    """
+    job = _build_job(workflows)
+    declaration = job.raw_runs_on
+
+    assert job.selects_its_runner_by_expression, (
+        f"{job.qualified_name} selects a runner unconditionally, so a fork's "
+        f"pull request cannot run it: {declaration!r}"
+    )
+    assert FORK_FIELD in declaration, (
+        f"{job.qualified_name} must key its fallback on {FORK_FIELD}: "
+        f"{declaration!r}"
+    )
+    hosted = [
+        label for label in job.runner_labels if label in GITHUB_HOSTED_LABELS
+    ]
+    ubicloud = [
+        label for label in job.runner_labels if label not in GITHUB_HOSTED_LABELS
+    ]
+    assert hosted and ubicloud, (
+        f"{job.qualified_name} must name one hosted arm and one Ubicloud arm: "
+        f"{job.runner_labels!r}"
     )
