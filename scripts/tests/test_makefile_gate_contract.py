@@ -63,7 +63,6 @@ CONVERTED_GATES = {
         "scripts/run_bun_tool.py --tool markdownlint-cli2 "
         "--package markdownlint-cli2@{MARKDOWNLINT_CLI2_VERSION} -- '**/*.md'"
     ),
-    "spelling": "scripts/check_spelling.py --typos-version {TYPOS_VERSION}",
     "fluxcd-policy": "scripts/tofu_plan_policy.py --module fluxcd",
     "traefik-policy": "scripts/tofu_plan_policy.py --module traefik",
     "external-dns-policy": "scripts/tofu_plan_policy.py --module external-dns",
@@ -213,7 +212,7 @@ def test_the_ignored_failure_check_reads_the_prefix(tmp_path: Path) -> None:
     makefile.write_text(
         "gate:\n"
         "\t@-uv run scripts/lint_actions.py\n"
-        "\tuv run scripts/check_spelling.py \\\n"
+        "\tuv run scripts/lint_helm_manifests.py \\\n"
         "\t-not-a-prefix\n",
         encoding="utf-8",
     )

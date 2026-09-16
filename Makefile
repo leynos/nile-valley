@@ -40,10 +40,16 @@ export VAULT_ESO_APPROLE_ROLE_ID VAULT_ESO_APPROLE_SECRET_ID
 
 BIOME_VERSION ?= 2.3.1
 MARKDOWNLINT_CLI2_VERSION ?= 0.14.0
-RUFF_VERSION ?= 0.15.12
-TYPOS_VERSION ?= 1.48.0
 UV ?= uv
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+
+# The spelling gate is one pinned command: it regenerates `typos.toml` from the
+# live shared dictionary and `typos.local.toml`, runs the pinned Typos binary
+# over the tracked Markdown, and enforces the shared phrase policy.
+TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.1
+TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run \
+    --from "git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
+    typos-config-builder
 
 GO_CACHE_ROOT ?= $(HOME)/.cache/go
 GO_TEST_ENV := GOPATH=$(GO_CACHE_ROOT) GOMODCACHE=$(GO_CACHE_ROOT)/pkg/mod GOCACHE=$(GO_CACHE_ROOT)/build
@@ -51,7 +57,7 @@ GO_TEST_ENV := GOPATH=$(GO_CACHE_ROOT) GOMODCACHE=$(GO_CACHE_ROOT)/pkg/mod GOCAC
 # Place one consolidated PHONY declaration near the top of the file
 .PHONY: all clean fmt lint test deps \
         check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie spelling \
-        spelling-helper-test yamllint \
+        yamllint \
         lint-makefile lint-actions lint-infra conftest tofu doks-test doks-policy fluxcd-test fluxcd-policy \
         vault-appliance-test vault-appliance-policy dev-cluster-test cluster-provision-test scripts-test traefik-test traefik-policy traefik-e2e \
         external-dns-test external-dns-policy vault-eso-test vault-eso-policy cnpg-test cnpg-policy valkey-test valkey-policy platform-render-test
@@ -160,35 +166,8 @@ check-test-deps:
 markdownlint: spelling
 	$(call exec_or_bunx,markdownlint-cli2,'**/*.md',markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION))
 
-spelling: spelling-helper-test
-	@$(UV_ENV) $(UV) run scripts/generate_typos_config.py
-	@git ls-files --error-unmatch typos.toml >/dev/null
-	@git diff --exit-code -- typos.toml
-	@$(UV_ENV) $(UV) run scripts/check_spelling.py --typos-version $(TYPOS_VERSION)
-
-spelling-helper-test:
-	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) format --isolated \
-		--target-version py313 --check scripts/generate_typos_config.py \
-		scripts/typos_rollout.py scripts/typos_rollout_cache.py \
-		scripts/typos_rollout_http.py scripts/tests/test_typos_rollout.py \
-		scripts/tests/test_typos_rollout_hardening.py \
-		scripts/tests/test_typos_rollout_refresh.py \
-		scripts/tests/conftest.py \
-		scripts/tests/typos_rollout_test_support.py
-	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) check --isolated \
-		--target-version py313 scripts/generate_typos_config.py \
-		scripts/typos_rollout.py scripts/typos_rollout_cache.py \
-		scripts/typos_rollout_http.py scripts/tests/test_typos_rollout.py \
-		scripts/tests/test_typos_rollout_hardening.py \
-		scripts/tests/test_typos_rollout_refresh.py \
-		scripts/tests/conftest.py \
-		scripts/tests/typos_rollout_test_support.py
-	@PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project --python 3.13 \
-		--with pytest==9.0.2 --with pytest-cov==7.0.0 \
-		python -m pytest scripts/tests/test_typos_rollout*.py \
-		-c /dev/null --rootdir=. -p no:cacheprovider \
-		--cov=generate_typos_config --cov=typos_rollout \
-		--cov=typos_rollout_cache --cov=typos_rollout_http --cov-fail-under=90
+spelling:
+	@$(TYPOS_CONFIG_BUILDER) gate --repository .
 
 nixie:
 	bun install

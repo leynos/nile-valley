@@ -7,16 +7,17 @@ guidance remains in the documents linked from the
 ## Spelling policy
 
 Run `make spelling` to enforce en-GB-oxendict spelling in maintained Markdown
-prose. The generated `typos.toml` starts from the shared estate dictionary,
-refreshes its untracked local cache only when the authority is newer, and then
-applies the narrow repository policy in `typos.local.toml`. Edit the local
-policy and regenerate the configuration rather than changing generated entries
-by hand.
+prose. The single gate command is
+[typos-config-builder](https://github.com/leynos/typos-config-builder), pinned
+by `TYPOS_CONFIG_BUILDER_VERSION` in the `Makefile`. It regenerates
+`typos.toml` from the live shared dictionary and the repository overlay on
+every run, runs the pinned Typos binary over the tracked Markdown, and enforces
+the shared prohibited-phrase policy.
 
-`scripts/typos_rollout_http.py` owns shared-cache freshness, HTTPS transport
-security and persistence coordination. Only `scripts/typos_rollout.py` may
-compose it with dictionary validation; infrastructure scripts must not reuse
-these spelling-policy internals.
+`typos.toml` is therefore a generated artefact. It is never edited by hand and
+never drift-checked in CI, because the shared dictionary is the authority and a
+dictionary change would otherwise fail every consumer's pipeline. Narrow
+repository exceptions belong in `typos.local.toml`.
 
 ## Gate recipes
 
@@ -63,7 +64,7 @@ tool's standard output into it, and a consumer reads it back through a run's
 rendered chart reaches yamllint, so the size of a plan or a chart does not
 become the gate's memory footprint. `capture_tool` holds output in memory and
 is reserved for output bounded by construction, such as the list of tracked
-files the spelling gate checks.
+files a gate checks.
 
 The gate scripts read the environment once, at the command line, and pass the
 mapping down. Nothing below that boundary consults `os.environ`, so the
@@ -77,7 +78,6 @@ module registry is a read-only mapping for the same reason.
 | `run_bun_tool.py`        | `lint`, `check-fmt`, `markdownlint`          |
 | `tofu_example_gate.py`   | the `*-test` validate and plan steps         |
 | `tofu_plan_policy.py`    | the `*-policy` plan, export and conftest run |
-| `check_spelling.py`      | the typos step of `spelling`                 |
 
 `scripts/_tofu_modules.py` holds each module's example path, gate variable,
 required companion variables and `-var` assignments, so one script serves every
