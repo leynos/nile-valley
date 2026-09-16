@@ -105,8 +105,15 @@ def render_manifests(inputs: RenderInputs, tfvars: dict[str, object]) -> dict[st
 
     Examples
     --------
+    The call needs OpenTofu on the path, so it is marked as not run. It
+    said as much in a comment before, which `doctest` does not read: the
+    example executed on every run of the documentation gate, invoked
+    `tofu`, and wrote a variables file under the runner temporary
+    directory it names. The paths are a workspace relative to the
+    working directory for the same reason.
+
     >>> from pathlib import Path
-    >>> # (illustrative example; not executable due to external dependencies)
+    >>> workspace = Path("workspace")
     >>> inputs = RenderInputs(
     ...     cluster_name="preview-1",
     ...     domain="example.com",
@@ -121,12 +128,12 @@ def render_manifests(inputs: RenderInputs, tfvars: dict[str, object]) -> dict[st
     ...     enable_external_dns=True,
     ...     enable_vault_eso=False,
     ...     enable_cnpg=False,
-    ...     runner_temp=Path("/tmp"),
-    ...     output_dir=Path("/tmp/output"),
-    ...     github_env=Path("/tmp/github-env"),
+    ...     runner_temp=workspace,
+    ...     output_dir=workspace / "output",
+    ...     github_env=workspace / "github-env",
     ... )
     >>> tfvars = {"cluster_name": "preview-1", "domain": "example.com"}
-    >>> render_manifests(inputs, tfvars)
+    >>> render_manifests(inputs, tfvars)  # doctest: +SKIP
     {'manifests/namespace.yaml': 'apiVersion: v1\\nkind: Namespace\\n'}
     """
     work_dir = inputs.runner_temp / "render-manifests"
@@ -248,14 +255,15 @@ def main(
 
     Examples
     --------
+    Needs OpenTofu and a reachable Vault, so it is marked as not run.
+
     >>> from pathlib import Path
-    >>> # (illustrative example; not executable due to external dependencies)
     >>> main(
     ...     cluster_name="preview-1",
     ...     domain="example.com",
     ...     acme_email="ops@example.com",
-    ...     github_env=Path("/tmp/github-env"),
-    ... )
+    ...     github_env=Path("workspace") / "github-env",
+    ... )  # doctest: +SKIP
     0
     """
     raw_inputs = _build_raw_inputs(

@@ -211,8 +211,14 @@ mechanism this repository relies on is one command per line.
 
 Repository policy is that a function's documentation carries an example
 showing use and outcome. An example that has drifted from the code is worse
-than none, so `scripts/tests/test_gate_script_docs.py` runs every example in
-every module under `scripts` as part of `make test`.
+than none, so `scripts/tests/test_gate_script_docs.py` discovers every
+eligible module under `scripts` and runs the examples of every one it can
+import, as part of `make test`.
+
+The distinction is not pedantry. A module that cannot be imported has no
+examples run at all, and saying otherwise would describe a gate stronger than
+the one that exists; three modules are in that state today and are named
+below.
 
 The module list is walked rather than written down. The hand-written list it
 replaces named eleven modules while thirty-four carried examples, so 199 of

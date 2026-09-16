@@ -325,6 +325,7 @@ def build_render_tfvars(inputs: RenderInputs) -> dict[str, object]:
     Examples
     --------
     >>> from pathlib import Path
+    >>> workspace = Path("workspace")
     >>> inputs = RenderInputs(
     ...     cluster_name="preview-1",
     ...     domain="example.test",
@@ -339,9 +340,9 @@ def build_render_tfvars(inputs: RenderInputs) -> dict[str, object]:
     ...     enable_external_dns=True,
     ...     enable_vault_eso=False,
     ...     enable_cnpg=True,
-    ...     runner_temp=Path("/tmp"),
-    ...     output_dir=Path("/tmp/rendered"),
-    ...     github_env=Path("/tmp/github-env"),
+    ...     runner_temp=workspace,
+    ...     output_dir=workspace / "rendered",
+    ...     github_env=workspace / "github-env",
     ... )
     >>> build_render_tfvars(inputs)["cluster_name"]
     'preview-1'
