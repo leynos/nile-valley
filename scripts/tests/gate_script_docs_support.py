@@ -77,7 +77,7 @@ def _module_names() -> tuple[str, ...]:
 GATE_MODULES = _module_names()
 
 #: Modules whose examples did not hold when the walk replaced the hand
-#: list, on 2026-09-15. Fourteen modules, down from seventeen: the
+#: list, on 2026-09-15. Eleven modules, down from seventeen: the
 #: manifest writer's examples named absolute paths under `/tmp` and
 #: wrote to them, so running them at all was the defect and repairing
 #: them retired its entry the same day. The platform renderer went the
