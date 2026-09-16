@@ -525,8 +525,7 @@ The module integrates with:
    certificates via Vault PKI through the ClusterIssuer, while ESO handles
    secret synchronization.
 4. **nile-valley-infra-k8s action** — consumes the `rendered_manifests` output
-   and
-   commits to the GitOps repository.
+   and commits to the GitOps repository.
 
 ## GitHub Actions Validation (if applicable)
 

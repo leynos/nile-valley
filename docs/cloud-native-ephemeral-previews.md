@@ -56,10 +56,9 @@ implemented as a convergent process that reshapes its target GitOps repository
 before handing control back to Flux:
 
 - `nile-valley-infra-k8s` provisions Kubernetes clusters and shared fixtures
-  from
-  the OpenTofu modules in this repository, writing the desired state into the
-  `nile-valley-infra` GitOps repository that FluxCD watches. Every execution
-  performs the following steps idempotently:
+  from the OpenTofu modules in this repository, writing the desired state into
+  the `nile-valley-infra` GitOps repository that FluxCD watches. Every
+  execution performs the following steps idempotently:
 
   - Generate and enforce the full GitOps tree layout, including the
     `clusters`, `modules`, and `platform` directories with
@@ -369,8 +368,7 @@ GitOps.
   operators.
 
 - `nile-valley-apps` **Repository:** This repository contains the definitions
-  for
-  the *applications* that run on the platform, including the example
+  for the *applications* that run on the platform, including the example
   application. It will house each application's base HelmRelease and the
   Kustomize overlays that define the `production`, `staging`, and ephemeral
   feature branch environments.

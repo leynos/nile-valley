@@ -20,6 +20,9 @@
     ".terraform/**",
     "**/.terraform/**",
     ".uv-cache/**",
-    "**/.uv-cache/**"
+    "**/.uv-cache/**",
+    ".vtcode/**",
+    "memories/**",
+    "CRUSH.md"
   ]
 }

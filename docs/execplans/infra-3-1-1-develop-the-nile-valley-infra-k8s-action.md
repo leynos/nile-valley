@@ -164,10 +164,9 @@ Initial anticipated decisions below:
   Date/Author: Pending.
 
 - Decision: (Pending) Provision clusters via the DOKS module in apply mode
-  before
-  rendering platform fixtures. Rationale: Ensures the cluster exists and is
-  healthy before attempting to configure platform services; enables retrieval
-  of kubeconfig for subsequent FluxCD bootstrap. Date/Author: Pending.
+  before rendering platform fixtures. Rationale: Ensures the cluster exists and
+  is healthy before attempting to configure platform services; enables
+  retrieval of kubeconfig for subsequent FluxCD bootstrap. Date/Author: Pending.
 
 - Decision: (Pending) Create a platform_render OpenTofu module to orchestrate
   all platform modules in render mode. Rationale: Centralizes module wiring
@@ -477,8 +476,7 @@ Add the following targets:
 - Create `docs/opentofu-state-backend.md` with state management documentation.
 - Update `docs/contents.md` to include the new design documents.
 - Update `docs/ephemeral-previews-roadmap.md` to mark the
-  `nile-valley-infra-k8s`
-  entry as done.
+  `nile-valley-infra-k8s` entry as done.
 - Create `.github/actions/nile-valley-infra-k8s/README.md` with usage examples.
 
 ## Concrete Steps
@@ -873,6 +871,5 @@ than deploying infrastructure.
 ## Revision Note
 
 - 2026-01-16: Initial draft of the nile-valley-infra-k8s action ExecPlan.
-  Defined
-  scope, action interface, platform_render orchestration module, Python helper
-  scripts, testing strategy, and GitOps layout.
+  Defined scope, action interface, platform_render orchestration module, Python
+  helper scripts, testing strategy, and GitOps layout.

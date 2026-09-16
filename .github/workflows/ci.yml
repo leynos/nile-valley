@@ -168,7 +168,7 @@ jobs:
       # `cargo install merman-cli` source build and its Rust toolchain.
       - name: Install Nixie and Merman
         id: install-nixie
-        uses: leynos/shared-actions/.github/actions/install-nixie@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/install-nixie@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
         with:
           nixie-version: ${{ env.NIXIE_VERSION }}
           merman-version: ${{ env.MERMAN_VERSION }}
@@ -275,7 +275,14 @@ jobs:
         run: make spelling
 
       - name: Markdown lint
-        run: make markdownlint
+        # The upstream action rather than an installation of our own: its
+        # release carries the linter's whole dependency graph, so nothing is
+        # resolved from the registry at run time, and Dependabot manages the
+        # pin alongside the other actions. It reads .markdownlint-cli2.jsonc
+        # from the workspace, so the rules and ignores match `make markdownlint`.
+        uses: DavidAnson/markdownlint-cli2-action@4580e1612f6407034edd6c0e4e316d725920867b  # v24.2.0
+        with:
+          globs: '**/*.md'
 
       - name: Nixie
         run: make nixie
@@ -285,6 +292,13 @@ jobs:
 
       - name: Lint
         run: make lint
+
+      - name: Install mdtablefix
+        # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
+        # first release with `--check` and `--git`.
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        with:
+          version: "0.6.0"
 
       - name: Format check
         run: make check-fmt

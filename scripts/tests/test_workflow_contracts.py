@@ -35,7 +35,7 @@ GITHUB_HOSTED_LABELS = frozenset(
 )
 
 CACHE_ACTION_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
-SHARED_ACTIONS_SHA = "f6d4d5f549655c118f86f371b8d55c200d3efa50"
+SHARED_ACTIONS_SHA = "c5a54701c8603a0fa756a6b34c49bc2af75a6c11"
 TRUNK_REFERENCE = "refs/heads/main"
 
 # Forms that compile a tool from source inside CI. `uv tool install` is absent
@@ -81,9 +81,11 @@ PROBE_GUARDED_INSTALLERS = {
 
 # The verification targets. `make deps` is an installer, not a gate, so it is
 # deliberately absent: it belongs before the first gate rather than being one.
+# `markdownlint` is deliberately absent: Markdown linting runs through the
+# pinned markdownlint-cli2 action, as the estate's markdown-formatting-baseline
+# rule requires, not through a Make invocation.
 GATE_TARGETS = (
     "spelling",
-    "markdownlint",
     "nixie",
     "yamllint",
     "lint",
