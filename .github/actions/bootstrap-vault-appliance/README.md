@@ -1,12 +1,12 @@
 # bootstrap-vault-appliance action
 
 Initializes or verifies the DigitalOcean Vault appliance using the
-`scripts/bootstrap_vault_appliance.py` helper. The action installs `uv`,
-the Vault command-line interface (CLI), and `doctl`, seeds the helper's
-state file from supplied secrets when provided, and outputs the AppRole
-credentials for downstream workflows. Re-running the action is idempotent:
-the helper inspects the existing appliance and only rotates the AppRole
-secret identifier when requested.
+`scripts/bootstrap_vault_appliance.py` helper. The action installs `uv`, the
+Vault command-line interface (CLI), and `doctl`, seeds the helper's state file
+from supplied secrets when provided, and outputs the AppRole credentials for
+downstream workflows. Re-running the action is idempotent: the helper inspects
+the existing appliance and only rotates the AppRole secret identifier when
+requested.
 
 ## Inputs
 
@@ -17,8 +17,7 @@ secret identifier when requested.
   droplet tag.
 - `droplet_tag` (optional): Overrides the default `vault-<environment>` tag.
 - `ca_certificate` (optional): PEM (Privacy-Enhanced Mail) or base64-encoded CA
-  (certificate authority) bundle passed to
-  `VAULT_CACERT`.
+  (certificate authority) bundle passed to `VAULT_CACERT`.
 - `bootstrap_state` (optional): JSON or base64 JSON payload for the helper's
   state file (unseal keys, root token, AppRole credentials).
 - `state_path` (optional): Destination for the state file. Defaults to
