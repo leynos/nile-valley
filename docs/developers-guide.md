@@ -93,9 +93,11 @@ recipe through `make --dry-run`, which yields the fully expanded text the shell
 receives, and asserts each line is a single command or enables `errexit` before
 it chains. A pipeline additionally needs `pipefail` to count as guarded.
 Semicolons inside quotes, a `$(...)` substitution, a subshell or a `{ ...; }`
-group are not separators, and `&&` or `||` lists already stop at the first
-failure. A `.PHONY` list held in a variable is expanded, and an unreadable
-reference is an error rather than a silently smaller contract.
+group are not separators. An `&&` list already stops at the first failure,
+whereas a `||` list runs its right-hand command only after a failure, and a
+succeeding right-hand command masks that failure as `|| true` does. A `.PHONY`
+list held in a variable is expanded, and an unreadable reference is an error
+rather than a silently smaller contract.
 
 To prove the contract still bites, put a chain back into a recipe and run the
 test; it fails for that target, for every target that reaches it, and for the
