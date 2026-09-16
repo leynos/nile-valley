@@ -211,13 +211,22 @@ mechanism this repository relies on is one command per line.
 
 Repository policy is that a function's documentation carries an example showing
 use and outcome. An example that has drifted from the code is worse than none,
-so `scripts/tests/test_gate_script_docs.py` discovers every eligible module
-under `scripts` and runs the examples of every one it can import, as part of
-`make test`.
+so the gate discovers every eligible module under `scripts` and runs the
+examples of every one it can import, as part of `make test`.
+
+The gate is five modules under `scripts/tests`, because no code file here may
+exceed 400 lines. `gate_script_docs_support.py` holds the walk, the two
+exemption lists and the execution boundary, and
+`gate_script_docs_path_support.py` holds the rules that read a source for the
+absolute paths its examples name. The questions are asked in
+`test_gate_script_docs.py` for coverage, `test_gate_script_docs_host_writes.py`
+for what a run does to the filesystem, and `test_gate_script_docs_rules.py` for
+the proof that those rules bite.
 
 The distinction is not pedantry. A module that cannot be imported has no
 examples run at all, and saying otherwise would describe a gate stronger than
-the one that exists; three modules are in that state today and are named below.
+the one that exists; three modules are in that state today and are listed in
+[`NOT_IMPORTABLE_HERE`](../scripts/tests/gate_script_docs_support.py).
 
 The module list is walked rather than written down. The hand-written list it
 replaces named eleven modules while thirty-four carried examples, so 199 of 269
