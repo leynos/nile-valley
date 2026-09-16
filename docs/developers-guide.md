@@ -239,9 +239,21 @@ Every `.py` under `scripts`, except `conftest.py`, `__init__.py`, and anything
 under `scripts/tests`. The suite is pytest's to import: a second import under a
 dotted name re-runs every module-level statement against a different module
 object, and three modules there import `cmd_mox` at module level while
-`conftest` registers its plugin only when the package is present. Executing
-those modules' own examples is `--doctest-modules` on the suite's invocation,
-which is a separate thing from this gate.
+`conftest` registers its plugin only when the package is present.
+
+`scripts/tests` holds two kinds of file, and excluding the directory treated
+them as one. A test module is pytest's. A support module, named `*_support.py`,
+is an ordinary library the test modules import, nothing else claims it, and its
+examples are as much documentation as any script's. The hand list this walk
+replaced named three support modules outright and ran them; the exclusion
+dropped all of them, and said their examples were covered by
+`--doctest-modules` on the suite's own invocation. No pytest invocation in this
+repository passes that flag and there is no configuration file to carry it, so
+twenty-eight example lines stopped running and the gate reported nothing. The
+support modules are discovered by their suffix and checked through the same
+boundary as everything else, and a separate assertion refuses an empty
+discovery, because a glob matching nothing would otherwise satisfy a
+parametrized test by having no cases.
 
 Discovery is asserted against an independently built set rather than against
 itself, and the walk is checked to be neither empty nor missing a named module,
@@ -258,6 +270,18 @@ that module's exemption the same day. The isolation stays because the next
 careless example is not hypothetical, and it is asserted: a relative write from
 inside the boundary lands in the scratch directory and the repository root is
 unchanged afterwards.
+
+The environment is restored with the working directory, and for the same
+reason. The output publisher's example assigns `SPACES_ACCESS_KEY`, and until
+the restore landed it stayed assigned for the rest of the pytest session: a
+variable carrying a secret's name, set by a gate, visible to every test that
+ran afterwards. That the example is stale is no protection, because `doctest`
+runs each example up to the point it fails and carries on to the next, so a
+broken example's effects land anyway. The environment is put back wholesale
+rather than by removing what appeared, since an example can delete a variable
+as easily as add one. Repairing such an example is separate work, tracked in
+[#103](https://github.com/leynos/nile-valley/issues/103); containing it is the
+boundary's job.
 
 ### The two exemption lists
 
