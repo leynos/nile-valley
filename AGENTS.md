@@ -207,8 +207,9 @@ project:
 
 - Validate Markdown files using `make markdownlint`. This target also runs the
   pinned `typos` spelling gate for en-GB-oxendict prose.
-- Run `make spelling` to check spelling directly. Generate `typos.toml` with
-  `scripts/generate_typos_config.py`; never edit generated entries by hand. Add
+- Run `make spelling` to check spelling directly. It regenerates `typos.toml`
+  from the live shared dictionary and `typos.local.toml` on every run, so the
+  generated file is never edited by hand and never drift-checked in CI. Add
   narrow repository exceptions to `typos.local.toml` instead.
 - Run `make fmt` after any documentation changes to format all Markdown
   files and fix table markup.

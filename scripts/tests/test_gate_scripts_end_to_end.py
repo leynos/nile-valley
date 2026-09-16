@@ -318,45 +318,6 @@ def test_unknown_module_exits_one_without_a_traceback(harness: Harness) -> None:
     )
 
 
-def test_check_spelling_reports_a_finding(harness: Harness) -> None:
-    """A typos finding exits 1 and names the pinned version."""
-    harness.add_tool("git", stdout="README.md\0docs/guide.md\0")  # real NUL bytes
-    harness.add_tool("uv", exit_code=2)
-
-    result = _run(
-        "check_spelling.py", ["--typos-version", "1.48.0"], harness
-    )
-
-    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
-    assert "typos@1.48.0" in result.stderr, (
-        f"the pinned version must be named: {result.stderr!r}"
-    )
-    assert harness.calls() == ["git", "uv"], (
-        f"the listing must precede the check: {harness.calls()}"
-    )
-    # Two names split out of one NUL-delimited listing. A listing that arrived
-    # as literal text would reach typos as a single argument.
-    assert harness.arguments_of("uv")[-2:] == ["README.md", "docs/guide.md"], (
-        f"the listing must be split on NUL: {harness.arguments_of('uv')}"
-    )
-
-
-def test_check_spelling_stops_when_the_listing_fails(harness: Harness) -> None:
-    """A failed listing never reaches typos, unlike the shell pipeline."""
-    harness.add_tool("git", exit_code=1)
-    harness.add_tool("uv")
-
-    result = _run(
-        "check_spelling.py", ["--typos-version", "1.48.0"], harness
-    )
-
-    assert result.returncode == 1, f"expected exit 1, got {result.returncode}"
-    assert "git ls-files" in result.stderr, f"unexpected diagnostic: {result.stderr!r}"
-    assert harness.calls() == ["git"], (
-        f"typos ran after the listing failed: {harness.calls()}"
-    )
-
-
 RENDERED_CHART = "apiVersion: v1\nkind: Service\n"
 PLAN_JSON = '{"resource_changes": []}'
 

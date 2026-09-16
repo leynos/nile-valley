@@ -15,7 +15,6 @@ import pytest
 GATE_MODULES = (
     "scripts._gate_runner",
     "scripts._tofu_modules",
-    "scripts.check_spelling",
     "scripts.lint_actions",
     "scripts.lint_helm_manifests",
     "scripts.run_bun_tool",

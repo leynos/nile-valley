@@ -1,5 +1,5 @@
 # Generated from the shared en-GB-oxendict dictionary.
-# Regenerate with scripts/generate_typos_config.py; do not edit by hand.
+# Regenerate with typos-config-builder; do not edit by hand.
 
 [files]
 extend-exclude = [
@@ -34,6 +34,8 @@ extend-ignore-re = [
     "--artifact-server-path",
     "-no-color",
     "Azure Architecture\\s+Center\\s+\\|\\s+Microsoft Learn",
+    "Azure\\s+Architecture\\s+Center\\s*\\|\\s*Microsoft\\s+Learn\\b",
+    "GitHub\\s+Flavored\\s+Markdown\\b(?:\\s\\(GFM\\))?",
     "\\bArtifact ?Hub\\b",
     "\\bcolor-contrast\\b",
     "\\brust-analyzer\\b",
