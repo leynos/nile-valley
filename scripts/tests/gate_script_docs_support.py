@@ -136,6 +136,45 @@ NOT_IMPORTABLE_HERE = frozenset(
     }
 )
 
+#: The filename suffix that marks a helper module inside this suite.
+#: `scripts/tests` holds two kinds of file. A test module is pytest's:
+#: it imports it, and a second import under a dotted name would run its
+#: registrations twice. A support module is an ordinary library that the
+#: test modules import, and nothing else claims it.
+#:
+#: The distinction was missed when the walk replaced the hand list. That
+#: list named three support modules outright and ran their examples; the
+#: walk excluded the whole directory and the exclusion's rationale said
+#: their examples were covered by `--doctest-modules` on the suite's own
+#: invocation. No invocation in this repository passes that flag, so
+#: twenty-eight example lines that used to run stopped running and
+#: nothing said so.
+SUPPORT_SUFFIX: typ.Final = "_support.py"
+
+
+def _support_module_names() -> tuple[str, ...]:
+    """Return every helper module inside this suite, in a stable order.
+
+    Discovered rather than listed, for the same reason the walk itself
+    is: a hand list of three was what silently stopped describing the
+    directory.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Importable dotted names, sorted.
+    """
+    here = Path(__file__).resolve().parent
+    return tuple(
+        sorted(
+            ".".join(path.relative_to(REPOSITORY_ROOT).with_suffix("").parts)
+            for path in here.glob(f"*{SUPPORT_SUFFIX}")
+        )
+    )
+
+
+SUITE_SUPPORT_MODULES = _support_module_names()
+
 CHECKED_MODULES = tuple(
     m
     for m in GATE_MODULES
@@ -181,7 +220,7 @@ class Outcome(typ.NamedTuple):
 
 @contextlib.contextmanager
 def in_a_scratch_directory() -> Iterator[Path]:
-    """Run the body with the process rooted in a fresh temporary directory.
+    """Run the body in a fresh temporary directory, and put the process back.
 
     Documented examples are ordinary code and some of them write. Two
     in the manifest writer named absolute paths under `/tmp` and
@@ -191,12 +230,27 @@ def in_a_scratch_directory() -> Iterator[Path]:
     will be careful, so the execution happens somewhere disposable and
     the process is put back afterwards.
 
+    The environment is part of "the process". An example in the output
+    publisher assigns ``os.environ["SPACES_ACCESS_KEY"]``, and until the
+    restore below it stayed assigned for the rest of the pytest session:
+    a variable with a secret's name, set by a gate, visible to every
+    test that happened to run afterwards. A stale example is executed up
+    to the point it fails and `doctest` carries on to the next one, so
+    an example being broken is no reason its effects will not land. The
+    working directory and the environment are the two pieces of process
+    state this gate can restore, and both are restored here rather than
+    in the caller, so nothing that runs an example can forget to.
+
+    Repairing such an example is separate work, tracked in
+    leynos/nile-valley#103. Containing it is this boundary's job.
+
     Yields
     ------
     Path
         The scratch directory, already the working directory.
     """
     origin = Path.cwd()
+    environment = dict(os.environ)
     with tempfile.TemporaryDirectory(prefix="doctest-gate-") as directory:
         scratch = Path(directory)
         os.chdir(scratch)
@@ -204,6 +258,11 @@ def in_a_scratch_directory() -> Iterator[Path]:
             yield scratch
         finally:
             os.chdir(origin)
+            # Replaced wholesale rather than diffed: an example may have
+            # deleted a variable as easily as added one, and putting back
+            # what was there covers both without asking which happened.
+            os.environ.clear()
+            os.environ.update(environment)
 
 
 def run_examples(module_name: str) -> Outcome:

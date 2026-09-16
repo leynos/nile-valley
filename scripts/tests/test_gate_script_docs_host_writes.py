@@ -10,6 +10,7 @@ process back where it found it.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -28,6 +29,13 @@ from scripts.tests.gate_script_docs_support import (
     in_a_scratch_directory,
     run_examples,
 )
+
+#: The module whose example assigns an environment variable, and the
+#: variable it assigns. Named rather than described, because the test
+#: below asserts the leak is contained and a test that guessed at the
+#: name would pass by looking for the wrong thing.
+LEAKING_MODULE = "scripts.publish_infra_k8s_outputs"
+LEAKED_VARIABLE = "SPACES_ACCESS_KEY"
 
 
 @pytest.mark.parametrize("module_name", GATE_MODULES, ids=str)
@@ -178,3 +186,55 @@ def test_an_example_that_writes_relatively_leaves_no_trace() -> None:
     assert sorted(REPOSITORY_ROOT.iterdir()) == before, (
         "running the examples added something to the repository root"
     )
+
+
+def test_running_the_examples_leaves_the_environment_alone() -> None:
+    """A run puts back every variable it found, and adds none.
+
+    The isolation was a `chdir` and nothing else, so an example that
+    assigned an environment variable kept it assigned for the rest of
+    the pytest session. One does: the output publisher's example sets
+    `SPACES_ACCESS_KEY`, a variable with a secret's name, and running
+    this gate left it in the process for every test that followed.
+
+    The example is stale, which is not the protection it sounds like.
+    `doctest` executes each example up to the point it fails and carries
+    on to the next, so a broken example's effects land anyway.
+
+    Driven through the named module rather than a purpose-built one,
+    because the point is that a real entry of the exemption list does
+    this, and the whole reason the gate runs those modules is that they
+    are the careless ones.
+    """
+    assert LEAKED_VARIABLE not in os.environ, (
+        f"{LEAKED_VARIABLE} is already set, so this test cannot see the leak"
+    )
+    before = dict(os.environ)
+
+    run_examples(LEAKING_MODULE)
+
+    added = sorted(name for name in os.environ if name not in before)
+    changed = sorted(name for name in before if os.environ.get(name) != before[name])
+
+    assert not added, f"the run left {added} set in the process"
+    assert not changed, f"the run changed {changed} in the process"
+
+
+def test_an_example_that_unsets_a_variable_has_it_put_back() -> None:
+    """The other direction: a removal is restored too.
+
+    The boundary replaces the environment wholesale rather than deleting
+    what appeared, because an example can as easily delete a variable as
+    add one and a diff of the additions would miss it.
+    """
+    sentinel = "GATE_ENVIRONMENT_SENTINEL"
+    os.environ[sentinel] = "present"
+    try:
+        with in_a_scratch_directory():
+            del os.environ[sentinel]
+
+        assert os.environ.get(sentinel) == "present", (
+            "a variable an example removed was not put back"
+        )
+    finally:
+        os.environ.pop(sentinel, None)
