@@ -15,11 +15,12 @@ Examples
 from __future__ import annotations
 
 import dataclasses as dc
-import re
+import fnmatch
 import typing as typ
 from pathlib import Path
 
 import yaml
+from workflow_placement_support import is_an_expression, labels_in_expression
 
 if typ.TYPE_CHECKING:
     from collections.abc import Iterator
@@ -28,13 +29,6 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIRECTORY = REPOSITORY_ROOT / ".github" / "workflows"
 ACTIONLINT_CONFIG = REPOSITORY_ROOT / ".github" / "actionlint.yaml"
 
-#: A quoted arm of a `runs-on` expression. A placement expression names
-#: the labels it can select as single-quoted literals, and those are the
-#: runners the job can actually land on. Reading them is what keeps the
-#: placement contracts working once a label stops being a bare scalar:
-#: without it the whole expression reads as one unregistered label.
-_EXPRESSION_ARM: typ.Final = re.compile(r"'([^']+)'")
-
 __all__ = [
     "ACTIONLINT_CONFIG",
     "REPOSITORY_ROOT",
@@ -42,12 +36,96 @@ __all__ = [
     "Job",
     "Step",
     "Workflow",
+    "branch_filter_admits",
     "cache_paths",
     "iter_jobs",
     "iter_steps",
     "load_workflows",
     "registered_self_hosted_labels",
 ]
+
+
+def _matches_a_filter(branch: str, patterns: object) -> bool:
+    """Report whether ``branch`` matches any of GitHub's filter patterns.
+
+    GitHub's filter-pattern syntax is glob-like, so `fnmatch` stands in
+    for it. The approximation is deliberate and stated: `*` here also
+    crosses a `/`, where GitHub distinguishes `*` from `**`, and
+    `fnmatch` reads `[abc]` as a character class where GitHub does not.
+    Both differences make this predicate admit a branch GitHub would
+    refuse, never the other way round, so a contract built on it cannot
+    pass a workflow that is actually unreachable.
+
+    Parameters
+    ----------
+    branch : str
+        A branch's short name.
+    patterns : object
+        The raw value of a `branches` or `branches-ignore` key.
+
+    Returns
+    -------
+    bool
+        Whether any pattern in the list matches.
+
+    Examples
+    --------
+    >>> _matches_a_filter("main", ["main"])
+    True
+    >>> _matches_a_filter("main", ["releases/**"])
+    False
+    >>> _matches_a_filter("main", "main")
+    False
+    """
+    if not isinstance(patterns, list):
+        return False
+    return any(
+        fnmatch.fnmatchcase(branch, pattern)
+        for pattern in patterns
+        if isinstance(pattern, str)
+    )
+
+
+def branch_filter_admits(event: dict[str, object], branch: str) -> bool:
+    """Report whether an event's branch filters let ``branch`` start a run.
+
+    Both filters are read, because either alone decides the question.
+    `branches-ignore` excludes outright: a `push` that ignores `main`
+    starts no run for a push to `main`, however the rest of the trigger
+    is written, and reading only `branches` reported such a workflow as
+    reaching trunk automatically. `branches` restricts: present, it is
+    the whole admitted set; absent, every branch is admitted.
+
+    GitHub refuses a workflow that declares both filters for one event,
+    so the two cannot disagree in a document that runs at all.
+
+    Parameters
+    ----------
+    event : dict[str, object]
+        The mapping under a trigger such as `push`.
+    branch : str
+        The branch's short name.
+
+    Returns
+    -------
+    bool
+        Whether a push to ``branch`` starts a run.
+
+    Examples
+    --------
+    >>> branch_filter_admits({"branches": ["main"]}, "main")
+    True
+    >>> branch_filter_admits({"branches-ignore": ["main"]}, "main")
+    False
+    >>> branch_filter_admits({}, "main")
+    True
+    """
+    if _matches_a_filter(branch, event.get("branches-ignore")):
+        return False
+    branches = event.get("branches")
+    if branches is None:
+        return True
+    return _matches_a_filter(branch, branches)
 
 
 @dc.dataclass(frozen=True)
@@ -98,7 +176,7 @@ class Job:
     @property
     def selects_its_runner_by_expression(self) -> bool:
         """Report whether ``runs-on`` is an expression rather than a label."""
-        return "${{" in self.raw_runs_on
+        return is_an_expression(self.raw_runs_on)
 
 
 @dc.dataclass(frozen=True)
@@ -139,10 +217,7 @@ class Workflow:
         if not isinstance(push, dict):
             # A valueless `push:` filters nothing, so every branch fires.
             return True
-        branches = push.get("branches")
-        if branches is None:
-            return True
-        return isinstance(branches, list) and trunk_branch in branches
+        return branch_filter_admits(push, trunk_branch)
 
 
 def _as_text(value: object) -> str:
@@ -159,8 +234,8 @@ def _labels_from_scalar(raw: str) -> tuple[str, ...]:
 
     An expression yields its quoted arms; anything else is one label.
     """
-    if "${{" in raw:
-        return tuple(_EXPRESSION_ARM.findall(raw))
+    if is_an_expression(raw):
+        return labels_in_expression(raw)
     return (raw,)
 
 

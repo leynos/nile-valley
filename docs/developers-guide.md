@@ -305,17 +305,54 @@ list cannot grow until the gate has nothing left to do.
 
 ## Continuous integration
 
-The `ci` workflow runs a single `build` job on `ubicloud-standard-8`. It is the
-only repository-owned build and test job. Every other job is scheduled,
-API-bound, or release orchestration and stays on a GitHub-hosted runner.
+The `ci` workflow runs a single `build` job, on `ubicloud-standard-8` for this
+repository's own pull requests and pushes and on `ubuntu-latest` for a pull
+request from a fork. It is the only repository-owned build and test job. Every
+other job is scheduled, API-bound, or release orchestration and stays on a
+GitHub-hosted runner.
+
+### When the gate runs
+
+On a pull request, and on a push to `main`. The trunk trigger is not
+decoration: every cache save step is guarded on `refs/heads/main`, so without
+an event that produces that ref the guard is never true on an automatic run and
+no cache is ever written. See the cache ownership section below.
+
+A `workflow_dispatch` is declared as well, and does not count towards that
+guarantee. It can be aimed at trunk, so it satisfies the guard in principle,
+but a cache written only when somebody remembers to press a button is written
+never.
 
 ### Placement rule
 
 Delayed pull-request comments, scheduled work, metadata and label automation,
 and release orchestration run on GitHub-hosted `ubuntu-latest`. Only the
 `build` job may use a self-hosted label, and every intentional label is
-registered in `.github/actionlint.yaml`. The workflow contract tests in
-`scripts/tests/test_workflow_contracts.py` enforce the rule.
+registered in `.github/actionlint.yaml`.
+
+`build` selects its runner by expression rather than by a bare label:
+
+```yaml
+runs-on: >-
+  ${{ github.event.pull_request.head.repo.fork
+  && 'ubuntu-latest' || 'ubicloud-standard-8' }}
+```
+
+A pull request from a fork cannot obtain an Ubicloud runner, so a bare Ubicloud
+label would leave the only required check unable to start and the pull request
+waiting on a job that is never scheduled. Keep the continuation at the same
+indent: a more-indented continuation in a folded scalar keeps its line break,
+which puts a newline inside the expression. GitHub evaluates the broken value
+anyway, so a green run is no evidence that it is written correctly.
+
+The contracts are split across two modules, because no code file here may
+exceed 400 lines. `scripts/tests/test_workflow_contracts.py` asks what the jobs
+install, pin and cache; `scripts/tests/test_workflow_placement_contracts.py`
+asks which events reach a job and which runner it lands on. The second asserts,
+among other things, that no `runs-on` parses with a line break in it, and that
+the fork arm is the hosted one: the two arms are read by position, because an
+expression that sends a fork to the paid runner names exactly the same two
+labels as one that does not.
 
 ### Tool installation
 
@@ -371,6 +408,12 @@ product is cached at all.
 
 Pull requests restore the trusted generation but never publish one. Every save
 step is guarded by `github.ref == 'refs/heads/main'`, which makes `main` the
-single writer for every key. The workflow currently has no `push` trigger, so
-the first trusted generation must be published by a `workflow_dispatch` run on
-`main`, or by adding a trunk trigger when the runner migration lands.
+single writer for every key, and the workflow's `push` trigger on `main` is
+what makes that guard reachable. The two belong together: the guard was in
+place for months while no automatic event could produce that ref, so every save
+was skipped on every run, the repository held no cache entries at all, and each
+restore found nothing. A guard on a step that nothing can reach is worse than
+no guard, because it reads as a mechanism.
+
+`test_every_trunk_guarded_step_has_an_event_that_reaches_it` is what keeps the
+two together, for any workflow and not only this one.
