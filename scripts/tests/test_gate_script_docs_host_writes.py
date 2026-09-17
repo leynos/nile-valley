@@ -22,8 +22,7 @@ from scripts.tests.gate_script_docs_path_support import (
     signature_of,
 )
 from scripts.tests.gate_script_docs_support import (
-    CHECKED_MODULES,
-    GATE_MODULES,
+    EXECUTED_MODULES,
     KNOWN_STALE_EXAMPLES,
     REPOSITORY_ROOT,
     in_a_scratch_directory,
@@ -38,7 +37,7 @@ LEAKING_MODULE = "scripts.publish_infra_k8s_outputs"
 LEAKED_VARIABLE = "SPACES_ACCESS_KEY"
 
 
-@pytest.mark.parametrize("module_name", GATE_MODULES, ids=str)
+@pytest.mark.parametrize("module_name", EXECUTED_MODULES, ids=str)
 def test_no_example_names_a_shared_temporary_root(module_name: str) -> None:
     """No example may hand a shared temporary directory to anything.
 
@@ -54,6 +53,11 @@ def test_no_example_names_a_shared_temporary_root(module_name: str) -> None:
     into a directory the example named. The remedy is the same as
     everywhere else here: make a temporary directory, and then the
     example can also assert what it produced.
+
+    Asked of every module the gate executes rather than of the walked
+    scripts alone. The suite's own support modules have their examples
+    run too, so a shared root named in one of them reaches the same
+    code by the same route.
     """
     path = REPOSITORY_ROOT / Path(*module_name.split(".")).with_suffix(".py")
     named = set(shared_roots_named_in_source(path.read_text(encoding="utf-8")))
@@ -80,12 +84,19 @@ def test_running_every_example_creates_nothing_on_the_host() -> None:
     watches the paths rather than the mentions. Most of those named
     here are handed to a value object that nothing writes, and they
     stay absent whatever the example does with them.
+
+    Both halves read the same module set. Collecting the paths from the
+    walked scripts while running the support modules too would watch
+    for writes nothing was looking for.
     """
     watched = absolute_paths_named_in_examples()
     assert watched, "no example names an absolute path; this now asserts nothing"
     before = {path: signature_of(path) for path in watched}
 
-    for module_name in (*CHECKED_MODULES, *sorted(KNOWN_STALE_EXAMPLES)):
+    # Every executed module, the exempted ones included: an exemption
+    # says the examples do not hold, not that they do not run, and
+    # `doctest` carries on past a failure, so their writes land anyway.
+    for module_name in EXECUTED_MODULES:
         run_examples(module_name)
 
     touched = sorted(

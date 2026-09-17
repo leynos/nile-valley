@@ -19,7 +19,7 @@ import stat
 import tempfile
 from pathlib import Path
 
-from scripts.tests.gate_script_docs_support import GATE_MODULES, REPOSITORY_ROOT
+from scripts.tests.gate_script_docs_support import EXECUTED_MODULES, REPOSITORY_ROOT
 
 #: Directories every process on the machine shares. An example that
 #: names one of these as somewhere to write cannot be watched: their
@@ -125,7 +125,10 @@ def absolute_paths_named_in_examples() -> tuple[Path, ...]:
     """Return every absolute path the discovered examples mention.
 
     Reads the source rather than running it, because this is the list a
-    later assertion watches while the examples run.
+    later assertion watches while the examples run. Read over every
+    module the gate executes, the suite's support modules included: an
+    example of theirs runs like any other, so a path named only there
+    would otherwise be written unwatched.
 
     Most of these are inert: a path handed to a value object that
     nothing writes is named but never touched, which is why naming one
@@ -138,7 +141,7 @@ def absolute_paths_named_in_examples() -> tuple[Path, ...]:
         The paths, deduplicated, in a stable order.
     """
     found: set[str] = set()
-    for module_name in GATE_MODULES:
+    for module_name in EXECUTED_MODULES:
         found.update(_absolute_literals_in(module_name))
     return tuple(Path(name) for name in sorted(found))
 

@@ -155,6 +155,14 @@ def _support_module_names() -> tuple[str, ...]:
 
 SUITE_SUPPORT_MODULES = _support_module_names()
 
+#: Every module whose examples this gate executes: the scripts it walks
+#: and the support modules of this suite. One name for the two, because
+#: the host-write rules ask a question about what runs, not about which
+#: of the two lists a module came from, and stating it as a union at
+#: each call site is how the support modules came to be watched by
+#: neither.
+EXECUTED_MODULES = (*GATE_MODULES, *SUITE_SUPPORT_MODULES)
+
 CHECKED_MODULES = tuple(m for m in GATE_MODULES if m not in KNOWN_STALE_EXAMPLES)
 
 
