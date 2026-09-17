@@ -2,17 +2,25 @@
 
 Repository policy is that function documentation carries an example
 showing usage and outcome. An example that has drifted from the code is
-worse than none, so every example in every module under `scripts` is
-executed by the tests that import this module.
+worse than none, so the examples in each discovered script, and in each
+support module of this suite, are executed by the tests that import
+this module.
+
+Not every module under `scripts`. The suite's own test modules are
+pytest's to import and their examples do not run at all, which is what
+`NOT_OURS_TO_WALK` records; the suite's support modules are ordinary
+libraries and are discovered separately, by `SUPPORT_SUFFIX`.
 
 The module list is walked rather than written down. The handwritten one
 this replaces named eleven modules while thirty-four carried examples,
 so 199 of 269 example lines were never run, and adding a module with a
 stale example changed nothing a reader would notice.
 
-The walk, the two exemption lists and the execution boundary live here
+The walk, the exemption list and the execution boundary live here
 rather than in a test module because three test modules share them, and
 a second copy of the walk is a second answer to what the gate covers.
+There is one exemption list, `KNOWN_STALE_EXAMPLES`; the second was
+retired when the spelling adoption deleted its only three entries.
 """
 
 from __future__ import annotations
