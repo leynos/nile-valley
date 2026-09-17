@@ -41,6 +41,7 @@ __all__ = [
     "iter_jobs",
     "iter_steps",
     "load_workflows",
+    "runner_labels",
     "registered_self_hosted_labels",
 ]
 
@@ -249,7 +250,7 @@ def _labels_from_group(raw: dict[str, object]) -> tuple[str, ...]:
     return ()
 
 
-def _runner_labels(raw: object) -> tuple[str, ...]:
+def runner_labels(raw: object) -> tuple[str, ...]:
     """Normalize every ``runs-on`` form into a tuple of selectable labels.
 
     GitHub Actions accepts a scalar label, a sequence of labels, and a mapping
@@ -296,7 +297,7 @@ def _job_from_mapping(workflow: str, identifier: str, raw: dict[str, object]) ->
     return Job(
         workflow=workflow,
         identifier=identifier,
-        runner_labels=_runner_labels(runs_on),
+        runner_labels=runner_labels(runs_on),
         raw_runs_on=_as_text(runs_on),
         uses=_as_text(raw.get("uses")),
         timeout_minutes=timeout if isinstance(timeout, int) else None,
