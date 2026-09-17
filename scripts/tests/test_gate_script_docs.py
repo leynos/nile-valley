@@ -26,6 +26,7 @@ from scripts.tests.gate_script_docs_support import (
     PACKAGE_ROOT,
     REPOSITORY_ROOT,
     SUITE_SUPPORT_MODULES,
+    SUPPORT_SUFFIX,
     Verdict,
     run_examples,
 )
@@ -166,10 +167,44 @@ def test_the_suite_has_support_modules_to_check() -> None:
     The list it replaces named three by hand. A glob that matched
     nothing would satisfy the parametrised test below by having no cases
     at all, which is the way this coverage was lost the first time.
+
+    Kept beside the equality below rather than folded into it, because
+    the two refuse different things. Equality refuses a discovery that
+    disagrees with the directory; this refuses a directory and a
+    discovery that are empty together, which equality accepts.
     """
-    assert len(SUITE_SUPPORT_MODULES) >= 3, SUITE_SUPPORT_MODULES
-    assert "scripts.tests.makefile_contract_support" in SUITE_SUPPORT_MODULES, (
-        SUITE_SUPPORT_MODULES
+    assert SUITE_SUPPORT_MODULES, (
+        "no support module was discovered, so the parametrised test below "
+        "has no cases and asserts nothing"
+    )
+
+
+def test_the_discovered_support_set_is_exactly_the_helper_files() -> None:
+    """Support discovery is compared against an independently built answer.
+
+    `_support_module_names` is one expression, and a test that called it
+    and agreed with itself would assert nothing. The expected set is
+    built the other way round, from the files on disk, so a change to
+    either has to be made in both places to go unnoticed. This is the
+    same shape as `test_the_discovered_set_is_exactly_the_eligible_files`
+    and for the same reason.
+
+    A floor on the count is not this assertion. Discovery could drop
+    every support module but three and still clear a floor, which is
+    exactly the silent loss this gate exists to notice: the hand list it
+    replaced had three entries while the directory held more.
+    """
+    here = PACKAGE_ROOT / "tests"
+    expected = {
+        ".".join(path.relative_to(REPOSITORY_ROOT).with_suffix("").parts)
+        for path in here.iterdir()
+        if path.is_file() and path.name.endswith(SUPPORT_SUFFIX)
+    }
+
+    assert set(SUITE_SUPPORT_MODULES) == expected, (
+        f"support discovery disagrees with the files on disk: "
+        f"missing {sorted(expected - set(SUITE_SUPPORT_MODULES))}, "
+        f"unexpected {sorted(set(SUITE_SUPPORT_MODULES) - expected)}"
     )
 
 
