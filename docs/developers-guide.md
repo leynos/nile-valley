@@ -215,8 +215,8 @@ so the gate discovers every eligible module under `scripts` and runs the
 examples of every one it can import, as part of `make test`.
 
 The gate is five modules under `scripts/tests`, because no code file here may
-exceed 400 lines. `gate_script_docs_support.py` holds the walk, the two
-exemption lists and the execution boundary, and
+exceed 400 lines. `gate_script_docs_support.py` holds the walk, the exemption
+list and the execution boundary, and
 `gate_script_docs_path_support.py` holds the rules that read a source for the
 absolute paths its examples name. The questions are asked in
 `test_gate_script_docs.py` for coverage, `test_gate_script_docs_host_writes.py`
@@ -225,8 +225,10 @@ the proof that those rules bite.
 
 The distinction is not pedantry. A module that cannot be imported has no
 examples run at all, and saying otherwise would describe a gate stronger than
-the one that exists; three modules are in that state today and are listed in
-[`NOT_IMPORTABLE_HERE`](../scripts/tests/gate_script_docs_support.py).
+the one that exists, so a run reports `not-importable` as its own verdict
+rather than as a stale example. No module is in that state today: the three
+that were are the spelling rollout's, deleted when the repository adopted
+`typos-config-builder`.
 
 The module list is walked rather than written down. The hand-written list it
 replaces named eleven modules while thirty-four carried examples, so 199 of 269
@@ -283,29 +285,24 @@ as easily as add one. Repairing such an example is separate work, tracked in
 [#103](https://github.com/leynos/nile-valley/issues/103); containing it is the
 boundary's job.
 
-### The two exemption lists
+### The exemption list
 
-Both shrink and neither grows by accident: a module named in neither is checked
+It shrinks and never grows by accident: a module not named in it is checked
 from the moment it exists.
 
 `KNOWN_STALE_EXAMPLES` holds modules whose examples did not hold when the walk
 replaced the hand list. `test_a_listed_module_is_still_stale` fails when a
-listed module starts passing, so a repair cannot leave its entry behind.
+listed module starts passing, so a repair cannot leave its entry behind, and
+`test_every_exemption_names_a_discovered_module` fails when an entry names
+something the walk no longer finds, so a deleted module cannot keep one. The
+list is tracked in [#103](https://github.com/leynos/nile-valley/issues/103).
 
-`NOT_IMPORTABLE_HERE` holds modules this gate cannot import at all. Each
-imports a sibling by bare name, which resolves only when `scripts` is itself on
-the path; the spelling gate runs that way and they work there. Adding `scripts`
-to `sys.path` here would import each of them twice under two names, which is
-the fault the walk was scoped to avoid, so the fix belongs in the modules.
-
-Keeping them apart is the point rather than tidiness. An import failure is a
-reason a module's examples did not hold, so collapsing the two states let an
-exemption for a module that had been deleted satisfy the shrink-only rule
-forever, and it equally hid three modules whose examples had never run. The
-outcome of a run is now one of three named verdicts, membership of the walk is
-checked before the verdict, the two lists are asserted not to overlap, and the
-checked set is asserted to be larger than the exempted one. Both lists are
-tracked in [#103](https://github.com/leynos/nile-valley/issues/103).
+An entry must be stale rather than merely unreadable, which is why the outcome
+of a run is one of three named verdicts and the stale-list test asserts
+`stale` specifically. Collapsing an import failure into "stale examples" is
+what let an exemption for a deleted module satisfy the shrink-only rule
+forever. The checked set is separately asserted to be larger than the exempted
+one, so the list cannot grow until the gate has nothing left to do.
 
 ## Continuous integration
 

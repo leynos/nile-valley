@@ -22,7 +22,6 @@ from scripts.tests.gate_script_docs_support import (
     CHECKED_MODULES,
     GATE_MODULES,
     KNOWN_STALE_EXAMPLES,
-    NOT_IMPORTABLE_HERE,
     NOT_OURS_TO_IMPORT,
     PACKAGE_ROOT,
     REPOSITORY_ROOT,
@@ -62,8 +61,7 @@ def test_every_exemption_names_a_discovered_module() -> None:
     shape: an exemption naming something outside the walk is a list
     that has stopped describing the repository.
     """
-    exempted = set(KNOWN_STALE_EXAMPLES) | set(NOT_IMPORTABLE_HERE)
-    strays = sorted(exempted - set(GATE_MODULES))
+    strays = sorted(set(KNOWN_STALE_EXAMPLES) - set(GATE_MODULES))
 
     assert not strays, f"exempted but not discovered: {strays}"
 
@@ -77,7 +75,7 @@ def test_something_is_actually_checked() -> None:
     assumed.
     """
     assert CHECKED_MODULES, "every discovered module is exempted; the gate is inert"
-    exempted = len(KNOWN_STALE_EXAMPLES) + len(NOT_IMPORTABLE_HERE)
+    exempted = len(KNOWN_STALE_EXAMPLES)
     assert len(CHECKED_MODULES) > exempted, (
         f"{exempted} exempted against {len(CHECKED_MODULES)} checked; "
         "the exemption lists have taken over"
@@ -96,10 +94,9 @@ def test_the_walk_leaves_the_suite_to_pytest() -> None:
 
     It is also a trap rather than merely untidy: three modules here
     import `cmd_mox` at module level, and `conftest` registers its
-    plugin only when it is installed, precisely because one gate runs a
-    narrower invocation without it. Under such an invocation the second
-    import raises, and this gate reports a missing package as a stale
-    example.
+    plugin only when it is installed, so a narrower invocation may omit
+    it. Under such an invocation the second import raises, and this
+    gate would report a missing package as a stale example.
     """
     intruders = [name for name in GATE_MODULES if ".tests." in f"{name}."]
 
@@ -117,7 +114,7 @@ def test_the_walk_still_reaches_the_scripts_themselves() -> None:
     of the scripts the gate exists for.
     """
     assert len(GATE_MODULES) > 20, GATE_MODULES
-    assert "scripts.check_spelling" in GATE_MODULES, GATE_MODULES
+    assert "scripts.lint_actions" in GATE_MODULES, GATE_MODULES
 
 
 @pytest.mark.parametrize("module_name", CHECKED_MODULES, ids=str)
@@ -126,39 +123,6 @@ def test_documented_examples_hold(module_name: str) -> None:
     outcome = run_examples(module_name)
 
     assert outcome.held, f"{module_name}: {outcome.verdict} - {outcome.detail}"
-
-
-@pytest.mark.parametrize("module_name", sorted(NOT_IMPORTABLE_HERE), ids=str)
-def test_a_module_listed_as_unimportable_still_is(module_name: str) -> None:
-    """This list shrinks too, and for the same reason the other one does.
-
-    A module that has been given a package-relative import now works
-    here, and keeping its exemption would leave its examples unrun with
-    nothing saying so. Failing here is good news: move the entry out,
-    or delete it if the examples hold.
-    """
-    assert module_name in GATE_MODULES, (
-        f"{module_name} is exempted but no longer discovered; remove it"
-    )
-
-    outcome = run_examples(module_name)
-
-    assert outcome.verdict is Verdict.NOT_IMPORTABLE, (
-        f"{module_name} imports here now ({outcome.detail}). Remove it from "
-        "NOT_IMPORTABLE_HERE; if its examples are stale, that belongs in "
-        "KNOWN_STALE_EXAMPLES instead."
-    )
-
-
-def test_the_two_exemption_lists_do_not_overlap() -> None:
-    """A module is exempted for one reason or the other, never both.
-
-    An entry in both would be retired by neither: whichever list was
-    edited first, the other would keep it out of `CHECKED_MODULES`.
-    """
-    both = sorted(KNOWN_STALE_EXAMPLES & NOT_IMPORTABLE_HERE)
-
-    assert not both, f"exempted twice, so retiring either changes nothing: {both}"
 
 
 @pytest.mark.parametrize("module_name", sorted(KNOWN_STALE_EXAMPLES), ids=str)

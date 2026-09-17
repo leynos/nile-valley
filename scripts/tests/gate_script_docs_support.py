@@ -35,15 +35,17 @@ NOT_OURS_TO_IMPORT = frozenset({"conftest", "__init__"})
 #: Directories under `scripts` this gate does not import, for the same
 #: reason as `conftest`: the suite is pytest's, and a second import
 #: under a dotted name re-runs every module-level statement against a
-#: different module object. It is also not merely untidy. The spelling
-#: gate runs a narrower pytest invocation that omits `cmd-mox` on
-#: purpose, and three modules here import it at module level, so under
-#: that invocation the second import raises and this gate reports a
-#: missing package as a stale example.
+#: different module object. It is also not merely untidy. `conftest`
+#: registers the `cmd-mox` plugin only when the package is installed,
+#: so a narrower invocation may omit it, and three modules here import
+#: it at module level; under such an invocation the second import
+#: raises and this gate would report a missing package as a stale
+#: example.
 #:
-#: Their own examples are not abandoned: executing them is
-#: `--doctest-modules` on the suite's own invocation, which is where a
-#: module pytest already imports belongs.
+#: This excludes the suite's test modules only. Their examples are
+#: pytest's to run, and pytest does not run them today. The suite's
+#: support modules are libraries rather than test modules and are
+#: discovered separately, by `SUPPORT_SUFFIX` below.
 NOT_OURS_TO_WALK = frozenset({"tests"})
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -114,28 +116,6 @@ KNOWN_STALE_EXAMPLES = frozenset(
     }
 )
 
-#: Modules this gate cannot import, for a reason that is not a stale
-#: example and does not belong beside one. Each imports a sibling by
-#: bare name, which resolves only when `scripts` is itself on the path.
-#: The spelling gate runs that way and they work there; under this
-#: suite's layout they are `scripts.<name>` and the bare import misses.
-#:
-#: Recorded separately because the distinction is the point. Collapsing
-#: an import failure into "stale examples" is what let an exemption for
-#: a deleted module satisfy the shrink-only rule forever, and it would
-#: equally hide three modules whose examples have never run at all.
-#: Adding `scripts` to `sys.path` here would import each of them twice
-#: under two names, which is the fault this gate was just scoped to
-#: avoid, so the fix belongs in the modules. Tracked with the stale
-#: examples in leynos/nile-valley#103.
-NOT_IMPORTABLE_HERE = frozenset(
-    {
-        "scripts.generate_typos_config",
-        "scripts.typos_rollout",
-        "scripts.typos_rollout_http",
-    }
-)
-
 #: The filename suffix that marks a helper module inside this suite.
 #: `scripts/tests` holds two kinds of file. A test module is pytest's:
 #: it imports it, and a second import under a dotted name would run its
@@ -175,11 +155,7 @@ def _support_module_names() -> tuple[str, ...]:
 
 SUITE_SUPPORT_MODULES = _support_module_names()
 
-CHECKED_MODULES = tuple(
-    m
-    for m in GATE_MODULES
-    if m not in KNOWN_STALE_EXAMPLES and m not in NOT_IMPORTABLE_HERE
-)
+CHECKED_MODULES = tuple(m for m in GATE_MODULES if m not in KNOWN_STALE_EXAMPLES)
 
 
 class Verdict(enum.StrEnum):
