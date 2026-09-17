@@ -216,12 +216,11 @@ examples of every one it can import, as part of `make test`.
 
 The gate is five modules under `scripts/tests`, because no code file here may
 exceed 400 lines. `gate_script_docs_support.py` holds the walk, the exemption
-list and the execution boundary, and
-`gate_script_docs_path_support.py` holds the rules that read a source for the
-absolute paths its examples name. The questions are asked in
-`test_gate_script_docs.py` for coverage, `test_gate_script_docs_host_writes.py`
-for what a run does to the filesystem, and `test_gate_script_docs_rules.py` for
-the proof that those rules bite.
+list and the execution boundary, and `gate_script_docs_path_support.py` holds
+the rules that read a source for the absolute paths its examples name. The
+questions are asked in `test_gate_script_docs.py` for coverage,
+`test_gate_script_docs_host_writes.py` for what a run does to the filesystem,
+and `test_gate_script_docs_rules.py` for the proof that those rules bite.
 
 The distinction is not pedantry. A module that cannot be imported has no
 examples run at all, and saying otherwise would describe a gate stronger than
@@ -230,7 +229,7 @@ rather than as a stale example. No module is in that state today: the three
 that were are the spelling rollout's, deleted when the repository adopted
 `typos-config-builder`.
 
-The module list is walked rather than written down. The hand-written list it
+The module list is walked rather than written down. The handwritten list it
 replaces named eleven modules while thirty-four carried examples, so 199 of 269
 example lines were never run, and adding a module with a stale example changed
 nothing a reader would notice.
@@ -298,11 +297,11 @@ something the walk no longer finds, so a deleted module cannot keep one. The
 list is tracked in [#103](https://github.com/leynos/nile-valley/issues/103).
 
 An entry must be stale rather than merely unreadable, which is why the outcome
-of a run is one of three named verdicts and the stale-list test asserts
-`stale` specifically. Collapsing an import failure into "stale examples" is
-what let an exemption for a deleted module satisfy the shrink-only rule
-forever. The checked set is separately asserted to be larger than the exempted
-one, so the list cannot grow until the gate has nothing left to do.
+of a run is one of three named verdicts and the stale-list test asserts `stale`
+specifically. Collapsing an import failure into "stale examples" is what let an
+exemption for a deleted module satisfy the shrink-only rule forever. The
+checked set is separately asserted to be larger than the exempted one, so the
+list cannot grow until the gate has nothing left to do.
 
 ## Continuous integration
 

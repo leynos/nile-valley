@@ -5,7 +5,7 @@ showing usage and outcome. An example that has drifted from the code is
 worse than none, so every example in every module under `scripts` is
 executed by the tests that import this module.
 
-The module list is walked rather than written down. The hand-written one
+The module list is walked rather than written down. The handwritten one
 this replaces named eleven modules while thirty-four carried examples,
 so 199 of 269 example lines were never run, and adding a module with a
 stale example changed nothing a reader would notice.
