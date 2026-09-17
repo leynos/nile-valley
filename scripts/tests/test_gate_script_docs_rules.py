@@ -98,6 +98,39 @@ class TestTheRulesBiteOnSomethingWrittenToBreakThem:
             "directory's signature did not change"
         )
 
+    def test_a_module_that_cannot_be_imported_says_so(self, tmp_path: Path) -> None:
+        """`run_examples` distinguishes an import failure from a stale example.
+
+        `Verdict.NOT_IMPORTABLE` is what keeps the two apart, and the
+        stale-list test asserts `STALE` specifically so that an
+        exemption cannot be satisfied by a module that never imported.
+        Retiring `NOT_IMPORTABLE_HERE` earlier on this branch left the
+        verdict correct and unexercised: no module in the repository
+        produces it any more, so nothing proved it still works.
+
+        Driven with a module written for the purpose, whose import
+        raises, rather than with one of the repository's own. A verdict
+        no fixture produces is a verdict no test can discriminate.
+        """
+        module = tmp_path / "imports_something_absent.py"
+        module.write_text(
+            '"""A module that cannot be imported here.\n\n'
+            "Examples\n--------\n"
+            ">>> nothing_runs_because_the_import_failed\n"
+            '"""\n'
+            "import a_package_this_repository_does_not_have\n",
+            encoding="utf-8",
+        )
+        sys.path.insert(0, str(tmp_path))
+        try:
+            outcome = run_examples("imports_something_absent")
+        finally:
+            sys.path.remove(str(tmp_path))
+            sys.modules.pop("imports_something_absent", None)
+
+        assert outcome.verdict is Verdict.NOT_IMPORTABLE, outcome.detail
+        assert not outcome.held, "an unimportable module cannot have held"
+
     def test_an_unreadable_path_is_not_reported_as_absent(
         self, tmp_path: Path
     ) -> None:
