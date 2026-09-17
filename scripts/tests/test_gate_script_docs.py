@@ -2,13 +2,18 @@
 
 Repository policy is that function documentation carries an example
 showing usage and outcome. An example that has drifted from the code is
-worse than none, so every example in every module under `scripts` is
-executed here.
+worse than none, so every example in each discovered script and each
+support module of this suite is executed here.
+
+Not every module under `scripts`, which is what this said and is not
+what happens: the suite's own test modules are pytest's to import and
+their examples do not run at all, as the walk's exclusion and the
+`--doctest-modules` note below both record.
 
 This module holds the questions about coverage: that the walk finds what
-is on disk, that it leaves the suite to pytest, that the two exemption
-lists still describe the repository, and that every module neither list
-names has examples that hold. Where those examples are allowed to write
+is on disk, that it leaves the suite to pytest, that the exemption list
+still describes the repository, and that every module it does not name
+has examples that hold. Where those examples are allowed to write
 is :mod:`scripts.tests.test_gate_script_docs_host_writes`, and the
 proof that the write rules bite is
 :mod:`scripts.tests.test_gate_script_docs_rules`.

@@ -249,7 +249,7 @@ examples are as much documentation as any script's. The hand list this walk
 replaced named three support modules outright and ran them; the exclusion
 dropped all of them, and said their examples were covered by
 `--doctest-modules` on the suite's own invocation. No pytest invocation in this
-repository passes that flag and there is no configuration file to carry it, so
+repository passes that flag, and there is no configuration file to carry it, so
 twenty-eight example lines stopped running and the gate reported nothing. The
 support modules are discovered by their suffix and checked through the same
 boundary as everything else, and a separate assertion refuses an empty
@@ -262,15 +262,15 @@ so a filter that excluded everything would not pass.
 
 ### Where the examples run
 
-In a temporary directory the gate creates and throws away, with the process
-returned to where it started. Documented examples are ordinary code and some of
-them write: two in the manifest writer named absolute paths under `/tmp` and
-created them on every run of this suite. Those two are repaired at the source
-to use a temporary directory and to assert what they produce, which retired
-that module's exemption the same day. The isolation stays because the next
-careless example is not hypothetical, and it is asserted: a relative write from
-inside the boundary lands in the scratch directory and the repository root is
-unchanged afterwards.
+The gate creates a temporary directory, runs the examples inside it, and throws
+it away. The process is returned to where it started. Documented examples are
+ordinary code and some of them write: two in the manifest writer named absolute
+paths under `/tmp` and created them on every run of this suite. Those two are
+repaired at the source to use a temporary directory and to assert what they
+produce, which retired that module's exemption the same day. The isolation
+stays because the next careless example is not hypothetical, and it is
+asserted: a relative write from inside the boundary lands in the scratch
+directory and the repository root is unchanged afterwards.
 
 The environment is restored with the working directory, and for the same
 reason. The output publisher's example assigns `SPACES_ACCESS_KEY`, and until

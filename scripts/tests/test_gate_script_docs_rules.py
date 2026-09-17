@@ -72,6 +72,29 @@ class TestTheRulesBiteOnSomethingWrittenToBreakThem:
             "unchanged, so the host-write check would not see it"
         )
 
+    def test_a_rewritten_child_is_seen(self, tmp_path: Path) -> None:
+        """Overwriting a file that was already there changes the signature.
+
+        The second hole of the same kind, and the likelier one on a
+        machine that has run this suite before: the path exists from the
+        last run, the example rewrites it, and nothing is added or
+        removed. A signature built from descendant names alone is
+        identical across that, so the gate reported a clean run while
+        the file on the host had just been replaced.
+        """
+        watched = tmp_path / "output"
+        watched.mkdir()
+        child = watched / "already-there.json"
+        child.write_text("{}", encoding="utf-8")
+        before = signature_of(watched)
+
+        child.write_text('{"rewritten": true}', encoding="utf-8")
+
+        assert signature_of(watched) != before, (
+            "an example rewrote a file that already existed and the "
+            "directory's signature did not change"
+        )
+
     def test_a_shared_directory_is_not_watched_that_way(self) -> None:
         """A shared root is compared by existence, deliberately.
 

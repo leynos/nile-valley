@@ -86,6 +86,17 @@ RULE_SET_KEYS = frozenset(
     }
 )
 
+#: Keys the document itself may carry. `usage` is the prose the
+#: template writes at the top of the file; `rule_sets` is the overrides.
+#: Nothing else is read, and CodeScene ignores what it does not
+#: recognize, so an unrecognized key is a silently absent setting.
+DOCUMENT_KEYS = frozenset({"usage", "rule_sets"})
+
+#: The type each document key must have when present. `usage` is prose:
+#: a list of eighty strings is not, and neither is a number, but both
+#: pass a check that only asks whether the key is there.
+DOCUMENT_FIELD_TYPES: typ.Final = {"usage": str, "rule_sets": list}
+
 MINIMUM_JUSTIFICATION = 80
 
 #: The type each rule-set field must have when it is present. Checking
@@ -166,6 +177,39 @@ def read_rules(
     return RuleSets(document=document, root=root)
 
 
+def _check_document_fields(document: dict[str, object]) -> None:
+    """Assert the document's own keys are recognized and correctly typed.
+
+    Asked before `rule_sets` is read, for the reason the rule-set field
+    check exists: a wrong type reads downstream as an absence rather
+    than as an error. A document carrying valid overrides and
+    ``"usage": []`` satisfied every check here, because nothing asked
+    what `usage` was, and an unrecognized top-level key was never
+    refused at all even though CodeScene ignores it silently.
+
+    Parameters
+    ----------
+    document : dict[str, object]
+        The parsed rule file.
+    """
+    unexpected = set(document) - DOCUMENT_KEYS
+    assert not unexpected, (
+        f"unrecognized top-level keys {sorted(unexpected)}; CodeScene "
+        "ignores what it does not recognize, so a misspelled key is an "
+        "override that silently does nothing"
+    )
+    for field, expected in DOCUMENT_FIELD_TYPES.items():
+        if field not in document:
+            continue
+        value = document[field]
+        assert not isinstance(value, bool), (
+            f"{field} is a {expected.__name__}, not a Boolean: {value!r}"
+        )
+        assert isinstance(value, expected), (
+            f"{field} must be a {expected.__name__}: {value!r}"
+        )
+
+
 def _rule_sets(subject: RuleSets) -> list[RuleSetRecord]:
     """Return the document's rule sets, failing if the shape is wrong.
 
@@ -181,6 +225,7 @@ def _rule_sets(subject: RuleSets) -> list[RuleSetRecord]:
     """
     document = subject.document
     assert isinstance(document, dict), "the rule file must be a JSON object"
+    _check_document_fields(document)
     rule_sets = document.get("rule_sets")
     assert isinstance(rule_sets, list), (
         "the rule file must carry a top-level 'rule_sets' array; a top-level "
@@ -245,9 +290,20 @@ def check_schema(subject: RuleSets) -> None:
             "ignores what it does not recognize"
         )
         _check_field_types(rule_set)
-        for rule in rule_set.get("rules", []):
+        rules = rule_set.get("rules", [])
+        thresholds = rule_set.get("thresholds", [])
+        # Checked after the field types, so this reads real arrays
+        # rather than a string that happens to be empty.
+        assert rules or thresholds, (
+            "a rule set must override something: CodeScene applies the "
+            "first rule set whose path matches and ignores the rest, so "
+            "one carrying only a path and a justification suppresses every "
+            "later override while applying none of its own. "
+            f"{rule_set.get('matching_content_path')!r} overrides nothing"
+        )
+        for rule in rules:
             _check_rule(rule)
-        for threshold in rule_set.get("thresholds", []):
+        for threshold in thresholds:
             _check_threshold(threshold)
 
 
@@ -697,6 +753,50 @@ def test_a_rule_file_would_have_to_pass_each_check(check: Check) -> None:
             (check_schema,),
             id="a-threshold-with-no-value",
         ),
+        pytest.param(
+            {
+                "usage": [],
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": [],
+                    }
+                ],
+            },
+            (check_schema,),
+            id="a-usage-field-that-is-not-prose",
+        ),
+        pytest.param(
+            {
+                "rule_set": [],
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [{"name": "String Heavy Arguments", "weight": 0.0}],
+                        "thresholds": [],
+                    }
+                ],
+            },
+            (check_schema,),
+            id="a-misspelled-top-level-key",
+        ),
+        pytest.param(
+            {
+                "rule_sets": [
+                    {
+                        "matching_content_path": "scripts/*.py",
+                        "matching_content_path_doc": "x" * 200,
+                        "rules": [],
+                        "thresholds": [],
+                    }
+                ]
+            },
+            (check_schema,),
+            id="a-rule-set-that-overrides-nothing",
+        ),
     ],
 )
 def test_the_checks_reject_known_bad_shapes(
@@ -758,6 +858,11 @@ JUSTIFICATIONS = st.text(
 #: A rule set that satisfies every check by construction. The glob is
 #: fixed because the glob check reads the real repository, and the point
 #: of these properties is the schema rather than the tree.
+#: A valid rule set overrides at least one thing. Generating the empty
+#: case as valid is what let the schema check accept a rule set that
+#: suppresses every later override while applying none of its own, so
+#: the strategy refuses it here and a separate test asserts it is
+#: refused rather than merely ungenerated.
 VALID_RULE_SETS = st.builds(
     lambda doc, rules, thresholds: {
         "matching_content_path": "scripts/*.py",
@@ -768,7 +873,7 @@ VALID_RULE_SETS = st.builds(
     JUSTIFICATIONS,
     RULES,
     THRESHOLDS,
-)
+).filter(lambda rule_set: rule_set["rules"] or rule_set["thresholds"])
 
 VALID_DOCUMENTS = st.builds(
     lambda rule_sets: {"usage": "generated", "rule_sets": rule_sets},

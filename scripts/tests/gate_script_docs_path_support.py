@@ -146,6 +146,49 @@ def absolute_paths_named_in_examples() -> tuple[Path, ...]:
     return tuple(Path(name) for name in sorted(found))
 
 
+def _child_signature(child: Path) -> object:
+    """Return a value for one descendant that changes when it is written.
+
+    A name alone does not. Size and modification time do, and they are
+    read here rather than recursed into, because the walk above already
+    reaches every descendant and a directory's own entry only needs to
+    say that it is one.
+
+    Parameters
+    ----------
+    child : Path
+        A path beneath a watched directory.
+
+    Returns
+    -------
+    object
+        A marker for a directory, the size and modification time for a
+        file, and a marker for an entry that vanished between the walk
+        and the read.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> from pathlib import Path
+    >>> with tempfile.TemporaryDirectory() as raw:
+    ...     directory = Path(raw)
+    ...     _child_signature(directory) == "a directory"
+    ...     _child_signature(directory / "absent") == "gone"
+    True
+    True
+    """
+    try:
+        status = child.stat()
+    except OSError:
+        # Raced or removed between the walk and the read. Recorded as a
+        # value of its own rather than skipped: an entry that vanishes
+        # is a change, and dropping it would make the signature match.
+        return "gone"
+    if stat.S_ISDIR(status.st_mode):
+        return "a directory"
+    return (status.st_size, status.st_mtime_ns)
+
+
 def signature_of(path: Path) -> object | None:
     """Return a value that changes if ``path`` is created or written.
 
@@ -191,5 +234,14 @@ def signature_of(path: Path) -> object | None:
         # Named and not shared, so its contents are this run's business.
         # An example that writes a derived file beneath a directory it
         # named is caught here rather than by its own name.
-        return sorted(str(child.relative_to(path)) for child in path.rglob("*"))
+        #
+        # Each descendant carries its own signature, not just its name.
+        # A list of names is unchanged when an example rewrites a file
+        # that was already there, which is the commonest way a gate run
+        # touches the host: the path exists from the last run, the run
+        # overwrites it, and nothing is added or removed.
+        return sorted(
+            (str(child.relative_to(path)), _child_signature(child))
+            for child in path.rglob("*")
+        )
     return (status.st_size, status.st_mtime_ns)

@@ -216,19 +216,25 @@ def test_running_the_examples_leaves_the_environment_alone() -> None:
     because the point is that a real entry of the exemption list does
     this, and the whole reason the gate runs those modules is that they
     are the careless ones.
+
+    Asserted as equality of the whole mapping rather than as the
+    variable's absence afterwards. A developer or a runner that already
+    exports `SPACES_ACCESS_KEY` would fail an absence assertion before
+    the examples ran at all, and this test would then be reporting the
+    environment it was started in rather than what the gate did to it.
+    Equality catches an addition, a removal and a change in one, and
+    holds whatever the process started with.
     """
-    assert LEAKED_VARIABLE not in os.environ, (
-        f"{LEAKED_VARIABLE} is already set, so this test cannot see the leak"
-    )
     before = dict(os.environ)
 
     run_examples(LEAKING_MODULE)
 
-    added = sorted(name for name in os.environ if name not in before)
-    changed = sorted(name for name in before if os.environ.get(name) != before[name])
-
-    assert not added, f"the run left {added} set in the process"
-    assert not changed, f"the run changed {changed} in the process"
+    assert dict(os.environ) == before, (
+        "the run changed the process environment: "
+        f"added {sorted(set(os.environ) - set(before))}, "
+        f"removed {sorted(set(before) - set(os.environ))}, "
+        f"changed {sorted(k for k in before.keys() & os.environ.keys() if os.environ[k] != before[k])}"
+    )
 
 
 def test_an_example_that_unsets_a_variable_has_it_put_back() -> None:
