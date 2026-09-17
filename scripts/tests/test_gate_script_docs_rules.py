@@ -9,9 +9,12 @@ inputs written to violate them.
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from scripts.tests.gate_script_docs_path_support import (
     absolute_literals_in_source,
@@ -94,6 +97,40 @@ class TestTheRulesBiteOnSomethingWrittenToBreakThem:
             "an example rewrote a file that already existed and the "
             "directory's signature did not change"
         )
+
+    def test_an_unreadable_path_is_not_reported_as_absent(
+        self, tmp_path: Path
+    ) -> None:
+        """Only a missing path is absent; anything else is a test error.
+
+        Catching every `OSError` and answering None made the two states
+        one. A path this gate cannot read reports as missing before the
+        run and missing after it, so the comparison holds and a write
+        between them is invisible. That is worse than a failure: the
+        gate says the host was untouched precisely when it cannot tell.
+
+        Driven with a directory whose child cannot be stat'ed because
+        the parent is not searchable, which is a `PermissionError`
+        rather than a `FileNotFoundError`.
+
+        The skip is decided from the process identity before the call,
+        not from whether the call raised. Deciding it afterwards made
+        the test skip rather than fail when the handler was widened
+        back to every `OSError`, which is a test that cannot discover
+        the defect it was written for.
+        """
+        if getattr(os, "geteuid", lambda: 1)() == 0:
+            pytest.skip("root ignores the mode, so there is no unreadable case")
+
+        parent = tmp_path / "unsearchable"
+        parent.mkdir()
+        (parent / "child.txt").write_text("x", encoding="utf-8")
+        parent.chmod(0o000)
+        try:
+            with pytest.raises(PermissionError):
+                signature_of(parent / "child.txt")
+        finally:
+            parent.chmod(0o700)
 
     def test_a_shared_directory_is_not_watched_that_way(self) -> None:
         """A shared root is compared by existence, deliberately.

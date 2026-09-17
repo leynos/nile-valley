@@ -179,7 +179,7 @@ def _child_signature(child: Path) -> object:
     """
     try:
         status = child.stat()
-    except OSError:
+    except FileNotFoundError:
         # Raced or removed between the walk and the read. Recorded as a
         # value of its own rather than skipped: an entry that vanishes
         # is a change, and dropping it would make the signature match.
@@ -212,10 +212,21 @@ def signature_of(path: Path) -> object | None:
     object or None
         None when absent, a marker for a directory, and the size and
         modification time for a file.
+
+    Raises
+    ------
+    OSError
+        If the path exists but cannot be read. Only `FileNotFoundError`
+        means absent. Every other `OSError`, a permission denied on a
+        parent among them, means this gate cannot answer the question,
+        and reporting it as absent would make the comparison hold: the
+        path reads as missing before the run and missing after it, so a
+        write between the two is invisible. A test error is the honest
+        outcome.
     """
     try:
         status = path.stat()
-    except OSError:
+    except FileNotFoundError:
         return None
     if stat.S_ISDIR(status.st_mode):
         if path in SHARED_ROOTS:
