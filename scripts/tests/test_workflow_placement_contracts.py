@@ -261,6 +261,39 @@ def test_a_declaration_without_two_arms_is_refused(
 
 
 @pytest.mark.parametrize(
+    ("pattern", "branch", "admitted", "reason"),
+    [
+        pytest.param("release/*", "release/a", True, "one segment", id="single"),
+        pytest.param(
+            "release/*", "release/a/b", False, "two segments", id="star-stops-at-slash"
+        ),
+        pytest.param("release/**", "release/a/b", True, "any depth", id="doublestar"),
+        pytest.param("main", "main", True, "an exact name", id="exact"),
+        pytest.param(
+            "m[ai]n", "main", False, "not a character class", id="brackets-are-literal"
+        ),
+    ],
+)
+def test_a_filter_pattern_is_read_as_github_reads_it(
+    pattern: str, branch: str, admitted: bool, reason: str
+) -> None:
+    """`*` stops at a separator; `**` crosses it; brackets are literal.
+
+    `fnmatch` gets the first of those wrong, and the direction of the
+    error is what matters. It matches `release/*` against
+    `release/a/b`, so a workflow whose push filter does not admit trunk
+    was reported as reaching trunk automatically, and the reachability
+    contract passed on exactly the workflow it exists to fail.
+
+    Driven against the reader rather than through a workflow, because
+    no document in this repository uses a pattern at all: a rule
+    exercised only over the repository's own filters would pass whether
+    or not it worked.
+    """
+    assert branch_filter_admits({"branches": [pattern]}, branch) is admitted, reason
+
+
+@pytest.mark.parametrize(
     ("event", "admitted", "reason"),
     [
         pytest.param({"branches": ["main"]}, True, "named", id="named"),

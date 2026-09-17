@@ -15,7 +15,7 @@ Examples
 from __future__ import annotations
 
 import dataclasses as dc
-import fnmatch
+import re
 import typing as typ
 from pathlib import Path
 
@@ -46,16 +46,68 @@ __all__ = [
 ]
 
 
+def _filter_pattern(pattern: str) -> re.Pattern[str]:
+    """Return ``pattern`` as GitHub reads a branch filter.
+
+    `fnmatch` is not a stand-in for this, and the comment that said it
+    was had the direction of harm backwards. GitHub's `*` matches
+    within a path segment and its `**` crosses `/`; `fnmatch`'s `*`
+    crosses `/` always. So `fnmatch` matches `release/*` against
+    `release/a/b` where GitHub does not, and the reader then reported a
+    workflow as reaching trunk automatically when no push to trunk
+    would start a run. That is a reachability contract passing on
+    exactly the workflow it exists to fail, which is the opposite of
+    the "errs towards admitting" claim that was written here.
+
+    `fnmatch` also reads `[abc]` as a character class, which GitHub
+    does not, so the brackets are escaped rather than honoured.
+
+    Parameters
+    ----------
+    pattern : str
+        A `branches` or `branches-ignore` entry.
+
+    Returns
+    -------
+    re.Pattern[str]
+        A pattern anchored at both ends.
+
+    Examples
+    --------
+    >>> bool(_filter_pattern("release/*").fullmatch("release/a"))
+    True
+    >>> bool(_filter_pattern("release/*").fullmatch("release/a/b"))
+    False
+    >>> bool(_filter_pattern("release/**").fullmatch("release/a/b"))
+    True
+    """
+    parts: list[str] = []
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "*":
+            if pattern.startswith("**", index):
+                parts.append(".*")
+                index += 2
+            else:
+                parts.append("[^/]*")
+                index += 1
+            continue
+        if char == "?":
+            parts.append("[^/]")
+        elif char == "+":
+            # GitHub's `+` matches one or more characters. Written as a
+            # single character class repeated, because it does not cross
+            # a separator any more than `*` does.
+            parts.append("[^/]+")
+        else:
+            parts.append(re.escape(char))
+        index += 1
+    return re.compile("".join(parts))
+
+
 def _matches_a_filter(branch: str, patterns: object) -> bool:
     """Report whether ``branch`` matches any of GitHub's filter patterns.
-
-    GitHub's filter-pattern syntax is glob-like, so `fnmatch` stands in
-    for it. The approximation is deliberate and stated: `*` here also
-    crosses a `/`, where GitHub distinguishes `*` from `**`, and
-    `fnmatch` reads `[abc]` as a character class where GitHub does not.
-    Both differences make this predicate admit a branch GitHub would
-    refuse, never the other way round, so a contract built on it cannot
-    pass a workflow that is actually unreachable.
 
     Parameters
     ----------
@@ -75,13 +127,15 @@ def _matches_a_filter(branch: str, patterns: object) -> bool:
     True
     >>> _matches_a_filter("main", ["releases/**"])
     False
+    >>> _matches_a_filter("release/a/b", ["release/*"])
+    False
     >>> _matches_a_filter("main", "main")
     False
     """
     if not isinstance(patterns, list):
         return False
     return any(
-        fnmatch.fnmatchcase(branch, pattern)
+        _filter_pattern(pattern).fullmatch(branch) is not None
         for pattern in patterns
         if isinstance(pattern, str)
     )
@@ -99,6 +153,10 @@ def branch_filter_admits(event: dict[str, object], branch: str) -> bool:
 
     GitHub refuses a workflow that declares both filters for one event,
     so the two cannot disagree in a document that runs at all.
+
+    The patterns are read as GitHub reads them rather than through
+    `fnmatch`; see `_filter_pattern` for why that difference decides a
+    contract rather than a corner case.
 
     Parameters
     ----------
