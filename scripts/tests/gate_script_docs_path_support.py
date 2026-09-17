@@ -198,9 +198,13 @@ def signature_of(path: Path) -> object | None:
     failed on CI's clean machine. History must not be able to mask the
     run.
 
-    A directory is compared by existence only. The ones named here are
-    shared, `/tmp` among them, and their modification time moves
-    whenever anything else on the machine touches them.
+    A directory's treatment depends on whose it is. One named in
+    `SHARED_ROOTS`, `/tmp` among them, is compared by existence alone,
+    because every process on the machine writes there and its contents
+    move for reasons that have nothing to do with this run. Any other
+    directory is this run's business, so its descendants are listed and
+    each carries its own signature; that is what sees a file rewritten
+    in place, which a list of names cannot.
 
     Parameters
     ----------
@@ -210,8 +214,10 @@ def signature_of(path: Path) -> object | None:
     Returns
     -------
     object or None
-        None when absent, a marker for a directory, and the size and
-        modification time for a file.
+        None when absent. For a shared directory, a marker saying only
+        that it exists. For any other directory, a sorted list of
+        `(relative name, signature)` pairs over every descendant. For a
+        file, its size and modification time.
 
     Raises
     ------
