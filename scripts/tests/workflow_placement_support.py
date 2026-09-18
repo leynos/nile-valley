@@ -94,6 +94,14 @@ TRUNK_BRANCH: typ.Final = "main"
 #: would send every private-repository pull request to a hosted runner.
 FORK_FIELD: typ.Final = "github.event.pull_request.head.repo.fork"
 
+#: The label a `runs-on` expression yields when neither reader below can
+#: name a runner it selects. Returning an empty tuple instead left
+#: `Job.declares_a_runner` false, and every placement contract skips a job
+#: that declares no runner, so `runs-on: ${{ matrix.runner }}` passed them
+#: all by being unreadable. A sentinel is in no registry and in no hosted
+#: set, so the same contracts refuse it: the reader fails closed.
+UNREADABLE_RUNNER: typ.Final = "<unreadable runs-on expression>"
+
 __all__ = [
     "BUILD_JOBS",
     "FORK_FIELD",
@@ -101,8 +109,10 @@ __all__ = [
     "GITHUB_HOSTED_LABELS",
     "TRUNK_BRANCH",
     "TRUNK_REFERENCE",
+    "UNREADABLE_RUNNER",
     "RunnerExpression",
     "build_job",
+    "condition_names_field",
     "is_an_expression",
     "labels_in_expression",
     "read_runner_expression",
@@ -209,6 +219,13 @@ def labels_in_expression(raw: str) -> tuple[str, ...]:
     placement contract that sees no labels asserts nothing at all, which
     is a worse failure than naming one the job cannot reach.
 
+    When neither reader finds a literal, the expression names its runner
+    somewhere this module cannot follow, such as `${{ matrix.runner }}`.
+    `UNREADABLE_RUNNER` is returned rather than nothing, because nothing
+    reads as "declares no runner" and every placement contract skips such
+    a job. The sentinel belongs to no hosted set and to no registry, so
+    the contracts refuse it and say which job needs a reader instead.
+
     Parameters
     ----------
     raw : str
@@ -217,7 +234,7 @@ def labels_in_expression(raw: str) -> tuple[str, ...]:
     Returns
     -------
     tuple[str, ...]
-        The labels, in the order they appear.
+        The labels, in the order they appear, or `UNREADABLE_RUNNER`.
 
     Examples
     --------
@@ -228,9 +245,51 @@ def labels_in_expression(raw: str) -> tuple[str, ...]:
     ('ubuntu-latest', 'ubicloud-standard-2')
     >>> labels_in_expression("${{ 'ubuntu-latest' }}")
     ('ubuntu-latest',)
+    >>> labels_in_expression("${{ matrix.runner }}")
+    ('<unreadable runs-on expression>',)
     """
     arms = tuple(_RESULT_ARM.findall(raw))
-    return arms or tuple(_ANY_LITERAL.findall(raw))
+    return arms or tuple(_ANY_LITERAL.findall(raw)) or (UNREADABLE_RUNNER,)
+
+
+def condition_names_field(condition: str, field: str) -> bool:
+    """Report whether ``condition`` reads ``field`` and not a longer name.
+
+    A placement condition may be compound, so the field cannot be
+    asserted by equality: `fork && github.event_name == 'push'` names it
+    and is not equal to it. A substring test admits the failure the
+    assertion exists to catch, because `...head.repo.forked` contains
+    `...head.repo.fork` and selects a field that does not exist, which
+    evaluates false and sends every fork to the paid runner.
+
+    The match is therefore bounded on both sides by anything that could
+    continue an expression path: a word character or a dot.
+
+    Parameters
+    ----------
+    condition : str
+        A placement expression's condition.
+    field : str
+        The context field the condition must read.
+
+    Returns
+    -------
+    bool
+        Whether the condition reads exactly that field.
+
+    Examples
+    --------
+    >>> condition_names_field(FORK_FIELD, FORK_FIELD)
+    True
+    >>> condition_names_field(f"{FORK_FIELD} && github.ref == 'x'", FORK_FIELD)
+    True
+    >>> condition_names_field(f"{FORK_FIELD}ed", FORK_FIELD)
+    False
+    >>> condition_names_field(f"{FORK_FIELD}.name", FORK_FIELD)
+    False
+    """
+    bounded = rf"(?<![\w.]){re.escape(field)}(?![\w.])"
+    return re.search(bounded, condition) is not None
 
 
 def read_runner_expression(raw: str) -> RunnerExpression | None:

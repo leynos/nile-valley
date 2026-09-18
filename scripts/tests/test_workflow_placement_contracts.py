@@ -20,10 +20,10 @@ import typing as typ
 import pytest
 from workflow_contract_support import (
     Workflow,
-    branch_filter_admits,
     iter_jobs,
     iter_steps,
     load_workflows,
+    runner_labels,
 )
 from workflow_placement_support import (
     FORK_FIELD,
@@ -31,7 +31,9 @@ from workflow_placement_support import (
     GITHUB_HOSTED_LABELS,
     TRUNK_BRANCH,
     TRUNK_REFERENCE,
+    UNREADABLE_RUNNER,
     build_job,
+    condition_names_field,
     labels_in_expression,
     read_runner_expression,
     workflow_named,
@@ -153,7 +155,9 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
 
     Mutations: replacing `head.repo.fork` with `head.repo.private`
     failed this; so did removing the expression for a bare label, and so
-    does swapping the two arms.
+    does swapping the two arms. Reading the field by substring failed
+    none of them and accepted `head.repo.forked`, which is why the match
+    is bounded; see `test_a_longer_field_name_is_not_the_fork_field`.
     """
     job = build_job(workflows)
     expression = read_runner_expression(job.raw_runs_on)
@@ -163,7 +167,7 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
         f"and two arms, so a fork's pull request cannot be sent elsewhere: "
         f"{job.raw_runs_on!r}"
     )
-    assert FORK_FIELD in expression.condition, (
+    assert condition_names_field(expression.condition, FORK_FIELD), (
         f"{job.qualified_name} must key its fallback on {FORK_FIELD}: "
         f"{expression.condition!r}"
     )
@@ -261,67 +265,67 @@ def test_a_declaration_without_two_arms_is_refused(
 
 
 @pytest.mark.parametrize(
-    ("pattern", "branch", "admitted", "reason"),
+    ("condition", "names_it", "reason"),
     [
-        pytest.param("release/*", "release/a", True, "one segment", id="single"),
+        pytest.param(FORK_FIELD, True, "the field alone", id="bare"),
         pytest.param(
-            "release/*", "release/a/b", False, "two segments", id="star-stops-at-slash"
+            f"{FORK_FIELD} && github.event_name == 'pull_request'",
+            True,
+            "one operand of a compound condition",
+            id="compound",
         ),
-        pytest.param("release/**", "release/a/b", True, "any depth", id="doublestar"),
-        pytest.param("main", "main", True, "an exact name", id="exact"),
         pytest.param(
-            "m[ai]n", "main", False, "not a character class", id="brackets-are-literal"
+            f"{FORK_FIELD}ed", False, "a longer field name", id="suffixed"
+        ),
+        pytest.param(
+            f"{FORK_FIELD}.name", False, "a field below it", id="descended"
         ),
     ],
 )
-def test_a_filter_pattern_is_read_as_github_reads_it(
-    pattern: str, branch: str, admitted: bool, reason: str
+def test_a_longer_field_name_is_not_the_fork_field(
+    condition: str, names_it: bool, reason: str
 ) -> None:
-    """`*` stops at a separator; `**` crosses it; brackets are literal.
+    """The fallback's field is matched as a token, not as a substring.
 
-    `fnmatch` gets the first of those wrong, and the direction of the
-    error is what matters. It matches `release/*` against
-    `release/a/b`, so a workflow whose push filter does not admit trunk
-    was reported as reaching trunk automatically, and the reachability
-    contract passed on exactly the workflow it exists to fail.
+    A substring test accepts `...head.repo.forked`, which names no field
+    that GitHub defines, so the condition evaluates false and every
+    fork's pull request goes to the runner a fork cannot obtain. That is
+    the same failure `head.repo.private` produces, and the contract above
+    exists to refuse it, so the match must reject a longer name while
+    still admitting a compound condition.
 
-    Driven against the reader rather than through a workflow, because
-    no document in this repository uses a pattern at all: a rule
-    exercised only over the repository's own filters would pass whether
-    or not it worked.
+    Driven against the reader with conditions written here, because this
+    repository declares one condition and it is correct: a rule proved
+    only by the sources it guards is proved by nothing.
     """
-    assert branch_filter_admits({"branches": [pattern]}, branch) is admitted, reason
+    assert condition_names_field(condition, FORK_FIELD) is names_it, reason
 
 
 @pytest.mark.parametrize(
-    ("event", "admitted", "reason"),
+    "declaration",
     [
-        pytest.param({"branches": ["main"]}, True, "named", id="named"),
-        pytest.param({}, True, "no filter at all", id="unfiltered"),
-        pytest.param(
-            {"branches": ["release/**"]}, False, "not matched", id="other-branch"
-        ),
-        pytest.param(
-            {"branches-ignore": ["main"]}, False, "excluded", id="ignored"
-        ),
-        pytest.param(
-            {"branches-ignore": ["release/**"]},
-            True,
-            "excluded elsewhere",
-            id="ignored-elsewhere",
-        ),
+        pytest.param("${{ matrix.runner }}", id="matrix"),
+        pytest.param("${{ needs.pick.outputs.runner }}", id="job-output"),
+        pytest.param("${{ vars.RUNNER }}", id="variable"),
     ],
 )
-def test_a_branch_filter_is_read_both_ways(
-    event: dict[str, object], admitted: bool, reason: str
-) -> None:
-    """`branches-ignore` excludes as surely as `branches` admits.
+def test_an_unreadable_expression_is_not_read_as_no_runner(declaration: str) -> None:
+    """A `runs-on` this reader cannot follow must fail the contracts, not skip them.
 
-    A `push` that ignores trunk starts no run for a push to trunk, so a
-    reader that consulted `branches` alone reported such a workflow as
-    reaching trunk automatically and would have accepted trunk-guarded
-    steps that nothing can reach. That is the same defect the
-    reachability contract above exists to catch, arriving through the
-    reader instead of through the workflow.
+    `test_non_build_jobs_stay_github_hosted` and the registry contract
+    both skip a job that declares no runner, which is right for a job
+    that calls a reusable workflow. An expression naming its runner
+    somewhere this reader does not follow returned nothing at all and
+    took the same path, so the job passed every placement contract by
+    being unreadable. The reader returns a sentinel instead, which is in
+    no hosted set and in no registry, so those contracts refuse it.
+
+    Mutation: returning an empty tuple for these declarations failed
+    this test.
     """
-    assert branch_filter_admits(event, TRUNK_BRANCH) is admitted, reason
+    labels = runner_labels(declaration)
+
+    assert labels == (UNREADABLE_RUNNER,), labels
+    assert UNREADABLE_RUNNER not in GITHUB_HOSTED_LABELS, (
+        "the sentinel must not be admitted as a GitHub-hosted runner"
+    )

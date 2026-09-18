@@ -46,6 +46,79 @@ __all__ = [
 ]
 
 
+_CLASS_MEMBER: typ.Final = re.compile(r"[A-Za-z0-9-]+\Z")
+
+
+def _read_character_class(pattern: str, index: int) -> tuple[str, int] | None:
+    """Return the regex for a bracket class at ``index``, and the index after it.
+
+    None means the brackets are not a class GitHub documents, so the
+    caller reads the `[` literally rather than guessing at a meaning.
+    GitHub's class holds alphanumerics and ranges of them and nothing
+    else, so a bracket carrying anything further is a branch name that
+    happens to contain a bracket.
+
+    Parameters
+    ----------
+    pattern : str
+        The whole filter pattern.
+    index : int
+        The offset of the opening bracket.
+
+    Returns
+    -------
+    tuple[str, int] or None
+        The class and the offset after its closing bracket, or None.
+
+    Examples
+    --------
+    >>> _read_character_class("m[ai]n", 1)
+    ('[ai]', 5)
+    >>> _read_character_class("m[a/b]n", 1) is None
+    True
+    >>> _read_character_class("m[ain", 1) is None
+    True
+    """
+    close = pattern.find("]", index + 1)
+    if close == -1:
+        return None
+    members = pattern[index + 1 : close]
+    if not _CLASS_MEMBER.match(members):
+        return None
+    return f"[{members}]", close + 1
+
+
+def _quantify(parts: list[str], quantifier: str) -> None:
+    """Apply ``quantifier`` to the last atom emitted, or emit it literally.
+
+    GitHub's `?` and `+` bind to the character before them rather than
+    standing for one character and for one or more. With nothing before
+    them there is nothing to repeat, so the character is a literal.
+
+    Parameters
+    ----------
+    parts : list[str]
+        The regex fragments built so far, modified in place.
+    quantifier : str
+        Either `?` or `+`.
+
+    Examples
+    --------
+    >>> parts = ["a"]
+    >>> _quantify(parts, "?")
+    >>> parts
+    ['(?:a)?']
+    >>> parts = []
+    >>> _quantify(parts, "+")
+    >>> parts
+    ['\\\\+']
+    """
+    if not parts:
+        parts.append(re.escape(quantifier))
+        return
+    parts[-1] = f"(?:{parts[-1]}){quantifier}"
+
+
 def _filter_pattern(pattern: str) -> re.Pattern[str]:
     """Return ``pattern`` as GitHub reads a branch filter.
 
@@ -59,13 +132,20 @@ def _filter_pattern(pattern: str) -> re.Pattern[str]:
     exactly the workflow it exists to fail, which is the opposite of
     the "errs towards admitting" claim that was written here.
 
-    `fnmatch` also reads `[abc]` as a character class, which GitHub
-    does not, so the brackets are escaped rather than honoured.
+    The rest of the grammar is GitHub's own: `?` matches zero or one of
+    the preceding character and `+` one or more of it, so both bind to
+    what came before rather than standing for a character of their own;
+    `[]` is a class of alphanumerics and ranges; and `\\` escapes the
+    character after it. An earlier reading treated `?` as exactly one
+    character and escaped the brackets, so `main?` admitted `mains` and
+    refused `main`, and `m[ai]n` refused `man`: each the wrong way
+    round, and each a branch filter read as covering a set of branches
+    that it does not.
 
     Parameters
     ----------
     pattern : str
-        A `branches` or `branches-ignore` entry.
+        A `branches` or `branches-ignore` entry, without any leading `!`.
 
     Returns
     -------
@@ -80,34 +160,56 @@ def _filter_pattern(pattern: str) -> re.Pattern[str]:
     False
     >>> bool(_filter_pattern("release/**").fullmatch("release/a/b"))
     True
+    >>> bool(_filter_pattern("mai?n").fullmatch("main"))
+    True
+    >>> bool(_filter_pattern("mai+n").fullmatch("maiin"))
+    True
+    >>> bool(_filter_pattern("m[ai]n").fullmatch("man"))
+    True
+    >>> bool(_filter_pattern("m[ai]n").fullmatch("main"))
+    False
     """
     parts: list[str] = []
     index = 0
     while index < len(pattern):
         char = pattern[index]
-        if char == "*":
-            if pattern.startswith("**", index):
-                parts.append(".*")
-                index += 2
-            else:
-                parts.append("[^/]*")
-                index += 1
+        if char == "\\" and index + 1 < len(pattern):
+            parts.append(re.escape(pattern[index + 1]))
+            index += 2
             continue
-        if char == "?":
-            parts.append("[^/]")
-        elif char == "+":
-            # GitHub's `+` matches one or more characters. Written as a
-            # single character class repeated, because it does not cross
-            # a separator any more than `*` does.
-            parts.append("[^/]+")
-        else:
-            parts.append(re.escape(char))
+        if char == "*":
+            crosses_a_separator = pattern.startswith("**", index)
+            parts.append(".*" if crosses_a_separator else "[^/]*")
+            index += 2 if crosses_a_separator else 1
+            continue
+        if char in "?+":
+            _quantify(parts, char)
+            index += 1
+            continue
+        if char == "[":
+            read = _read_character_class(pattern, index)
+            if read is not None:
+                member_class, index = read
+                parts.append(member_class)
+                continue
+        parts.append(re.escape(char))
         index += 1
     return re.compile("".join(parts))
 
 
-def _matches_a_filter(branch: str, patterns: object) -> bool:
-    """Report whether ``branch`` matches any of GitHub's filter patterns.
+def _last_verdict(branch: str, patterns: object) -> bool | None:
+    """Return the verdict of the last pattern ``branch`` matches, or None.
+
+    GitHub evaluates a filter in the order it is written: a later `!`
+    pattern excludes a branch an earlier one admitted, and a later
+    positive pattern admits it again. Reporting "any pattern matches"
+    instead read `["**", "!main"]` as admitting `main`, so a workflow
+    whose push filter excludes trunk was reported as reaching trunk
+    automatically and its trunk-guarded cache saves passed the
+    reachability contract while nothing could run them.
+
+    None means no pattern matched at all, which the caller reads
+    differently for the two filter keys.
 
     Parameters
     ----------
@@ -118,27 +220,33 @@ def _matches_a_filter(branch: str, patterns: object) -> bool:
 
     Returns
     -------
-    bool
-        Whether any pattern in the list matches.
+    bool or None
+        Whether the last matching pattern admits, or None if none match.
 
     Examples
     --------
-    >>> _matches_a_filter("main", ["main"])
+    >>> _last_verdict("main", ["main"])
     True
-    >>> _matches_a_filter("main", ["releases/**"])
+    >>> _last_verdict("main", ["**", "!main"])
     False
-    >>> _matches_a_filter("release/a/b", ["release/*"])
-    False
-    >>> _matches_a_filter("main", "main")
-    False
+    >>> _last_verdict("main", ["**", "!main", "main"])
+    True
+    >>> _last_verdict("main", ["releases/**"]) is None
+    True
+    >>> _last_verdict("main", "main") is None
+    True
     """
     if not isinstance(patterns, list):
-        return False
-    return any(
-        _filter_pattern(pattern).fullmatch(branch) is not None
-        for pattern in patterns
-        if isinstance(pattern, str)
-    )
+        return None
+    verdict: bool | None = None
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            continue
+        admits = not pattern.startswith("!")
+        expression = pattern if admits else pattern[1:]
+        if _filter_pattern(expression).fullmatch(branch) is not None:
+            verdict = admits
+    return verdict
 
 
 def branch_filter_admits(event: dict[str, object], branch: str) -> bool:
@@ -156,7 +264,9 @@ def branch_filter_admits(event: dict[str, object], branch: str) -> bool:
 
     The patterns are read as GitHub reads them rather than through
     `fnmatch`; see `_filter_pattern` for why that difference decides a
-    contract rather than a corner case.
+    contract rather than a corner case. Within one key they are read in
+    order, so a later `!` entry excludes what an earlier entry admitted;
+    see `_last_verdict`.
 
     Parameters
     ----------
@@ -178,13 +288,17 @@ def branch_filter_admits(event: dict[str, object], branch: str) -> bool:
     False
     >>> branch_filter_admits({}, "main")
     True
+    >>> branch_filter_admits({"branches": ["**", "!main"]}, "main")
+    False
+    >>> branch_filter_admits({"branches": ["**", "!main", "ma?in"]}, "main")
+    True
     """
-    if _matches_a_filter(branch, event.get("branches-ignore")):
+    if _last_verdict(branch, event.get("branches-ignore")) is True:
         return False
     branches = event.get("branches")
     if branches is None:
         return True
-    return _matches_a_filter(branch, branches)
+    return _last_verdict(branch, branches) is True
 
 
 @dc.dataclass(frozen=True)
