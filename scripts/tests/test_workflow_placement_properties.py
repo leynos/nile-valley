@@ -66,10 +66,14 @@ def test_the_arms_read_back_in_the_order_they_were_written(
     reader that returns the right pair in the wrong order. A test
     comparing sets would hold for the swap, which is the whole defect.
     """
-    expression = read_runner_expression(_ternary(condition, when_true, when_false))
+    declaration = _ternary(condition, when_true, when_false)
+    expression = read_runner_expression(declaration)
 
-    assert expression is not None
-    assert (expression.when_true, expression.when_false) == (when_true, when_false)
+    assert expression is not None, f"unread: {declaration!r}"
+    assert (expression.when_true, expression.when_false) == (when_true, when_false), (
+        f"{declaration!r} read back as "
+        f"{(expression.when_true, expression.when_false)!r}"
+    )
 
 
 @given(condition=CONDITION, when_true=LABEL, when_false=LABEL)
@@ -83,9 +87,12 @@ def test_a_quoted_condition_value_is_never_a_label(
     reader that gathered every quoted literal returned those as runners,
     and the registry contract then rejected a valid declaration.
     """
-    labels = labels_in_expression(_ternary(condition, when_true, when_false))
+    declaration = _ternary(condition, when_true, when_false)
+    labels = labels_in_expression(declaration)
 
-    assert labels == (when_true, when_false), labels
+    assert labels == (when_true, when_false), (
+        f"{declaration!r} yielded {labels!r} rather than its two arms"
+    )
 
 
 @given(
@@ -108,8 +115,11 @@ def test_the_spacing_does_not_change_which_arm_is_which(
     padded = _ternary(condition, when_true, when_false).replace(" ", " " * spaces)
     expression = read_runner_expression(padded)
 
-    assert expression is not None
-    assert (expression.when_true, expression.when_false) == (when_true, when_false)
+    assert expression is not None, f"unread at {spaces} spaces: {padded!r}"
+    assert (expression.when_true, expression.when_false) == (when_true, when_false), (
+        f"{padded!r} read back as "
+        f"{(expression.when_true, expression.when_false)!r}"
+    )
 
 
 @given(branch=BRANCH, others=st.lists(BRANCH, max_size=4))
@@ -124,7 +134,9 @@ def test_an_ignored_branch_is_refused_however_it_is_listed(
     """
     event = {"branches-ignore": [*others, branch]}
 
-    assert branch_filter_admits(event, branch) is False
+    assert branch_filter_admits(event, branch) is False, (
+        f"{branch!r} was admitted although {event!r} ignores it"
+    )
 
 
 @given(branch=BRANCH, others=st.lists(BRANCH, max_size=4))
@@ -134,7 +146,9 @@ def test_a_branch_outside_the_named_set_is_refused(
     """A `branches` list that does not name the branch refuses it."""
     listed = [other for other in others if other != branch]
 
-    assert branch_filter_admits({"branches": listed}, branch) is False
+    assert branch_filter_admits({"branches": listed}, branch) is False, (
+        f"{branch!r} was admitted although branches names only {listed!r}"
+    )
 
 
 @given(branch=BRANCH, others=st.lists(BRANCH, max_size=4))
@@ -142,7 +156,36 @@ def test_a_named_branch_with_no_exclusion_is_admitted(
     branch: str, others: list[str]
 ) -> None:
     """Naming the branch and excluding nothing admits it."""
-    assert branch_filter_admits({"branches": [*others, branch]}, branch) is True
+    listed = [*others, branch]
+
+    assert branch_filter_admits({"branches": listed}, branch) is True, (
+        f"{branch!r} was refused although branches names it: {listed!r}"
+    )
+
+
+@given(branch=BRANCH, others=st.lists(BRANCH, max_size=4))
+def test_a_later_pattern_overrides_an_earlier_one(
+    branch: str, others: list[str]
+) -> None:
+    """Order decides the answer, in both directions.
+
+    GitHub reads a `branches` list in sequence: a matching `!` entry
+    after a positive match excludes the ref, and a matching positive
+    entry after that includes it again. A reader that asked whether any
+    pattern matched read the exclusion as an admission, and a gate whose
+    filter deliberately excludes trunk was then reported as reaching
+    trunk automatically.
+    """
+    admitting = [*others, branch]
+    excluded = [*admitting, f"!{branch}"]
+    readmitted = [*excluded, branch]
+
+    assert branch_filter_admits({"branches": excluded}, branch) is False, (
+        f"{branch!r} survived the exclusion that follows it in {excluded!r}"
+    )
+    assert branch_filter_admits({"branches": readmitted}, branch) is True, (
+        f"{branch!r} stayed excluded although {readmitted!r} names it last"
+    )
 
 
 @given(
@@ -172,7 +215,9 @@ def test_no_manual_or_pull_request_trigger_reaches_trunk(
         jobs=(),
     )
 
-    assert workflow.writes_trunk_automatically(branch) is False
+    assert workflow.writes_trunk_automatically(branch) is False, (
+        f"{sorted(triggers)} was read as producing {branch!r} unaided"
+    )
 
 
 @given(labels=st.lists(LABEL, min_size=1, max_size=3, unique=True))
@@ -184,12 +229,15 @@ def test_every_runs_on_shape_yields_the_labels_it_names(labels: list[str]) -> No
     and a placement contract that sees no labels asserts nothing at all,
     which is how a self-hosted job slips past one.
     """
-    assert runner_labels(labels[0]) == (labels[0],)
-    assert runner_labels(labels) == tuple(labels)
-    assert runner_labels({"group": "ubuntu runners", "labels": labels}) == tuple(labels)
-    assert runner_labels({"group": "ubuntu runners", "labels": labels[0]}) == (
-        labels[0],
-    )
+    sequence = tuple(labels)
+    first = (labels[0],)
+    group = {"group": "ubuntu runners", "labels": labels}
+    group_scalar = {"group": "ubuntu runners", "labels": labels[0]}
+
+    assert runner_labels(labels[0]) == first, f"scalar {labels[0]!r}"
+    assert runner_labels(labels) == sequence, f"sequence {labels!r}"
+    assert runner_labels(group) == sequence, f"group mapping {group!r}"
+    assert runner_labels(group_scalar) == first, f"group mapping {group_scalar!r}"
 
 
 @given(condition=CONDITION, when_true=LABEL, when_false=LABEL)
@@ -202,7 +250,8 @@ def test_an_expression_runs_on_yields_its_arms_and_nothing_else(
     job actually declares, because that is the path the placement
     contracts take.
     """
-    assert runner_labels(_ternary(condition, when_true, when_false)) == (
-        when_true,
-        when_false,
+    declaration = _ternary(condition, when_true, when_false)
+
+    assert runner_labels(declaration) == (when_true, when_false), (
+        f"{declaration!r} yielded {runner_labels(declaration)!r}"
     )
