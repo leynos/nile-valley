@@ -9,18 +9,19 @@ Examples
 --------
 >>> from pathlib import Path
 >>> from scripts._gitops_inputs import GitOpsInputs
+>>> workspace = Path("workspace")
 >>> inputs = GitOpsInputs(
 ...     gitops_repository="leynos/nile-valley-infra",
 ...     gitops_branch="main",
 ...     gitops_token="token",
 ...     cluster_name="preview-1",
-...     render_output_dir=Path("/tmp/rendered"),
-...     runner_temp=Path("/tmp"),
-...     github_env=Path("/tmp/env"),
+...     render_output_dir=workspace / "rendered",
+...     runner_temp=workspace,
+...     github_env=workspace / "env",
 ...     dry_run=True,
 ... )
->>> with git_auth_env(inputs.gitops_token, Path("/tmp")) as env:
-...     clone_repository(inputs, Path("/tmp/clone"), env)
+>>> with git_auth_env(inputs.gitops_token, workspace) as env:
+...     clone_repository(inputs, workspace / "clone", env)
 """
 
 from __future__ import annotations

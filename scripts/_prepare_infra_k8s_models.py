@@ -37,6 +37,7 @@ class RawInputs:
 
     Examples
     --------
+    >>> workspace = Path("workspace")
     >>> RawInputs(
     ...     cluster_name="preview-1",
     ...     environment="preview",
@@ -62,8 +63,8 @@ class RawInputs:
     ...     enable_vault_eso="true",
     ...     enable_cnpg="true",
     ...     dry_run="false",
-    ...     runner_temp=Path("/tmp"),
-    ...     github_env=Path("/tmp/github-env"),
+    ...     runner_temp=workspace,
+    ...     github_env=workspace / "github-env",
     ... )
     """
 
@@ -130,6 +131,7 @@ class ResolvedInputs:
 
     Examples
     --------
+    >>> workspace = Path("workspace")
     >>> ResolvedInputs(
     ...     cluster_name="preview-1",
     ...     environment="preview",
@@ -155,8 +157,8 @@ class ResolvedInputs:
     ...     enable_vault_eso=True,
     ...     enable_cnpg=True,
     ...     dry_run=False,
-    ...     runner_temp=Path("/tmp"),
-    ...     github_env=Path("/tmp/github-env"),
+    ...     runner_temp=workspace,
+    ...     github_env=workspace / "github-env",
     ... )
     """
 

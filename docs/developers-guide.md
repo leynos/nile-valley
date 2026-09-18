@@ -19,6 +19,65 @@ never drift-checked in CI, because the shared dictionary is the authority and a
 dictionary change would otherwise fail every consumer's pipeline. Narrow
 repository exceptions belong in `typos.local.toml`.
 
+## CodeScene rule overrides
+
+This repository declares no CodeScene rule overrides. The file that held them,
+`.codescene/code-health-rules.json`, was removed because its one rule set had
+never applied: it used a top-level `rules` map with `threshold-by-pattern`,
+which CodeScene rejects, and its glob named Rust sources in a repository that
+contains none. Removing it changed no verdict, because CodeScene had never read
+it.
+
+The failure mode is worth knowing before writing a replacement. A rule set the
+tool cannot read is skipped, the verdicts carry on without the override, and
+the only sign is a line on standard error that a passing run buries. The
+diagnostic blames JSON syntax, which sends the reader looking for a missing
+comma, when the real cause is that hyphenated keys read as namespaced keywords.
+
+To add an override, use the schema `cs docs code-health-rules-template` prints:
+a top-level `rule_sets` array, each entry naming a `matching_content_path` and
+justifying itself in `matching_content_path_doc`, and each rule named in prose
+with a `weight` between 0.0, which disables it, and 1.0, which is the default.
+Validate it before pushing:
+
+```bash
+cs rules-config validate
+```
+
+That is a local check and stays one. The CodeScene command-line tool does not
+belong in CI or in a Makefile target: the GitHub integration reads the same
+rule set, so running the tool as well would duplicate the check under a licence
+the runners do not need. With no overrides declared the command reports "No
+configuration file found" and exits non-zero, which is the expected state here
+rather than a fault.
+
+`scripts/tests/test_codescene_rules.py` is a schema test, not a substitute for
+either. It asserts the documented shape rather than merely that the file is
+JSON, requires every rule set to justify itself, requires every glob to match
+at least one file, since a glob left behind by a rename or a copy is an
+exemption that quietly stops applying, and checks the type of every field a
+rule set declares before anything reads it because a wrong type does not
+announce itself downstream: a `rules` value of `""` iterates zero times and so
+satisfies every rule check.
+
+`thresholds` is the field that repays the most care. It is an array of
+`{name, value}` objects rather than a mapping, and given a mapping the
+CodeScene command-line tool does not report a schema problem: it exits with an
+unhandled exception and asks for the stack trace to be sent to support. The
+value must be a positive number; the tool refuses zero, a negative and a
+non-numeric string, while accepting a fraction and coercing a numeric string.
+An entry still carrying the template's `"-"` placeholder overrides nothing, so
+the contract rejects it as residue.
+
+Beyond the named shapes, the checks are stated as properties over generated
+documents: any document built to the schema passes every check, and each
+single-field mutation of one fails the check that owns that field.
+
+Those checks run against the committed `.codescene/code-health-rules.json`
+whenever there is one, and skip while there is none. They are not something to
+reinstate later: a rule file added without them would be validated by nothing,
+which is how the removed one survived.
+
 ## Gate recipes
 
 `SHELL := bash` is the only shell setting in the `Makefile`: there is no
@@ -147,6 +206,102 @@ a removed `pull_request` trigger.
 forbidden recipe shape work rather than removing it, weakening the contract,
 and it would change the meaning of every existing recipe line at once. The
 mechanism this repository relies on is one command per line.
+
+## The documented-example gate
+
+Repository policy is that a function's documentation carries an example showing
+use and outcome. An example that has drifted from the code is worse than none,
+so the gate discovers every eligible module under `scripts` and runs the
+examples of every one it can import, as part of `make test`.
+
+The gate is five modules under `scripts/tests`, because no code file here may
+exceed 400 lines. `gate_script_docs_support.py` holds the walk, the exemption
+list and the execution boundary, and `gate_script_docs_path_support.py` holds
+the rules that read a source for the absolute paths its examples name. The
+questions are asked in `test_gate_script_docs.py` for coverage,
+`test_gate_script_docs_host_writes.py` for what a run does to the filesystem,
+and `test_gate_script_docs_rules.py` for the proof that those rules bite.
+
+The distinction is not pedantry. A module that cannot be imported has no
+examples run at all, and saying otherwise would describe a gate stronger than
+the one that exists, so a run reports `not-importable` as its own verdict
+rather than as a stale example. No module is in that state today: the three
+that were are the spelling rollout's, deleted when the repository adopted
+`typos-config-builder`.
+
+The module list is walked rather than written down. The handwritten list it
+replaces named eleven modules while thirty-four carried examples, so 199 of 269
+example lines were never run, and adding a module with a stale example changed
+nothing a reader would notice.
+
+### What the walk reaches
+
+Every `.py` under `scripts`, except `conftest.py`, `__init__.py`, and anything
+under `scripts/tests`. The suite is pytest's to import: a second import under a
+dotted name re-runs every module-level statement against a different module
+object, and three modules there import `cmd_mox` at module level while
+`conftest` registers its plugin only when the package is present.
+
+`scripts/tests` holds two kinds of file, and excluding the directory treated
+them as one. A test module is pytest's. A support module, named `*_support.py`,
+is an ordinary library the test modules import, nothing else claims it, and its
+examples are as much documentation as any script's. The hand list this walk
+replaced named three support modules outright and ran them; the exclusion
+dropped all of them, and said their examples were covered by
+`--doctest-modules` on the suite's own invocation. No pytest invocation in this
+repository passes that flag, and there is no configuration file to carry it, so
+twenty-eight example lines stopped running and the gate reported nothing. The
+support modules are discovered by their suffix and checked through the same
+boundary as everything else, and a separate assertion refuses an empty
+discovery, because a glob matching nothing would otherwise satisfy a
+parametrized test by having no cases.
+
+Discovery is asserted against an independently built set rather than against
+itself, and the walk is checked to be neither empty nor missing a named module,
+so a filter that excluded everything would not pass.
+
+### Where the examples run
+
+The gate creates a temporary directory, runs the examples inside it, and throws
+it away. The process is returned to where it started. Documented examples are
+ordinary code and some of them write: two in the manifest writer named absolute
+paths under `/tmp` and created them on every run of this suite. Those two are
+repaired at the source to use a temporary directory and to assert what they
+produce, which retired that module's exemption the same day. The isolation
+stays because the next careless example is not hypothetical, and it is
+asserted: a relative write from inside the boundary lands in the scratch
+directory and the repository root is unchanged afterwards.
+
+The environment is restored with the working directory, and for the same
+reason. The output publisher's example assigns `SPACES_ACCESS_KEY`, and until
+the restore landed it stayed assigned for the rest of the pytest session: a
+variable carrying a secret's name, set by a gate, visible to every test that
+ran afterwards. That the example is stale is no protection, because `doctest`
+runs each example up to the point it fails and carries on to the next, so a
+broken example's effects land anyway. The environment is put back wholesale
+rather than by removing what appeared, since an example can delete a variable
+as easily as add one. Repairing such an example is separate work, tracked in
+[#103](https://github.com/leynos/nile-valley/issues/103); containing it is the
+boundary's job.
+
+### The exemption list
+
+It shrinks and never grows by accident: a module not named in it is checked
+from the moment it exists.
+
+`KNOWN_STALE_EXAMPLES` holds modules whose examples did not hold when the walk
+replaced the hand list. `test_a_listed_module_is_still_stale` fails when a
+listed module starts passing, so a repair cannot leave its entry behind, and
+`test_every_exemption_names_a_discovered_module` fails when an entry names
+something the walk no longer finds, so a deleted module cannot keep one. The
+list is tracked in [#103](https://github.com/leynos/nile-valley/issues/103).
+
+An entry must be stale rather than merely unreadable, which is why the outcome
+of a run is one of three named verdicts and the stale-list test asserts `stale`
+specifically. Collapsing an import failure into "stale examples" is what let an
+exemption for a deleted module satisfy the shrink-only rule forever. The
+checked set is separately asserted to be larger than the exempted one, so the
+list cannot grow until the gate has nothing left to do.
 
 ## Continuous integration
 

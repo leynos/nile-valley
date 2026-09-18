@@ -5,38 +5,53 @@ for the nile-valley-infra-k8s GitHub Action.
 
 Examples
 --------
-Resolve inputs and export them for downstream steps:
+Resolve inputs and export them for downstream steps. The export writes a
+file, so the example makes somewhere of its own to write it; naming a path
+under `/tmp` would create one on whatever machine ran the documentation
+gate. The directory is a context manager rather than a pair of calls,
+because an explicit clean-up at the end is skipped by any failure before
+it, which is exactly when a leftover is least welcome.
 
->>> raw = RawInputs(
-...     cluster_name="preview-1",
-...     environment="preview",
-...     region="nyc1",
-...     kubernetes_version=None,
-...     node_pools=None,
-...     domain="example.test",
-...     acme_email="admin@example.test",
-...     gitops_repository="leynos/nile-valley-infra",
-...     gitops_branch="main",
-...     gitops_token="token",
-...     vault_address="https://vault.example.test:8200",
-...     vault_role_id="role",
-...     vault_secret_id="secret",
-...     vault_ca_certificate=None,
-...     digitalocean_token="do-token",
-...     spaces_access_key="access",
-...     spaces_secret_key="secret",
-...     cloudflare_api_token_secret_name="cloudflare-api-token",
-...     enable_traefik="true",
-...     enable_cert_manager="true",
-...     enable_external_dns="true",
-...     enable_vault_eso="true",
-...     enable_cnpg="true",
-...     dry_run="false",
-...     runner_temp=Path("/tmp"),
-...     github_env=Path("/tmp/github-env"),
-... )
->>> inputs = _resolve_all_inputs(raw)
->>> prepare_inputs(inputs)
+>>> import tempfile
+>>> with tempfile.TemporaryDirectory() as directory:
+...     workspace = Path(directory)
+...     raw = RawInputs(
+...         cluster_name="preview-1",
+...         environment="preview",
+...         region="nyc1",
+...         kubernetes_version=None,
+...         node_pools=None,
+...         domain="example.test",
+...         acme_email="admin@example.test",
+...         gitops_repository="leynos/nile-valley-infra",
+...         gitops_branch="main",
+...         gitops_token="token",
+...         vault_address="https://vault.example.test:8200",
+...         vault_role_id="role",
+...         vault_secret_id="secret",
+...         vault_ca_certificate=None,
+...         digitalocean_token="do-token",
+...         spaces_access_key="access",
+...         spaces_secret_key="secret",
+...         cloudflare_api_token_secret_name="cloudflare-api-token",
+...         enable_traefik="true",
+...         enable_cert_manager="true",
+...         enable_external_dns="true",
+...         enable_vault_eso="true",
+...         enable_cnpg="true",
+...         dry_run="false",
+...         runner_temp=workspace,
+...         github_env=workspace / "github-env",
+...     )
+...     prepare_inputs(_resolve_all_inputs(raw))
+...     (workspace / "github-env").is_file()
+::add-mask::token
+::add-mask::do-token
+::add-mask::access
+::add-mask::secret
+::add-mask::role
+::add-mask::secret
+True
 """
 
 from __future__ import annotations
@@ -376,24 +391,39 @@ def prepare_inputs(inputs: ResolvedInputs, mask: Mask = mask_secret) -> None:
 
     Examples
     --------
-    >>> raw = RawInputs(
-    ...     cluster_name="preview-1",
-    ...     environment="preview",
-    ...     region="nyc1",
-    ...     domain="example.test",
-    ...     acme_email="admin@example.test",
-    ...     gitops_repository="leynos/nile-valley-infra",
-    ...     gitops_token="token",
-    ...     vault_address="https://vault.example.test:8200",
-    ...     vault_role_id="role",
-    ...     vault_secret_id="secret",
-    ...     digitalocean_token="do-token",
-    ...     spaces_access_key="access",
-    ...     spaces_secret_key="secret",
-    ...     runner_temp=Path("/tmp"),
-    ...     github_env=Path("/tmp/github-env"),
-    ... )
-    >>> prepare_inputs(_resolve_all_inputs(raw))
+    The secrets are masked on the way through, which is output, so the
+    example states it rather than leaving a reader to wonder why the
+    call is not silent.
+
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     workspace = Path(directory)
+    ...     raw = RawInputs(
+    ...         cluster_name="preview-1",
+    ...         environment="preview",
+    ...         region="nyc1",
+    ...         domain="example.test",
+    ...         acme_email="admin@example.test",
+    ...         gitops_repository="leynos/nile-valley-infra",
+    ...         gitops_token="token",
+    ...         vault_address="https://vault.example.test:8200",
+    ...         vault_role_id="role",
+    ...         vault_secret_id="secret",
+    ...         digitalocean_token="do-token",
+    ...         spaces_access_key="access",
+    ...         spaces_secret_key="secret",
+    ...         runner_temp=workspace,
+    ...         github_env=workspace / "github-env",
+    ...     )
+    ...     prepare_inputs(_resolve_all_inputs(raw))
+    ...     (workspace / "github-env").is_file()
+    ::add-mask::token
+    ::add-mask::do-token
+    ::add-mask::access
+    ::add-mask::secret
+    ::add-mask::role
+    ::add-mask::secret
+    True
     """
     _mask_inputs(inputs, mask)
     env_vars = _build_env_vars(inputs)

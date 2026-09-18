@@ -8,6 +8,7 @@ the provisioning script can focus on execution.
 Examples
 --------
 >>> from pathlib import Path
+>>> workspace = Path("workspace")
 >>> from scripts._provision_cluster_inputs import (
 ...     RawProvisionInputs,
 ...     resolve_provision_inputs,
@@ -21,8 +22,8 @@ Examples
 ...         spaces_region="nyc3",
 ...         spaces_access_key="access",
 ...         spaces_secret_key="secret",
-...         runner_temp=Path("/tmp"),
-...         github_env=Path("/tmp/env"),
+...         runner_temp=workspace,
+...         github_env=workspace / "env",
 ...     )
 ... )
 >>> inputs.cluster_name

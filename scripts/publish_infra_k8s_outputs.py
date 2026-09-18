@@ -152,7 +152,16 @@ def publish_outputs(values: OutputValues, github_output: Path) -> None:
 
     Examples
     --------
-    >>> publish_outputs(OutputValues(None, None, None, None, None), Path("/tmp/out"))
+    With nothing to publish the file is never opened, so it does not come
+    into existence. The example asserts that rather than the contents,
+    which would raise.
+
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     output_file = Path(directory) / "out"
+    ...     publish_outputs(OutputValues(None, None, None, None, None), output_file)
+    ...     output_file.exists()
+    False
     """
     outputs = {
         key: value
