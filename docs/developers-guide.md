@@ -364,14 +364,15 @@ runner a fork cannot obtain. An expression the reader cannot follow, such as
 reads as "declares no runner", which every placement contract skips, so an
 unreadable declaration would pass them all by being unreadable.
 
-The filter module reads GitHub's own glob rather than a near neighbour. `*`
-stops at a separator and `**` crosses one; `?` and `+` bind to the character
-before them and stand for zero-or-one and one-or-more of it; `[]` is a class of
-alphanumerics and ranges. Patterns within one key are evaluated in order, so a
-later `!` entry excludes what an earlier entry admitted and a later positive
-entry admits it again. Each of those was wrong at some point, and each error
-reads a filter as covering branches it does not, which is how a reachability
-answer comes out wrong while every test stays green.
+The filter module drives `scripts/tests/workflow_filter_support.py`, which
+reads GitHub's own glob rather than a near neighbour. `*` stops at a separator
+and `**` crosses one; `?` and `+` bind to the character before them and stand
+for zero-or-one and one-or-more of it; `[]` is a class of alphanumerics and
+ranges. Patterns within one key are evaluated in order, so a later `!` entry
+excludes what an earlier entry admitted and a later positive entry admits it
+again. Each of those was wrong at some point, and each error reads a filter as
+covering branches it does not, which is how a reachability answer comes out
+wrong while every test stays green.
 
 ### Tool installation
 

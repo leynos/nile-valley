@@ -16,7 +16,7 @@ worked.
 from __future__ import annotations
 
 import pytest
-from workflow_contract_support import branch_filter_admits
+from workflow_filter_support import branch_filter_admits
 from workflow_placement_support import TRUNK_BRANCH
 
 

@@ -19,7 +19,8 @@ from pathlib import Path
 
 from hypothesis import given
 from hypothesis import strategies as st
-from workflow_contract_support import Workflow, branch_filter_admits, runner_labels
+from workflow_contract_support import Workflow, runner_labels
+from workflow_filter_support import branch_filter_admits
 from workflow_placement_support import (
     labels_in_expression,
     read_runner_expression,
