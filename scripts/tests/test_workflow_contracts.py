@@ -22,21 +22,19 @@ from workflow_contract_support import (
     load_workflows,
     registered_self_hosted_labels,
 )
+from workflow_placement_support import (
+    BUILD_JOBS,
+    GITHUB_HOSTED_LABELS,
+    TRUNK_REFERENCE,
+    build_job,
+    workflow_named,
+)
 
 if typ.TYPE_CHECKING:
     from collections.abc import Iterator
 
-# `ci.yml:build` is the only repository-owned build and test job. Every other
-# job is scheduled, API-bound, or release orchestration and must stay on a
-# GitHub-hosted runner.
-BUILD_JOBS = frozenset({"ci.yml:build"})
-GITHUB_HOSTED_LABELS = frozenset(
-    {"ubuntu-latest", "ubuntu-24.04", "ubuntu-22.04", "windows-latest", "macos-latest"}
-)
-
 CACHE_ACTION_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 SHARED_ACTIONS_SHA = "c5a54701c8603a0fa756a6b34c49bc2af75a6c11"
-TRUNK_REFERENCE = "refs/heads/main"
 
 # Forms that compile a tool from source inside CI. `uv tool install` is absent
 # from this list because uv resolves published wheels rather than building the
@@ -101,13 +99,6 @@ CHECKSUM_VERIFIED_INSTALLERS = ("install-actionlint", "install-checkmake")
 def workflows_fixture() -> tuple[Workflow, ...]:
     """Parse every workflow document once for the whole module."""
     return load_workflows()
-
-
-def _build_job(workflows: tuple[Workflow, ...]) -> Job:
-    for job in iter_jobs(workflows):
-        if job.qualified_name in BUILD_JOBS:
-            return job
-    pytest.fail("the ci.yml build job is missing")
 
 
 def _step_by_id(job: Job, identifier: str) -> Step:
@@ -180,7 +171,7 @@ def test_setup_uv_does_not_own_the_uv_download_cache(
     workflows: tuple[Workflow, ...],
 ) -> None:
     """The tooling cache owns ``~/.cache/uv``; setup-uv must not duplicate it."""
-    step = _step_by_id(_build_job(workflows), "setup-uv")
+    step = _step_by_id(build_job(workflows), "setup-uv")
     assert step.inputs.get("enable-cache") is False, (
         "astral-sh/setup-uv must set enable-cache: false so the tooling cache "
         "remains the single owner of ~/.cache/uv"
@@ -236,7 +227,7 @@ def test_non_build_jobs_stay_github_hosted(workflows: tuple[Workflow, ...]) -> N
 
 def test_build_job_declares_a_timeout(workflows: tuple[Workflow, ...]) -> None:
     """A self-hosted job without a timeout can burn the budget on a hang."""
-    job = _build_job(workflows)
+    job = build_job(workflows)
     assert job.timeout_minutes is not None, f"{job.qualified_name} needs timeout-minutes"
 
 
@@ -302,7 +293,7 @@ def test_every_third_party_action_is_pinned_to_a_commit(
 
 def test_installers_precede_the_first_gate(workflows: tuple[Workflow, ...]) -> None:
     """Every tool is installed before the first `make` target that needs it."""
-    job = _build_job(workflows)
+    job = build_job(workflows)
     gate_pattern = re.compile(rf"^\s*make\s+({'|'.join(GATE_TARGETS)})\s*$")
     gate_indices = [
         step.index for step in job.steps if gate_pattern.match(step.run.strip())
@@ -321,7 +312,7 @@ def test_installers_precede_the_first_gate(workflows: tuple[Workflow, ...]) -> N
 
 def test_declared_installer_steps_all_exist(workflows: tuple[Workflow, ...]) -> None:
     """The ordering contract is meaningless if it names absent steps."""
-    job = _build_job(workflows)
+    job = build_job(workflows)
     present = {step.identifier for step in job.steps}
     missing = [identifier for identifier in INSTALLER_STEP_IDS if identifier not in present]
     assert not missing, f"installer steps named by the contract are missing: {missing}"
@@ -334,7 +325,7 @@ def test_installers_probe_the_warm_cache(
     workflows: tuple[Workflow, ...], identifier: str, probes: tuple[str, ...]
 ) -> None:
     """A warm tooling cache must skip the download it already satisfies."""
-    step = _step_by_id(_build_job(workflows), identifier)
+    step = _step_by_id(build_job(workflows), identifier)
     for probe in probes:
         assert probe in step.run, f"{identifier} must probe with {probe!r}"
 
@@ -344,7 +335,7 @@ def test_downloaded_archives_are_checksum_verified(
     workflows: tuple[Workflow, ...], identifier: str
 ) -> None:
     """A pinned URL without a digest check is not a trusted binary source."""
-    step = _step_by_id(_build_job(workflows), identifier)
+    step = _step_by_id(build_job(workflows), identifier)
     assert "sha256sum --check --strict" in step.run, (
         f"{identifier} must verify the downloaded artefact against a pinned digest"
     )

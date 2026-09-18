@@ -1,5 +1,12 @@
 name: ci
 "on":
+  # `main` is the single writer for every cache key below, and the save
+  # steps are guarded on its ref. Without this trigger that guard is
+  # never true on an automatic run, so the five caches are never written
+  # and every pull request reinstalls the whole tool boundary cold. It
+  # also means the gate runs after a merge rather than only before one.
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -26,7 +33,17 @@ env:
 
 jobs:
   build:
-    runs-on: ubicloud-standard-8
+    # A pull request from a fork cannot obtain an Ubicloud runner, so the
+    # only required check would never start and the pull request would
+    # sit indefinitely. The fallback is for forks alone; a push, a
+    # dispatch and a same-repository pull request all read the field as
+    # absent and take the Ubicloud arm. The continuation stays at this
+    # indent: a more-indented line in a folded scalar keeps its break and
+    # puts a newline inside the expression, which GitHub then evaluates
+    # anyway, so a green run is not evidence.
+    runs-on: >-
+      ${{ github.event.pull_request.head.repo.fork
+      && 'ubuntu-latest' || 'ubicloud-standard-8' }}
     timeout-minutes: 30
     # The gate only reads the repository and fetches public release archives.
     # It never pushes, so the job needs no write scope and no stored token.
