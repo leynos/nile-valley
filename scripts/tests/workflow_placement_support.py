@@ -94,6 +94,15 @@ TRUNK_BRANCH: typ.Final = "main"
 #: would send every private-repository pull request to a hosted runner.
 FORK_FIELD: typ.Final = "github.event.pull_request.head.repo.fork"
 
+#: The Ubicloud size the gate is sized to. Asserted by name rather than
+#: left to the registry contract, which only requires the workflow and
+#: `.github/actionlint.yaml` to agree: setting both files back to
+#: `ubicloud-standard-8` satisfies that contract completely and silently
+#: quadruples the rate. The size is a measured decision, recorded under
+#: "Why two vCPUs" in `docs/developers-guide.md`, so changing it must be
+#: deliberate enough to edit this line and re-read the measurements.
+GATE_UBICLOUD_LABEL: typ.Final = "ubicloud-standard-2"
+
 #: The label a `runs-on` expression yields when neither reader below can
 #: name a runner it selects. Returning an empty tuple instead left
 #: `Job.declares_a_runner` false, and every placement contract skips a job
@@ -105,6 +114,7 @@ UNREADABLE_RUNNER: typ.Final = "<unreadable runs-on expression>"
 __all__ = [
     "BUILD_JOBS",
     "FORK_FIELD",
+    "GATE_UBICLOUD_LABEL",
     "GATE_WORKFLOW",
     "GITHUB_HOSTED_LABELS",
     "TRUNK_BRANCH",

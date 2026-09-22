@@ -348,6 +348,13 @@ first `ubicloud-standard-2` run of this job finished in 132 seconds, with 74
 seconds in `Tests` and 23 seconds in `Lint`. Both sit inside the standard-8
 bands above, so the `checkov` difference did not show at the job level at all.
 
+`test_the_gate_is_sized_to_the_label_the_measurements_justify` asserts the
+Ubicloud arm by name. The registry contract cannot do that job: it only
+requires the workflow and `.github/actionlint.yaml` to agree, so setting both
+files back to `ubicloud-standard-8` satisfies it exactly and quadruples the
+rate with nothing to notice. Naming the label makes a change to the size
+deliberate enough to edit the contract and re-read this section.
+
 Revisit the size only if a step that genuinely scales with cores grows to
 dominate the wall clock. Measure it pinned, then confirm against a run on the
 label you propose, the way these figures were obtained.

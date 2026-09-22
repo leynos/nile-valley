@@ -27,6 +27,7 @@ from workflow_contract_support import (
 )
 from workflow_placement_support import (
     FORK_FIELD,
+    GATE_UBICLOUD_LABEL,
     GATE_WORKFLOW,
     GITHUB_HOSTED_LABELS,
     TRUNK_BRANCH,
@@ -180,6 +181,46 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
         f"{job.qualified_name} sends its own pull requests to "
         f"{expression.when_false!r}, a GitHub-hosted runner, so the fallback "
         f"buys nothing"
+    )
+
+
+def test_the_gate_is_sized_to_the_label_the_measurements_justify(
+    workflows: tuple[Workflow, ...],
+) -> None:
+    """The Ubicloud arm names the size, not merely a registered label.
+
+    `test_self_hosted_labels_are_registered_with_actionlint` asserts the
+    workflow and `.github/actionlint.yaml` name the same set, which is
+    what keeps actionlint honest. It says nothing about which size that
+    set contains: editing both files back to `ubicloud-standard-8`
+    satisfies it exactly and quadruples the rate with nothing to notice.
+
+    The size is a measurement, not a preference. The step that dominates
+    the job is a single `pytest scripts/tests` invocation with no xdist
+    plugin and no `addopts`, and it does not scale; the figures are under
+    "Why two vCPUs" in `docs/developers-guide.md`. Asserting the label by
+    name makes a future change deliberate enough to edit this contract
+    and re-read them.
+
+    The arm is read by position rather than by membership, for the same
+    reason the fork contract above is: an expression that sends a fork to
+    the paid runner names exactly the same labels as one that does not.
+
+    Mutation: setting `ci.yml` and `.github/actionlint.yaml` both back to
+    `ubicloud-standard-8` failed this and passed the registry contract.
+    """
+    job = build_job(workflows)
+    expression = read_runner_expression(job.raw_runs_on)
+
+    assert expression is not None, (
+        f"{job.qualified_name} does not select its runner by a condition "
+        f"and two arms: {job.raw_runs_on!r}"
+    )
+    assert expression.when_false == GATE_UBICLOUD_LABEL, (
+        f"{job.qualified_name} runs its own pull requests and pushes on "
+        f"{expression.when_false!r}, not {GATE_UBICLOUD_LABEL!r}. The size "
+        f"is justified by measurement; see 'Why two vCPUs' in "
+        f"docs/developers-guide.md before changing this contract."
     )
 
 
