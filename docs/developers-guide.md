@@ -305,11 +305,46 @@ list cannot grow until the gate has nothing left to do.
 
 ## Continuous integration
 
-The `ci` workflow runs a single `build` job, on `ubicloud-standard-8` for this
+The `ci` workflow runs a single `build` job, on `ubicloud-standard-2` for this
 repository's own pull requests and pushes and on `ubuntu-latest` for a pull
 request from a fork. It is the only repository-owned build and test job. Every
 other job is scheduled, API-bound, or release orchestration and stays on a
 GitHub-hosted runner.
+
+| Job                                        | Trigger                                | Runner                                   | Fork fallback   | Timeout    |
+| ------------------------------------------ | -------------------------------------- | ---------------------------------------- | --------------- | ---------- |
+| `ci.yml:build`                             | pull request, push to `main`, dispatch | `ubicloud-standard-2`                    | `ubuntu-latest` | 30 minutes |
+| `delayed-pr-comment.yml:delay_and_comment` | dispatch                               | `ubuntu-latest`                          | not applicable  | none       |
+| `dependabot-automerge.yml:automerge`       | pull request target, dispatch          | declares none; calls a reusable workflow | not applicable  | none       |
+
+The Ubicloud label appears once in the repository, and
+`.github/actionlint.yaml` registers exactly that one label.
+`test_self_hosted_labels_are_registered_with_actionlint` asserts the two sets
+equal in both directions, so moving the job to another size fails the contract
+until the registry moves with it, and a registered label that no job uses fails
+it too.
+
+### Why two vCPUs
+
+The step that dominates the job cannot use a second core. `make test` is a
+single `pytest scripts/tests` invocation: there is no xdist plugin among the
+`uv run --with` arguments, no `addopts` anywhere in the repository, and no
+`multiprocessing`, thread pool or `make -j` in `scripts/`. Over five green runs
+on `ubicloud-standard-8` it was 70 to 79 seconds of a 130 to 186 second job.
+Pinned to two cores locally the whole suite finished in 93 seconds against 101
+seconds unpinned, which is noise: it does not scale, so seven idle cores were
+being paid for at four times the two-vCPU rate.
+
+One step does scale, and it was measured rather than assumed. `make lint-infra`
+ends in `checkov -d infra`, which forks across files. Pinned locally it took 56
+seconds on two cores against 38 on eight. The eleven `tflint` runs ahead of it
+are sequential and finish in well under a second each once the plugin cache is
+warm. `Lint` is 21 to 36 seconds of the job, so the worst case this move buys
+is roughly ten seconds added to a job that costs a quarter as much to run.
+
+Revisit the size only if a step that genuinely scales with cores grows to
+dominate the wall clock. Measure it pinned before moving the label, the way
+these figures were obtained.
 
 ### When the gate runs
 
@@ -335,7 +370,7 @@ registered in `.github/actionlint.yaml`.
 ```yaml
 runs-on: >-
   ${{ github.event.pull_request.head.repo.fork
-  && 'ubuntu-latest' || 'ubicloud-standard-8' }}
+  && 'ubuntu-latest' || 'ubicloud-standard-2' }}
 ```
 
 A pull request from a fork cannot obtain an Ubicloud runner, so a bare Ubicloud

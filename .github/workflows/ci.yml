@@ -41,9 +41,16 @@ jobs:
     # indent: a more-indented line in a folded scalar keeps its break and
     # puts a newline inside the expression, which GitHub then evaluates
     # anyway, so a green run is not evidence.
+    #
+    # Two vCPUs, not eight. The step that dominates the job cannot use a
+    # second core: `make test` is a single `pytest scripts/tests` with no
+    # xdist plugin and no addopts, and it is over half the wall clock on
+    # its own. The one step that does scale is `checkov`, measured at 56
+    # seconds on two cores against 38 on eight, inside a Lint step worth
+    # a fifth of the job. See "Why two vCPUs" in docs/developers-guide.md.
     runs-on: >-
       ${{ github.event.pull_request.head.repo.fork
-      && 'ubuntu-latest' || 'ubicloud-standard-8' }}
+      && 'ubuntu-latest' || 'ubicloud-standard-2' }}
     timeout-minutes: 30
     # The gate only reads the repository and fetches public release archives.
     # It never pushes, so the job needs no write scope and no stored token.
