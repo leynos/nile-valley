@@ -44,10 +44,13 @@ jobs:
     #
     # Two vCPUs, not eight. The step that dominates the job cannot use a
     # second core: `make test` is a single `pytest scripts/tests` with no
-    # xdist plugin and no addopts, and it is over half the wall clock on
-    # its own. The one step that does scale is `checkov`, measured at 56
-    # seconds on two cores against 38 on eight, inside a Lint step worth
-    # a fifth of the job. See "Why two vCPUs" in docs/developers-guide.md.
+    # xdist plugin and no addopts, and over five green runs on
+    # standard-8 it was 70 to 79 seconds of a job lasting 130 to 186
+    # seconds, so nearly half to over half the wall clock on its own.
+    # `checkov` is the one step that scales, and the first standard-2
+    # run of this job came in at 132 seconds with `Lint` at 23, inside
+    # the standard-8 band. See "Why two vCPUs" in
+    # docs/developers-guide.md.
     runs-on: >-
       ${{ github.event.pull_request.head.repo.fork
       && 'ubuntu-latest' || 'ubicloud-standard-2' }}
