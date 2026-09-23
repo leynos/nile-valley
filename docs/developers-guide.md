@@ -398,14 +398,20 @@ out of scope: cancelling a merge mid-flight is a hazard with no minutes to win.
 declaring a `pull_request` trigger. It reads `on:` as a mapping, a list or a
 bare name under both the quoted key and PyYAML's boolean `True`, and refuses a
 workflow declaring both. It keeps a floor of `ci.yml` so discovery cannot empty
-into a vacuous pass, and requires a group that no run-unique expression builds
-and that names a per-pull-request expression, and exactly the event-conditioned
-`cancel-in-progress` expression. It reads the files through a loader that
-refuses a duplicated mapping key, because PyYAML keeps the last of two
-`concurrency:` blocks and says nothing. Each clause was proved by mutation: the
-cancel line removed, a literal `true`, a `run_id` group, a constant group, the
-block removed, the trigger renamed to `pull_request_target`, a duplicated
-block, and an unquoted `on:` beside the quoted one each fail it.
+into a vacuous pass, and requires a group that, rendered by
+`pr_concurrency_groups.py` for two pushes to one pull request, comes out the
+same, and for that pull request, a fork's pull request from a branch of the
+same name, and a push to `main`, comes out different; a group keyed on
+`github.run_id`, `github.sha` or `github.head_ref`, or a constant one, fails,
+and an expression the renderer does not model is refused rather than guessed
+at. It also requires exactly the event-conditioned `cancel-in-progress`
+expression. It reads the files through a loader that refuses a duplicated
+mapping key, because PyYAML keeps the last of two `concurrency:` blocks and
+says nothing. Each clause was proved by mutation: the cancel line removed, a
+literal `true`, a `run_id` group, a constant group, a `head_ref` group, a
+`format()` group, the block removed, the trigger renamed to
+`pull_request_target`, a duplicated block, and an unquoted `on:` beside the
+quoted one each fail it.
 
 ### Placement rule
 
