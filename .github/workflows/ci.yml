@@ -11,6 +11,10 @@ name: ci
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Tool pins live here so the installers and the cache keys cannot drift apart.
 # Every version below is reproduced in the tooling cache key; bumping a pin
 # therefore invalidates the cache generation that contains the old binary.
