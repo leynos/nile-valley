@@ -380,43 +380,49 @@ holds the runner until it finishes, so the branch pays twice for one answer.
 
 ```yaml
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
+When there is no pull request the group falls back to `github.run_id`, so two
+pushes to `main` or two dispatches never share a group. A shared ref group
+would let a third run replace a still-pending second one, and that commit would
+never get CI; two trunk runs overlapping is the cheaper risk, because
+compiler-cache writes are content-addressed and a cache save of an existing key
+is refused harmlessly (estate rule "PR-lane concurrency fallback").
+
 The group keys on the pull request, so one branch never cancels another's run,
-and a group built from `github.run_id` would match no predecessor and cancel
-nothing. Cancellation is conditioned on the event rather than set to a literal
-`true`, because the push to `main` is the single cache writer described above:
-a merge landing while the previous trunk run saves its caches would otherwise
-kill that save. On `main` the group still holds one pending run, which a newer
-push replaces; it never overlaps or cancels a running one.
-`dependabot-automerge.yml` runs on `pull_request_target` and merges, so it is
-out of scope: cancelling a merge mid-flight is a hazard with no minutes to win.
+and a group built from `github.run_id` alone would match no predecessor and
+cancel nothing. Cancellation is conditioned on the event rather than set to a
+literal `true`, because the push to `main` is the single cache writer described
+above: a merge landing while the previous trunk run saves its caches would
+otherwise kill that save. Each push to `main` gets its own group, so none is
+cancelled or replaced. `dependabot-automerge.yml` runs on `pull_request_target`
+and merges, so it is out of scope: cancelling a merge mid-flight is a hazard
+with no minutes to win.
 
 `scripts/tests/test_workflow_concurrency.py` holds the rule for every workflow
 declaring a `pull_request` trigger. It reads `on:` as a mapping, a list or a
 bare name under both the quoted key and PyYAML's boolean `True`, and refuses a
 workflow declaring both. It keeps a floor of `ci.yml` so discovery cannot empty
 into a vacuous pass, and requires a group that, rendered by
-`pr_concurrency_groups.py`, keeps together the runs that must queue or cancel
-one another (two pushes to one pull request, a re-run of the first, and two
-pushes to `main`) and keeps apart the runs that must not (that pull request, a
-fork's pull request from a branch of the same name, a push to `main`, and a
-dispatch on another branch); a group keyed on `github.run_id`, `github.sha`,
-`github.run_attempt` or `github.head_ref`, one falling back to the run
-identifier or `github.base_ref` when there is no pull request, or a constant
-one, fails, and an expression the renderer does not model is refused rather
-than guessed at. It also requires exactly the event-conditioned
+`pr_concurrency_groups.py`, keeps two pushes to one pull request together and
+keeps apart that pull request, a fork's pull request from a branch of the same
+name, two pushes to `main`, and two dispatches of another branch; and that uses
+`github.run_id` only as the fallback behind the pull-request number. A
+`github.ref` or `github.base_ref` fallback, a `github.head_ref`, `github.sha` or
+`github.run_id`-only group, the run identifier ahead of the number, or a
+constant group fails, and an expression the renderer does not model is refused
+rather than guessed at. It also requires exactly the event-conditioned
 `cancel-in-progress` expression. No two pull-request workflows may render the
 same group for one pull request, since whichever started last would cancel the
 others; each is rendered under its own name. It reads the files through a
 loader that refuses a duplicated mapping key, because PyYAML keeps the last of
 two `concurrency:` blocks and says nothing. Each clause was proved by mutation:
-the cancel line removed, a literal `true`, a `run_id` group, a constant group, a
-`head_ref` group, a `format()` group, a `run_id` fallback, a `run_attempt`
-group, the block removed, the trigger renamed to `pull_request_target`, a
-duplicated block, and an unquoted `on:` beside the quoted one each fail it.
+the cancel line removed, a literal `true`, a `ref` fallback, the run identifier
+ahead of the number, a constant group, a `head_ref` group, a `format()` group,
+the block removed, the trigger renamed to `pull_request_target`, a duplicated
+block, and an unquoted `on:` beside the quoted one each fail it.
 
 ### Placement rule
 
