@@ -371,6 +371,42 @@ guarantee. It can be aimed at trunk, so it satisfies the guard in principle,
 but a cache written only when somebody remembers to press a button is written
 never.
 
+### Cancelling superseded pull-request runs
+
+A push to a pull request starts a fresh run of the gate, and the run already in
+flight is answering a question about a commit nobody will merge. Left alone it
+holds the runner until it finishes, so the branch pays twice for one answer.
+`ci.yml` therefore declares:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+```
+
+The group keys on the pull request, so one branch never cancels another's run,
+and a group built from `github.run_id` would match no predecessor and cancel
+nothing. Cancellation is conditioned on the event rather than set to a literal
+`true`, because the push to `main` is the single cache writer described above:
+a merge landing while the previous trunk run saves its caches would otherwise
+kill that save. On `main` the group still holds one pending run, which a newer
+push replaces; it never overlaps or cancels a running one.
+`dependabot-automerge.yml` runs on `pull_request_target` and merges, so it is
+out of scope: cancelling a merge mid-flight is a hazard with no minutes to win.
+
+`scripts/tests/test_workflow_concurrency.py` holds the rule for every workflow
+declaring a `pull_request` trigger. It reads `on:` as a mapping, a list or a
+bare name under both the quoted key and PyYAML's boolean `True`, and refuses a
+workflow declaring both. It keeps a floor of `ci.yml` so discovery cannot empty
+into a vacuous pass, and requires a group that no run-unique expression builds
+and that names a per-pull-request expression, and exactly the event-conditioned
+`cancel-in-progress` expression. It reads the files through a loader that
+refuses a duplicated mapping key, because PyYAML keeps the last of two
+`concurrency:` blocks and says nothing. Each clause was proved by mutation: the
+cancel line removed, a literal `true`, a `run_id` group, a constant group, the
+block removed, the trigger renamed to `pull_request_target`, a duplicated
+block, and an unquoted `on:` beside the quoted one each fail it.
+
 ### Placement rule
 
 Delayed pull-request comments, scheduled work, metadata and label automation,
