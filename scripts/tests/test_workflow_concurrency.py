@@ -13,9 +13,13 @@ warm cache on `main` would be killed by the next merge. The condition is
 therefore part of the contract, and
 `test_cancellation_is_conditioned_on_the_event` fails on the literal.
 
-The group also has to distinguish one pull request from another. A group
-derived from ``github.run_id`` is unique per run and so cancels nothing, while
-a constant group would let one branch cancel another's gates.
+The group keeps two pushes to one pull request together and every other run
+apart. When there is no pull request its fallback is ``github.run_id``, so two
+pushes to `main` or two dispatches never share a group: a shared ref group
+lets a third run replace a still-pending second one, and that commit never
+gets CI (estate rule "PR-lane concurrency fallback"). The run identifier is
+allowed only in that fallback position. Rather than search the group's text,
+the contract renders it for a set of run contexts and compares the results.
 
 Only `pull_request` is in scope. A `pull_request_target` workflow runs against
 the base repository to carry a token, and the one here merges Dependabot pull
@@ -34,6 +38,16 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pr_concurrency_groups import (
+    ESTATE_FALLBACK,
+    FIRST_PUSH,
+    MUST_PART,
+    MUST_SHARE,
+    expressions,
+    render_group,
+    shared_groups,
+)
+from pr_concurrency_triggers import trigger_names
 
 #: The repository's workflow directory. The module sits two levels below the
 #: repository root, in `scripts/tests/`.
@@ -53,24 +67,12 @@ CANCEL_EXPRESSION = "${{ github.event_name == 'pull_request' }}"
 #: deliberately absent; see the module docstring.
 PULL_REQUEST = "pull_request"
 
-#: Expressions that are unique to a single run. A group built from one of these
-#: can never match another run, so it cancels nothing while looking exactly
-#: like a concurrency control.
-RUN_UNIQUE_EXPRESSIONS: tuple[str, ...] = (
-    "github.run_id",
-    "github.run_number",
-    "github.run_attempt",
-    "github.sha",
+#: Context values unique to one run. The estate rule allows one only as the
+#: fallback behind the pull-request number.
+RUN_UNIQUE: frozenset[str] = frozenset(
+    {"github.run_id", "github.run_number", "github.run_attempt", "github.sha"}
 )
 
-#: Expressions that differ between two pull requests. A group naming none of
-#: them is shared by every branch, so one pull request's push would cancel
-#: another's gates.
-PER_PULL_REQUEST_EXPRESSIONS: tuple[str, ...] = (
-    "github.event.pull_request.number",
-    "github.head_ref",
-    "github.ref",
-)
 
 #: Workflows known to start on `pull_request`. Discovery below is dynamic so a
 #: new workflow is covered the day it lands, but a dynamic list that silently
@@ -133,44 +135,12 @@ def _workflow_paths() -> list[Path]:
     )
 
 
-def _trigger_names(document: dict[object, object]) -> frozenset[str] | None:
-    """Return the event names a workflow declares under `on:`.
-
-    GitHub accepts a mapping of event to configuration, a list of event
-    names, and a bare event name; all three are read. PyYAML resolves an
-    unquoted `on:` key to the boolean ``True``, so both spellings of the key
-    are read, and a document carrying both is refused because GitHub would
-    see one trigger set and this reader another.
-
-    Returns ``None`` for a shape this reader does not model, so that
-    `test_every_workflow_declares_a_trigger_set_this_reader_models` can name
-    the workflow rather than let discovery drop it in silence.
-    """
-    if "on" in document and True in document:
-        return None
-    declared = document.get("on", document.get(True))
-    return frozenset() if declared is None else _event_names(declared)
-
-
-def _event_names(declared: object) -> frozenset[str] | None:
-    """Return the event names in one `on:` value, or ``None`` for another shape.
-
-    Iterating a mapping yields its keys and a list its items, so both shapes
-    share one reading; a bare string names a single event.
-    """
-    if isinstance(declared, str):
-        return frozenset({declared})
-    if isinstance(declared, (dict, list)):
-        return frozenset(name for name in declared if isinstance(name, str))
-    return None
-
-
 def _pull_request_workflows() -> list[Path]:
     """Return every workflow a pull request can start, in name order."""
     return [
         path
         for path in _workflow_paths()
-        if PULL_REQUEST in (_trigger_names(_load(path)) or frozenset())
+        if PULL_REQUEST in (trigger_names(_load(path)) or frozenset())
     ]
 
 
@@ -209,7 +179,7 @@ def test_every_workflow_declares_a_trigger_set_this_reader_models() -> None:
     contract below would pass while saying nothing about it.
     """
     unreadable = sorted(
-        path.name for path in _workflow_paths() if _trigger_names(_load(path)) is None
+        path.name for path in _workflow_paths() if trigger_names(_load(path)) is None
     )
     assert not unreadable, (
         f"these workflows declare an `on:` this reader does not model: "
@@ -227,9 +197,21 @@ def test_every_workflow_declares_a_trigger_set_this_reader_models() -> None:
         ("'on': pull_request\n", frozenset({"pull_request"})),
         ("'on': push\non: pull_request\n", None),
         ("on: 3\n", None),
+        ("on: [push, 3]\n", None),
+        ("on:\n  push:\n  3:\n", None),
         ("name: no trigger\n", frozenset()),
     ],
-    ids=["bare", "list", "mapping", "quoted", "both-keys", "number", "absent"],
+    ids=[
+        "bare",
+        "list",
+        "mapping",
+        "quoted",
+        "both-keys",
+        "number",
+        "mixed-list",
+        "mixed-mapping",
+        "absent",
+    ],
 )
 def test_the_trigger_reader_models_every_shape_github_accepts(
     text: str, expected: frozenset[str] | None
@@ -240,7 +222,7 @@ def test_the_trigger_reader_models_every_shape_github_accepts(
     bare-name reading that broke would leave every file-driven contract green.
     This drives the reader directly with each shape.
     """
-    assert _trigger_names(_parse(text, "shape.yml")) == expected
+    assert trigger_names(_parse(text, "shape.yml")) == expected
 
 
 def test_a_duplicated_key_is_refused_rather_than_resolved() -> None:
@@ -276,35 +258,118 @@ def test_every_pull_request_workflow_declares_a_concurrency_group(
 
 
 @pytest.mark.parametrize("workflow", PULL_REQUEST_WORKFLOWS, ids=WORKFLOW_IDS)
-def test_the_group_is_not_unique_to_one_run(workflow: Path) -> None:
-    """The group is shared by successive runs of the same pull request.
+def test_two_pushes_to_one_pull_request_share_a_group(workflow: Path) -> None:
+    """The newer push lands in its predecessor's group, so it can cancel it.
 
-    A group built from the run identifier or the commit SHA matches no other
-    run, so it cancels nothing while reading as a concurrency control.
+    A group built from the run identifier alone, the SHA, or the run
+    identifier ahead of the pull-request number renders differently for each
+    push and cancels nothing.
     """
     group = str(_concurrency(workflow).get("group", ""))
-    offenders = [name for name in RUN_UNIQUE_EXPRESSIONS if name in group]
-    assert not offenders, (
-        f"{workflow.name} builds its concurrency group from "
-        f"{', '.join(offenders)}, which is unique to one run; the group would "
-        "never match a superseded run and would cancel nothing"
+    split = [
+        (render_group(group, first), render_group(group, second))
+        for first, second in MUST_SHARE
+        if render_group(group, first) != render_group(group, second)
+    ]
+    assert not split, (
+        f"{workflow.name}'s group renders differently for two pushes to one "
+        f"pull request: {split}"
     )
 
 
 @pytest.mark.parametrize("workflow", PULL_REQUEST_WORKFLOWS, ids=WORKFLOW_IDS)
-def test_the_group_distinguishes_one_pull_request_from_another(
-    workflow: Path,
-) -> None:
-    """The group varies with the pull request, so branches do not cancel each other.
+def test_no_other_two_runs_share_a_group(workflow: Path) -> None:
+    """No run cancels another pull request's, and none replaces a pending run.
 
-    A constant group would put every open pull request in one queue, and the
-    first push anywhere would cancel the gates running everywhere else.
+    The runs are a pull request, a fork's pull request from a branch of the
+    same name, two pushes to `main`, and two dispatches of another branch. A
+    ``github.head_ref`` group collides on the forks; a ``github.ref`` or
+    ``github.base_ref`` fallback collides on the trunk pushes, where a third
+    push would replace the pending second.
     """
     group = str(_concurrency(workflow).get("group", ""))
-    assert any(name in group for name in PER_PULL_REQUEST_EXPRESSIONS), (
-        f"{workflow.name} must key its concurrency group on the pull request, "
-        f"by naming one of {', '.join(PER_PULL_REQUEST_EXPRESSIONS)}; a group "
-        "shared by every branch would cancel unrelated pull requests"
+    rendered = [render_group(group, run) for run in MUST_PART]
+    assert len(set(rendered)) == len(MUST_PART), (
+        f"{workflow.name}'s group collides across runs that must stay apart: {rendered}"
+    )
+
+
+@pytest.mark.parametrize("workflow", PULL_REQUEST_WORKFLOWS, ids=WORKFLOW_IDS)
+def test_the_run_identifier_is_only_the_fallback(workflow: Path) -> None:
+    """``github.run_id`` appears once, behind the pull-request number.
+
+    The estate rule allows a run-unique value only there. Anywhere else it
+    either splits one pull request's pushes or hides a ref-keyed fallback.
+    """
+    group = str(_concurrency(workflow).get("group", ""))
+    found = expressions(group)
+    misplaced = [
+        operands
+        for operands in found
+        if operands != ESTATE_FALLBACK and any(name in RUN_UNIQUE for name in operands)
+    ]
+    assert found.count(ESTATE_FALLBACK) == 1, (
+        f"{workflow.name}'s group must contain exactly one "
+        f"`${{{{ {' || '.join(ESTATE_FALLBACK)} }}}}`, found {found}"
+    )
+    assert not misplaced, (
+        f"{workflow.name}'s group uses a run-unique value outside the fallback: "
+        f"{misplaced}"
+    )
+
+
+def _workflow_name(workflow: Path) -> str:
+    """Return the name Actions gives a workflow: its `name:`, else its path."""
+    declared = _load(workflow).get("name")
+    return (
+        declared if isinstance(declared, str) else f".github/workflows/{workflow.name}"
+    )
+
+
+def test_no_two_workflows_share_a_group_for_one_pull_request() -> None:
+    """Two workflows on one pull request never cancel each other.
+
+    Each workflow is rendered under its own name. A group that leaves the
+    workflow out, such as ``pr-${{ github.event.pull_request.number }}``,
+    would put the CI run and every other pull-request workflow in one group,
+    and whichever started last would cancel the rest.
+    """
+    rendered = {
+        workflow.name: render_group(
+            str(_concurrency(workflow).get("group", "")),
+            {**FIRST_PUSH, "github.workflow": _workflow_name(workflow)},
+        )
+        for workflow in PULL_REQUEST_WORKFLOWS
+    }
+    shared = shared_groups(rendered)
+    assert not shared, (
+        f"these workflows share a concurrency group for one pull request, "
+        f"compared without case as GitHub does: {shared}"
+    )
+
+
+#: Two workflow names that must never share a group on one pull request.
+OTHER_WORKFLOW_NAMES: tuple[str, str] = ("CI", "Release dry run")
+
+
+@pytest.mark.parametrize("workflow", PULL_REQUEST_WORKFLOWS, ids=WORKFLOW_IDS)
+def test_each_group_is_keyed_on_the_workflow(workflow: Path) -> None:
+    """A group renders differently under two workflow names.
+
+    With one pull-request workflow in the repository, the cross-workflow test
+    above compares a single group with itself and cannot fail. This renders
+    each group for one pull request under two synthetic workflow names, so a
+    group that drops ``github.workflow`` fails today.
+    """
+    group = str(_concurrency(workflow).get("group", ""))
+    rendered = {
+        name: render_group(group, {**FIRST_PUSH, "github.workflow": name})
+        for name in OTHER_WORKFLOW_NAMES
+    }
+    assert not shared_groups(rendered), (
+        f"{workflow.name}'s group {group!r} renders {rendered}; without "
+        "github.workflow in the group, two pull-request workflows would "
+        "cancel each other"
     )
 
 

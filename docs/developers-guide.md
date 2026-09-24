@@ -380,32 +380,55 @@ holds the runner until it finishes, so the branch pays twice for one answer.
 
 ```yaml
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
+When there is no pull request the group falls back to `github.run_id`, so two
+pushes to `main` or two dispatches never share a group. A shared ref group
+would let a third run replace a still-pending second one, and that commit would
+never get CI; two trunk runs overlapping is the cheaper risk, because
+compiler-cache writes are content-addressed and a cache save of an existing key
+is refused harmlessly (estate rule "PR-lane concurrency fallback").
+
 The group keys on the pull request, so one branch never cancels another's run,
-and a group built from `github.run_id` would match no predecessor and cancel
-nothing. Cancellation is conditioned on the event rather than set to a literal
-`true`, because the push to `main` is the single cache writer described above:
-a merge landing while the previous trunk run saves its caches would otherwise
-kill that save. On `main` the group still holds one pending run, which a newer
-push replaces; it never overlaps or cancels a running one.
-`dependabot-automerge.yml` runs on `pull_request_target` and merges, so it is
-out of scope: cancelling a merge mid-flight is a hazard with no minutes to win.
+and a group built from `github.run_id` alone would match no predecessor and
+cancel nothing. Cancellation is conditioned on the event rather than set to a
+literal `true`, because the push to `main` is the single cache writer described
+above: a merge landing while the previous trunk run saves its caches would
+otherwise kill that save. Each push to `main` gets its own group, so none is
+cancelled or replaced. `dependabot-automerge.yml` runs on `pull_request_target`
+and merges, so it is out of scope: cancelling a merge mid-flight is a hazard
+with no minutes to win.
 
 `scripts/tests/test_workflow_concurrency.py` holds the rule for every workflow
 declaring a `pull_request` trigger. It reads `on:` as a mapping, a list or a
 bare name under both the quoted key and PyYAML's boolean `True`, and refuses a
 workflow declaring both. It keeps a floor of `ci.yml` so discovery cannot empty
-into a vacuous pass, and requires a group that no run-unique expression builds
-and that names a per-pull-request expression, and exactly the event-conditioned
-`cancel-in-progress` expression. It reads the files through a loader that
-refuses a duplicated mapping key, because PyYAML keeps the last of two
-`concurrency:` blocks and says nothing. Each clause was proved by mutation: the
-cancel line removed, a literal `true`, a `run_id` group, a constant group, the
-block removed, the trigger renamed to `pull_request_target`, a duplicated
-block, and an unquoted `on:` beside the quoted one each fail it.
+into a vacuous pass, and requires a group that, rendered by
+`pr_concurrency_groups.py`, keeps two pushes to one pull request together and
+keeps apart that pull request, a fork's pull request from a branch of the same
+name, two pushes to `main`, and two dispatches of another branch; and that uses
+`github.run_id` only as the fallback behind the pull-request number. A
+`github.ref` or `github.base_ref` fallback, a `github.head_ref`, `github.sha` or
+`github.run_id`-only group, the run identifier ahead of the number, or a
+constant group fails, and an expression the renderer does not model is refused
+rather than guessed at. It also requires exactly the event-conditioned
+`cancel-in-progress` expression. No two pull-request workflows may render the
+same group for one pull request, since whichever started last would cancel the
+others; each is rendered under its own name, and the groups are compared
+casefolded because GitHub treats group names case-insensitively. Because
+`ci.yml` is the only pull-request workflow today, each group is also rendered
+under two synthetic workflow names and must differ, so a group without
+`github.workflow` fails now rather than when a second workflow lands. It reads
+the files through a loader that refuses a duplicated mapping key, because
+PyYAML keeps the last of two `concurrency:` blocks and says nothing. Each
+clause was proved by mutation: the cancel line removed, a literal `true`, a
+`ref` fallback, the run identifier ahead of the number, a constant group, a
+`head_ref` group, a `format()` group, the block removed, the trigger renamed to
+`pull_request_target`, a duplicated block, an unquoted `on:` beside the quoted
+one, the `github.workflow` prefix dropped, and the casefold removed from the
+comparison each fail it.
 
 ### Placement rule
 
