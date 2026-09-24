@@ -416,13 +416,19 @@ constant group fails, and an expression the renderer does not model is refused
 rather than guessed at. It also requires exactly the event-conditioned
 `cancel-in-progress` expression. No two pull-request workflows may render the
 same group for one pull request, since whichever started last would cancel the
-others; each is rendered under its own name. It reads the files through a
-loader that refuses a duplicated mapping key, because PyYAML keeps the last of
-two `concurrency:` blocks and says nothing. Each clause was proved by mutation:
-the cancel line removed, a literal `true`, a `ref` fallback, the run identifier
-ahead of the number, a constant group, a `head_ref` group, a `format()` group,
-the block removed, the trigger renamed to `pull_request_target`, a duplicated
-block, and an unquoted `on:` beside the quoted one each fail it.
+others; each is rendered under its own name, and the groups are compared
+casefolded because GitHub treats group names case-insensitively. Because
+`ci.yml` is the only pull-request workflow today, each group is also rendered
+under two synthetic workflow names and must differ, so a group without
+`github.workflow` fails now rather than when a second workflow lands. It reads
+the files through a loader that refuses a duplicated mapping key, because
+PyYAML keeps the last of two `concurrency:` blocks and says nothing. Each
+clause was proved by mutation: the cancel line removed, a literal `true`, a
+`ref` fallback, the run identifier ahead of the number, a constant group, a
+`head_ref` group, a `format()` group, the block removed, the trigger renamed to
+`pull_request_target`, a duplicated block, an unquoted `on:` beside the quoted
+one, the `github.workflow` prefix dropped, and the casefold removed from the
+comparison each fail it.
 
 ### Placement rule
 

@@ -243,3 +243,32 @@ def keeps_runs_together_and_apart(template: str) -> bool:
     )
     rendered = {render_group(template, run) for run in MUST_PART}
     return shares and len(rendered) == len(MUST_PART)
+
+
+def shared_groups(rendered: dict[str, str]) -> dict[str, list[str]]:
+    """Return each group that more than one workflow renders.
+
+    GitHub compares concurrency group names case-insensitively, so ``CI-7``
+    and ``ci-7`` are one group and either run can cancel the other. Groups
+    are therefore compared casefolded.
+
+    Parameters
+    ----------
+    rendered
+        Each workflow's file name mapped to the group it renders.
+
+    Returns
+    -------
+    dict of str to list of str
+        Each casefolded group claimed more than once, mapped to the files
+        claiming it; empty when every group is distinct.
+
+    Examples
+    --------
+    >>> shared_groups({"a.yml": "CI-7", "b.yml": "ci-7", "c.yml": "Lint-7"})
+    {'ci-7': ['a.yml', 'b.yml']}
+    """
+    owners: dict[str, list[str]] = {}
+    for name, group in rendered.items():
+        owners.setdefault(group.casefold(), []).append(name)
+    return {group: names for group, names in owners.items() if len(names) > 1}

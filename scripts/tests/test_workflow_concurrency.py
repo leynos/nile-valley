@@ -45,6 +45,7 @@ from pr_concurrency_groups import (
     MUST_SHARE,
     expressions,
     render_group,
+    shared_groups,
 )
 from pr_concurrency_triggers import trigger_names
 
@@ -197,6 +198,7 @@ def test_every_workflow_declares_a_trigger_set_this_reader_models() -> None:
         ("'on': push\non: pull_request\n", None),
         ("on: 3\n", None),
         ("on: [push, 3]\n", None),
+        ("on:\n  push:\n  3:\n", None),
         ("name: no trigger\n", frozenset()),
     ],
     ids=[
@@ -207,6 +209,7 @@ def test_every_workflow_declares_a_trigger_set_this_reader_models() -> None:
         "both-keys",
         "number",
         "mixed-list",
+        "mixed-mapping",
         "absent",
     ],
 )
@@ -338,8 +341,35 @@ def test_no_two_workflows_share_a_group_for_one_pull_request() -> None:
         )
         for workflow in PULL_REQUEST_WORKFLOWS
     }
-    assert len(set(rendered.values())) == len(rendered), (
-        f"these workflows share a concurrency group for one pull request: {rendered}"
+    shared = shared_groups(rendered)
+    assert not shared, (
+        f"these workflows share a concurrency group for one pull request, "
+        f"compared without case as GitHub does: {shared}"
+    )
+
+
+#: Two workflow names that must never share a group on one pull request.
+OTHER_WORKFLOW_NAMES: tuple[str, str] = ("CI", "Release dry run")
+
+
+@pytest.mark.parametrize("workflow", PULL_REQUEST_WORKFLOWS, ids=WORKFLOW_IDS)
+def test_each_group_is_keyed_on_the_workflow(workflow: Path) -> None:
+    """A group renders differently under two workflow names.
+
+    With one pull-request workflow in the repository, the cross-workflow test
+    above compares a single group with itself and cannot fail. This renders
+    each group for one pull request under two synthetic workflow names, so a
+    group that drops ``github.workflow`` fails today.
+    """
+    group = str(_concurrency(workflow).get("group", ""))
+    rendered = {
+        name: render_group(group, {**FIRST_PUSH, "github.workflow": name})
+        for name in OTHER_WORKFLOW_NAMES
+    }
+    assert not shared_groups(rendered), (
+        f"{workflow.name}'s group {group!r} renders {rendered}; without "
+        "github.workflow in the group, two pull-request workflows would "
+        "cancel each other"
     )
 
 
