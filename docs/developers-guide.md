@@ -421,14 +421,18 @@ casefolded because GitHub treats group names case-insensitively. Because
 `ci.yml` is the only pull-request workflow today, each group is also rendered
 under two synthetic workflow names and must differ, so a group without
 `github.workflow` fails now rather than when a second workflow lands. It reads
-the files through a loader that refuses a duplicated mapping key, because
-PyYAML keeps the last of two `concurrency:` blocks and says nothing. Each
-clause was proved by mutation: the cancel line removed, a literal `true`, a
-`ref` fallback, the run identifier ahead of the number, a constant group, a
-`head_ref` group, a `format()` group, the block removed, the trigger renamed to
-`pull_request_target`, a duplicated block, an unquoted `on:` beside the quoted
-one, the `github.workflow` prefix dropped, and the casefold removed from the
-comparison each fail it.
+the files at test setup, not at import, through `workflow_loader.py`, which
+refuses a duplicated mapping key because PyYAML keeps the last of two
+`concurrency:` blocks and says nothing; a file that cannot be read fails the
+tests that need it, with the reason, and a test drives the scope decision over
+a constructed directory. Each clause was proved by mutation: the cancel line
+removed, a literal `true`, a `ref` fallback, the run identifier ahead of the
+number, a constant group, a `head_ref` group, a `format()` group, the block
+removed, the trigger renamed to `pull_request_target`, a duplicated block, an
+unquoted `on:` beside the quoted one, the `github.workflow` prefix dropped, and
+the casefold removed from the comparison each fail it. So does a reader that
+stops reading `.yaml` files, which the contract passed while it read the
+directory at import.
 
 ### Placement rule
 
