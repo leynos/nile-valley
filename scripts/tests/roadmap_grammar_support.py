@@ -141,6 +141,24 @@ def body_lines(text: str) -> typ.Iterator[tuple[int, str]]:
             yield number, line
 
 
+def _matched(
+    text: str, pattern: re.Pattern[str]
+) -> typ.Iterator[tuple[int, re.Match[str]]]:
+    """Yield ``(line number, match)`` for each body line ``pattern`` matches.
+
+    Both heading readers walk the body looking for their own heading form, so
+    the walk lives here rather than once in each of them.
+
+    Examples
+    --------
+    >>> [number for number, _ in _matched("## 1. A\\n\\n## 2. B\\n", PHASE)]
+    [1, 3]
+    """
+    for number, line in body_lines(text):
+        if (match := pattern.match(line)) is not None:
+            yield number, match
+
+
 def phases(text: str) -> tuple[Phase, ...]:
     """Return every phase heading, in document order.
 
@@ -155,8 +173,7 @@ def phases(text: str) -> tuple[Phase, ...]:
             title=(match.group("rest") or "").strip(),
             line=number,
         )
-        for number, line in body_lines(text)
-        if (match := PHASE.match(line)) is not None
+        for number, match in _matched(text, PHASE)
     )
 
 
@@ -175,9 +192,57 @@ def steps(text: str) -> tuple[Step, ...]:
             title=(match.group("rest") or "").strip(),
             line=number,
         )
-        for number, line in body_lines(text)
-        if (match := STEP.match(line)) is not None
+        for number, match in _matched(text, STEP)
     )
+
+
+def _offending(
+    text: str, predicate: typ.Callable[[str], bool], label: str = ""
+) -> tuple[str, ...]:
+    """Return a located report for each body line ``predicate`` selects.
+
+    The two readers below ask the same question -- which lines are wrong, and
+    where -- and differ only in what makes a line wrong and in the words put in
+    front of it, so the walk and the location live here.
+
+    Examples
+    --------
+    >>> _offending("## 1. A\\n", lambda line: line.startswith("## 1"))
+    ('line 1: ## 1. A',)
+    >>> _offending("## 1. A\\n", lambda line: line.startswith("## 1"), "bad ")
+    ('line 1: bad ## 1. A',)
+    """
+    return tuple(
+        f"line {number}: {label}{line.strip()}"
+        for number, line in body_lines(text)
+        if predicate(line)
+    )
+
+
+def _is_legacy(line: str) -> bool:
+    """Return whether ``line`` is a heading in one of the rejected forms.
+
+    Examples
+    --------
+    >>> _is_legacy("## Phase 1: Legacy"), _is_legacy("## 1. Fine")
+    (True, False)
+    """
+    if LEGACY_PHASE.match(line) is not None:
+        return True
+    return LEGACY_STEP.match(line) is not None
+
+
+def _is_unrecognized(line: str) -> bool:
+    """Return whether ``line`` is a heading that is neither a phase nor a step.
+
+    Examples
+    --------
+    >>> _is_unrecognized("#### 1.1. B"), _is_unrecognized("### 1.1. B")
+    (True, False)
+    """
+    if HEADING.match(line) is None:
+        return False
+    return PHASE.match(line) is None and STEP.match(line) is None
 
 
 def legacy_headings(text: str) -> tuple[str, ...]:
@@ -190,20 +255,7 @@ def legacy_headings(text: str) -> tuple[str, ...]:
     >>> legacy_headings("## Phase 1: Legacy")[0].startswith("line 1")
     True
     """
-    return tuple(
-        f"line {number}: {line.strip()}"
-        for number, line in body_lines(text)
-        if LEGACY_PHASE.match(line) or LEGACY_STEP.match(line)
-    )
-
-
-def _unrecognized(text: str) -> tuple[tuple[int, str], ...]:
-    """Return ``(line number, line)`` for each heading that is not a phase or step."""
-    return tuple(
-        (number, line)
-        for number, line in body_lines(text)
-        if HEADING.match(line) and not (PHASE.match(line) or STEP.match(line))
-    )
+    return _offending(text, _is_legacy)
 
 
 def unrecognized_headings(text: str) -> tuple[str, ...]:
@@ -217,10 +269,10 @@ def unrecognized_headings(text: str) -> tuple[str, ...]:
     --------
     >>> unrecognized_headings(read())
     ()
+    >>> unrecognized_headings("## Phase 1: Legacy")
+    ('line 1: unsupported heading ## Phase 1: Legacy',)
     """
-    return tuple(
-        f"line {number}: {line.strip()}" for number, line in _unrecognized(text)
-    )
+    return _offending(text, _is_unrecognized, "unsupported heading ")
 
 
 def problems(text: str) -> tuple[str, ...]:
@@ -258,10 +310,7 @@ def problems(text: str) -> tuple[str, ...]:
     >>> problems("## 2. A\\n\\n### 1.1. B\\n")
     ('line 3: step 1.1 names undeclared phase 1',)
     """
-    found = [
-        f"line {number}: unsupported heading {line.strip()}"
-        for number, line in _unrecognized(text)
-    ]
+    found = list(unrecognized_headings(text))
 
     declared = {phase.number for phase in phases(text)}
     current: int | None = None
