@@ -64,7 +64,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v4
         with:
           persist-credentials: false
 
@@ -180,7 +180,7 @@ jobs:
 
       - name: Setup Bun
         id: setup-bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -189,7 +189,7 @@ jobs:
       - name: Setup uv
         id: setup-uv
         # v6.4.3
-        uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: false
@@ -199,7 +199,7 @@ jobs:
       # `cargo install merman-cli` source build and its Rust toolchain.
       - name: Install Nixie and Merman
         id: install-nixie
-        uses: leynos/shared-actions/.github/actions/install-nixie@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        uses: leynos/shared-actions/.github/actions/install-nixie@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           nixie-version: ${{ env.NIXIE_VERSION }}
           merman-version: ${{ env.MERMAN_VERSION }}
@@ -208,7 +208,7 @@ jobs:
       - name: Setup Helm
         id: setup-helm
         # v4.3.1
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
         with:
           version: ${{ env.HELM_VERSION }}
 
@@ -290,7 +290,7 @@ jobs:
       - name: Install TFLint
         id: install-tflint
         # v6.2.1
-        uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33
+        uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
@@ -330,7 +330,7 @@ jobs:
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           version: "0.6.0"
 
