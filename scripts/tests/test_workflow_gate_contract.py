@@ -36,11 +36,15 @@ REQUIRED_GATES = (
     "make nixie",
     "make yamllint",
     "make lint",
+    "make typecheck",
     "make check-fmt",
     "make test",
 )
 
-MUTATED_GATE = "make lint"
+# The gates put through the mutation harness. Proof that the contract bites is
+# only meaningful per gate, because each one is found by its own step, and the
+# newest of them (`typecheck`) is the one a later edit is most likely to drop.
+MUTATED_GATES = ("make lint", "make typecheck")
 
 
 @pytest.fixture(name="document")
@@ -64,29 +68,46 @@ def test_the_workflow_reacts_to_pull_requests(document: Document) -> None:
     )
 
 
-def _condition_on_step(condition: object) -> typ.Callable[[Document], None]:
+def _condition_on_step(
+    gate: str, condition: object
+) -> typ.Callable[[Document], None]:
     """Return a mutation that puts ``condition`` on the gate's step."""
 
     def mutate(document: Document) -> None:
-        find_step(document, MUTATED_GATE)["if"] = condition
+        find_step(document, gate)["if"] = condition
 
     return mutate
 
 
-def _condition_on_job(condition: object) -> typ.Callable[[Document], None]:
+def _condition_on_job(gate: str, condition: object) -> typ.Callable[[Document], None]:
     """Return a mutation that puts ``condition`` on the gate's job."""
 
     def mutate(document: Document) -> None:
-        find_job(document, MUTATED_GATE)["if"] = condition
+        find_job(document, gate)["if"] = condition
 
     return mutate
 
 
-def _replace_run(replacement: str) -> typ.Callable[[Document], None]:
+def _replace_run(gate: str, replacement: str) -> typ.Callable[[Document], None]:
     """Return a mutation that rewrites the gate step's run value."""
 
     def mutate(document: Document) -> None:
-        find_step(document, MUTATED_GATE)["run"] = replacement
+        find_step(document, gate)["run"] = replacement
+
+    return mutate
+
+
+def _drop_step(gate: str) -> typ.Callable[[Document], None]:
+    """Return a mutation that removes the gate's step from the workflow.
+
+    This is the plainest way to stop a gate running, and the one an edit is
+    most likely to do by accident, so the contract has to name it even though
+    the command leaves the file entirely.
+    """
+
+    def mutate(document: Document) -> None:
+        job = find_job(document, gate)
+        job["steps"].remove(find_step(document, gate))
 
     return mutate
 
@@ -99,39 +120,52 @@ def _drop_pull_request_trigger(document: Document) -> None:
             del raw["pull_request"]
 
 
-MUTATIONS = {
-    # `if: false` parses to a boolean, so a check reading the value as text
-    # sees an empty string and reports no condition.
-    "step-if-false": _condition_on_step(False),
-    "step-if-false-string": _condition_on_step("false"),
-    "job-if-false": _condition_on_job(False),
-    # A plausible condition is not falsy at all, and skips every pull request.
-    "step-push-only": _condition_on_step("github.event_name == 'push'"),
-    "job-push-only": _condition_on_job("github.ref == 'refs/heads/main'"),
-    # The command survives, but nothing runs it.
-    "wrapped": _replace_run(f"if false; then {MUTATED_GATE}; fi"),
-    "ignored-failure": _replace_run(f"{MUTATED_GATE} || true"),
-    "changed-command": _replace_run("make lin"),
-    "trigger-removed": _drop_pull_request_trigger,
-}
+def _shorten(command: str) -> str:
+    """Return a misspelling of ``command`` that still parses as YAML."""
+    return command[:-1]
 
 
-@pytest.mark.parametrize("name", sorted(MUTATIONS), ids=str)
-def test_the_contract_rejects_each_mutation(name: str, document: Document) -> None:
+def _mutations(gate: str) -> dict[str, typ.Callable[[Document], None]]:
+    """Return every way ``gate`` can be neutralized, keyed by name."""
+    return {
+        # `if: false` parses to a boolean, so a check reading the value as text
+        # sees an empty string and reports no condition.
+        "step-if-false": _condition_on_step(gate, False),
+        "step-if-false-string": _condition_on_step(gate, "false"),
+        "job-if-false": _condition_on_job(gate, False),
+        # A plausible condition is not falsy at all, and skips every pull
+        # request.
+        "step-push-only": _condition_on_step(gate, "github.event_name == 'push'"),
+        "job-push-only": _condition_on_job(gate, "github.ref == 'refs/heads/main'"),
+        # The command survives, but nothing runs it.
+        "wrapped": _replace_run(gate, f"if false; then {gate}; fi"),
+        "ignored-failure": _replace_run(gate, f"{gate} || true"),
+        "changed-command": _replace_run(gate, _shorten(gate)),
+        "step-removed": _drop_step(gate),
+        "trigger-removed": _drop_pull_request_trigger,
+    }
+
+
+@pytest.mark.parametrize("gate", MUTATED_GATES, ids=str)
+@pytest.mark.parametrize("name", sorted(_mutations(MUTATED_GATES[0])), ids=str)
+def test_the_contract_rejects_each_mutation(
+    name: str, gate: str, document: Document
+) -> None:
     """Every way of neutralizing the gate is reported.
 
     Without this the contract could quietly stop checking anything and still
     pass, which is the failure it exists to prevent.
     """
-    mutated = with_mutation(document, MUTATIONS[name])
+    mutated = with_mutation(document, _mutations(gate)[name])
 
-    assert gate_failures(mutated, MUTATED_GATE) != [], (
-        f"the {name} mutation left the gate looking healthy"
+    assert gate_failures(mutated, gate) != [], (
+        f"the {name} mutation left {gate} looking healthy"
     )
 
 
+@pytest.mark.parametrize("gate", MUTATED_GATES, ids=str)
 def test_a_conditioned_duplicate_does_not_disqualify_the_gate(
-    document: Document,
+    gate: str, document: Document
 ) -> None:
     """One unconditional step is enough, whatever a duplicate carries.
 
@@ -141,21 +175,22 @@ def test_a_conditioned_duplicate_does_not_disqualify_the_gate(
     """
 
     def add_conditioned_duplicate(mutated: Document) -> None:
-        job = find_job(mutated, MUTATED_GATE)
-        duplicate = {"name": "Lint again", "run": MUTATED_GATE, "if": False}
+        job = find_job(mutated, gate)
+        duplicate = {"name": "Again", "run": gate, "if": False}
         job["steps"].insert(0, duplicate)
 
     mutated = with_mutation(document, add_conditioned_duplicate)
 
-    assert gate_failures(mutated, MUTATED_GATE) == [], (
+    assert gate_failures(mutated, gate) == [], (
         "the unconditional step still satisfies the contract"
     )
 
 
-def test_an_unmutated_document_still_passes(document: Document) -> None:
+@pytest.mark.parametrize("gate", MUTATED_GATES, ids=str)
+def test_an_unmutated_document_still_passes(gate: str, document: Document) -> None:
     """The mutations are what fail, not the copying the harness does."""
     unchanged = with_mutation(document, lambda _: None)
 
-    assert gate_failures(unchanged, MUTATED_GATE) == [], (
+    assert gate_failures(unchanged, gate) == [], (
         "the harness must not disturb the document it copies"
     )
