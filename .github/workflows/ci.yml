@@ -324,6 +324,9 @@ jobs:
       - name: Lint
         run: make lint
 
+      - name: Type check
+        run: make typecheck
+
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.

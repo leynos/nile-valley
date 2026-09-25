@@ -40,6 +40,7 @@ export VAULT_ESO_APPROLE_ROLE_ID VAULT_ESO_APPROLE_SECRET_ID
 
 BIOME_VERSION ?= 2.3.1
 MARKDOWNLINT_CLI2_VERSION ?= 0.14.0
+TYPESCRIPT_VERSION ?= 5.9.2
 UV ?= uv
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 
@@ -55,7 +56,7 @@ GO_CACHE_ROOT ?= $(HOME)/.cache/go
 GO_TEST_ENV := GOPATH=$(GO_CACHE_ROOT) GOMODCACHE=$(GO_CACHE_ROOT)/pkg/mod GOCACHE=$(GO_CACHE_ROOT)/build
 
 # Place one consolidated PHONY declaration near the top of the file
-.PHONY: all clean fmt lint test deps \
+.PHONY: all clean fmt lint test typecheck deps \
         check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie spelling \
         yamllint \
         lint-makefile lint-actions lint-infra conftest tofu doks-test doks-policy fluxcd-test fluxcd-policy \
@@ -73,7 +74,7 @@ MDTABLEFIX ?= mdtablefix
 MDTABLEFIX_SELECT = --git --include-untracked
 MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 
-all: check-fmt lint test spelling
+all: check-fmt lint typecheck test spelling
 
 clean:
 	rm -rf node_modules .uv-cache
@@ -85,6 +86,9 @@ fmt:
 lint:
 	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))
 	$(MAKE) lint-makefile lint-actions lint-infra
+
+typecheck:
+	$(call exec_or_bunx,tsc,--allowJs --checkJs --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext scripts/install-mermaid-browser.mjs,typescript@$(TYPESCRIPT_VERSION))
 
 # Validate Makefile style and structure
 lint-makefile:

@@ -76,6 +76,7 @@ pnpm-debug.log*
 /vectors.db-wal
 
 # Coverage
+.coverage
 coverage/
 .nyc_output/
 

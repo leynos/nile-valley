@@ -130,13 +130,13 @@ mapping down. Nothing below that boundary consults `os.environ`, so the
 variables a decision was made from are the ones the caller can see, and the
 module registry is a read-only mapping for the same reason.
 
-| Script                   | Recipes it owns                              |
-| ------------------------ | -------------------------------------------- |
-| `lint_actions.py`        | `lint-actions`                               |
-| `lint_helm_manifests.py` | `yamllint`                                   |
-| `run_bun_tool.py`        | `lint`, `check-fmt`, `markdownlint`          |
-| `tofu_example_gate.py`   | the `*-test` validate and plan steps         |
-| `tofu_plan_policy.py`    | the `*-policy` plan, export and conftest run |
+| Script                   | Recipes it owns                                  |
+| ------------------------ | ------------------------------------------------ |
+| `lint_actions.py`        | `lint-actions`                                   |
+| `lint_helm_manifests.py` | `yamllint`                                       |
+| `run_bun_tool.py`        | `lint`, `typecheck`, `check-fmt`, `markdownlint` |
+| `tofu_example_gate.py`   | the `*-test` validate and plan steps             |
+| `tofu_plan_policy.py`    | the `*-policy` plan, export and conftest run     |
 
 `scripts/_tofu_modules.py` holds each module's example path, gate variable,
 required companion variables and `-var` assignments, so one script serves every
@@ -198,9 +198,26 @@ shape instead: the job exists, some step's entire `run` is the gate command,
 and neither the job nor that step carries a condition. A condition is detected
 by the presence of the `if` key, never by its value, because `if: false` parses
 to a boolean and a plausible condition such as a push-only one is not falsy at
-all. Nine mutations are proved to fail the contract, including a condition on
-the step and on the job, a wrapper, a `|| true` suffix, a mistyped command and
-a removed `pull_request` trigger.
+all. Ten mutations are proved to fail the contract, for each of the two newest
+gates: a condition on the step in both its boolean and its string spelling, a
+condition on the job, a push-only condition on either, a wrapper that leaves
+the command unreachable, a `|| true` suffix, a mistyped command, a removed step
+and a removed `pull_request` trigger.
+
+The same workflow is read a second time by `act`, in
+`test_workflow_act_integration.py`. That is not a duplicate of the contract
+above: a YAML reader sees a malformed `${{ }}` expression as an ordinary
+string, and a misspelled job key as a field it does not recognize but does not
+reject, while the runner's own reader rejects both. `act` is not installed in
+CI, so those checks are skipped there and the module keeps a set of premise
+tests that are not: they assert, without the binary, that each sample `act` is
+fed is parseable and malformed and that each workflow is a mapping with jobs.
+Skipping the premises too would leave the module asserting nothing in CI, and a
+sample that merely failed to parse would make the `act` checks pass for a
+reason unrelated to what they claim to test. `act --list` performs that reading
+without scheduling a container, so it costs about a second and needs no daemon;
+the containerized run is left to the ladder described in
+[Local validation of GitHub Actions with act and pytest](local-validation-of-github-actions-with-act-and-pytest.md).
 
 `.SHELLFLAGS := -eo pipefail -c` is deliberately absent. It would make a
 forbidden recipe shape work rather than removing it, weakening the contract,
@@ -302,6 +319,106 @@ specifically. Collapsing an import failure into "stale examples" is what let an
 exemption for a deleted module satisfy the shrink-only rule forever. The
 checked set is separately asserted to be larger than the exempted one, so the
 list cannot grow until the gate has nothing left to do.
+
+## The type check
+
+`scripts/install-mermaid-browser.mjs` is the one JavaScript file this
+repository ships, so it is the only one the compiler sees. `make typecheck`
+checks it with JavaScript checking enabled and emits nothing:
+
+```console
+$ make typecheck
+$ uv run scripts/run_bun_tool.py --tool tsc --package typescript@5.9.2 -- \
+    --allowJs --checkJs --noEmit --target ES2022 \
+    --module NodeNext --moduleResolution NodeNext \
+    scripts/install-mermaid-browser.mjs
+```
+
+`--allowJs` is what admits a `.mjs` file at all, and `--checkJs` is what makes
+the compiler report on it rather than merely parse it. `--noEmit` keeps the
+target read-only: it is a check, not a build, so the file is never rewritten
+and no `.js` output lands beside the source. The script runs only under Node's
+ES module resolution, and it writes through `process`, so `--target ES2022`,
+`--module NodeNext` and `--moduleResolution NodeNext` are the settings its
+imports and globals are checked against.
+
+The TypeScript version is pinned as `TYPESCRIPT_VERSION ?= 5.9.2` beside the
+other tool versions at the top of the `Makefile`, so it can be overridden for a
+one-off run the same way the rest can:
+
+```console
+make typecheck TYPESCRIPT_VERSION=5.9.1
+```
+
+The target is a member of `all` (`check-fmt lint typecheck test spelling`) and
+runs in CI as the `Type check` step, after `Lint`. Like the other gates it is
+reachable on its own, which is the loop to use while editing the script.
+
+The `Makefile` does not invoke `tsc` directly. It runs
+`$(UV) run scripts/run_bun_tool.py`, which prefers a `tsc` already on `PATH` —
+so a warm CI cache is used rather than a download — and otherwise obtains the
+pinned package through Bun's `x` command:
+
+```console
+uv run scripts/run_bun_tool.py --tool tsc --package typescript@5.9.2 -- <args>
+```
+
+`--` separates the runner's own options from the arguments passed through to
+`tsc`; `--package` is the version-pinned npm spec Bun fetches when the tool is
+absent. A non-zero `tsc` status reaches Make unchanged, so a type error fails
+the gate with the compiler's own diagnostic.
+
+`node_modules` has to be installed first. The script imports `node:fs`,
+`node:url`, the `puppeteer` package and a deep path inside it, so checking it
+outside an installed tree reports `Cannot find module 'puppeteer'` and
+`Cannot find name 'process'` rather than a type error of its own. Run
+`make deps` before `make typecheck`; the `install-dependencies` step already
+orders them that way in CI.
+
+## The roadmap heading grammar
+
+`docs/ephemeral-previews-roadmap.md` is read by `mapsplice`, which accepts two
+heading forms and rejects everything else inside the roadmap body:
+
+```markdown
+## 1. Application delivery and GitOps strategy (To do)
+
+### 2.1. DigitalOcean Kubernetes cluster
+```
+
+A phase is written `## N. Title` and a step `### N.M. Title`: a bare integer, a
+literal dot, a space, then the title. A status suffix such as `(To do)` is part
+of the title and is accepted. The step's `N` must equal the number of the phase
+that encloses it, so `### 1.1.` under `## 2.` is rejected with "step heading
+`1.1` does not belong to phase `2`".
+
+The forms this document used before it was aligned with the grammar are
+rejected outright: `## Phase 1: Title` for a phase, and `### 1.1: Title` or
+`### 1.1 Title` for a step. A level-four heading is rejected too, and a
+non-heading opening makes the tool report "must start with a phase heading".
+
+Two things the tool does *not* check, which the tests therefore check
+themselves. Numbering need not be sequential or gap-free -- a document may run
+`## 1.` then `## 3.`, and steps `1.1.` then `1.3.` -- so the expected sequence
+is asserted separately. And a step is checked against its number, not its
+position, so a step may sit under the wrong phase as long as its number agrees
+with one that exists.
+
+`mapsplice` mutates a document rather than validating one, so it has no "is
+this file well formed" verb. The tests confirm a document by appending its own
+phase-onward body to a copy of it: the tool accepts the result only if both the
+fragment and the target satisfy the grammar, which is the same confirmation the
+original alignment used. `test_roadmap_grammar.py` also feeds each accepted and
+each rejected form to the tool, so the patterns cannot drift from the tool's
+real behaviour in either direction.
+
+The support is split by whether the tool is needed.
+`roadmap_grammar_support.py` holds the patterns and the readers built on them,
+reads text, and installs nothing, so the contract it backs runs wherever the
+suite runs. `mapsplice_support.py` runs the binary and is imported only by the
+tests that are skipped without it; its documented examples carry
+`# doctest: +SKIP` for the same reason, since the example gate executes them on
+every machine.
 
 ## Continuous integration
 
