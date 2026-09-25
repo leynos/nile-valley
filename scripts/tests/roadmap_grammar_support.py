@@ -141,22 +141,60 @@ def body_lines(text: str) -> typ.Iterator[tuple[int, str]]:
             yield number, line
 
 
-def _matched(
-    text: str, pattern: re.Pattern[str]
-) -> typ.Iterator[tuple[int, re.Match[str]]]:
-    """Yield ``(line number, match)`` for each body line ``pattern`` matches.
+_Row = typ.TypeVar("_Row")
 
-    Both heading readers walk the body looking for their own heading form, so
-    the walk lives here rather than once in each of them.
+
+def _title(match: re.Match[str]) -> str:
+    """Return the title text a phase or step match carries.
+
+    Both readers pull the same trailing text out of their own match, and a
+    status suffix is part of that title for both.
 
     Examples
     --------
-    >>> [number for number, _ in _matched("## 1. A\\n\\n## 2. B\\n", PHASE)]
-    [1, 3]
+    >>> _title(PHASE.match("## 1. A (To do)"))
+    'A (To do)'
     """
-    for number, line in body_lines(text):
-        if (match := pattern.match(line)) is not None:
-            yield number, match
+    return (match.group("rest") or "").strip()
+
+
+def _rows(
+    text: str,
+    pattern: re.Pattern[str],
+    build: typ.Callable[[int, re.Match[str]], _Row],
+) -> tuple[_Row, ...]:
+    """Return one built row per body heading ``pattern`` matches.
+
+    Both readers walk the body for their own heading form and build a frozen
+    dataclass per match, so the walk and the build live here rather than once
+    in each of them. Keeping the build in the caller's own function is what
+    leaves each reader naming its own fields.
+
+    Examples
+    --------
+    >>> _rows("## 1. A\\n", PHASE, _phase_row)
+    (Phase(number=1, title='A', line=1),)
+    """
+    return tuple(
+        build(number, match)
+        for number, line in body_lines(text)
+        if (match := pattern.match(line)) is not None
+    )
+
+
+def _phase_row(number: int, match: re.Match[str]) -> Phase:
+    """Build the phase a ``PHASE`` match describes."""
+    return Phase(number=int(match.group("number")), title=_title(match), line=number)
+
+
+def _step_row(number: int, match: re.Match[str]) -> Step:
+    """Build the step a ``STEP`` match describes."""
+    return Step(
+        phase=int(match.group("phase")),
+        number=int(match.group("step")),
+        title=_title(match),
+        line=number,
+    )
 
 
 def phases(text: str) -> tuple[Phase, ...]:
@@ -167,14 +205,7 @@ def phases(text: str) -> tuple[Phase, ...]:
     >>> [phase.number for phase in phases(read())]
     [1, 2, 3, 4]
     """
-    return tuple(
-        Phase(
-            number=int(match.group("number")),
-            title=(match.group("rest") or "").strip(),
-            line=number,
-        )
-        for number, match in _matched(text, PHASE)
-    )
+    return _rows(text, PHASE, _phase_row)
 
 
 def steps(text: str) -> tuple[Step, ...]:
@@ -185,15 +216,7 @@ def steps(text: str) -> tuple[Step, ...]:
     >>> [step.dotted for step in steps(read())][:2]
     ['2.1', '2.2']
     """
-    return tuple(
-        Step(
-            phase=int(match.group("phase")),
-            number=int(match.group("step")),
-            title=(match.group("rest") or "").strip(),
-            line=number,
-        )
-        for number, match in _matched(text, STEP)
-    )
+    return _rows(text, STEP, _step_row)
 
 
 def _offending(
