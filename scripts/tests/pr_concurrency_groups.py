@@ -134,6 +134,12 @@ MUST_PART: tuple[dict[str, str], ...] = (
 #: pull-request number first, the run identifier as its fallback.
 ESTATE_FALLBACK: tuple[str, ...] = ("github.event.pull_request.number", "github.run_id")
 
+#: Context values unique to one run. The estate rule allows one only as the
+#: fallback behind the pull-request number.
+RUN_UNIQUE: frozenset[str] = frozenset(
+    {"github.run_id", "github.run_number", "github.run_attempt", "github.sha"}
+)
+
 
 def expressions(template: str) -> list[tuple[str, ...]]:
     """Return the ``||`` operands of each `${{ ... }}` expression in a group.
@@ -243,6 +249,47 @@ def keeps_runs_together_and_apart(template: str) -> bool:
     )
     rendered = {render_group(template, run) for run in MUST_PART}
     return shares and len(rendered) == len(MUST_PART)
+
+
+def fallback_problems(group: str) -> list[str]:
+    """Return why a group breaks the run-identifier rule, or nothing.
+
+    The estate rule allows a run-unique value exactly once, as the fallback
+    behind the pull-request number. Anywhere else it either splits one pull
+    request's pushes or hides a ref-keyed fallback.
+
+    Parameters
+    ----------
+    group
+        The group as written in the workflow.
+
+    Returns
+    -------
+    list of str
+        One reason per broken clause; empty when the group complies.
+
+    Examples
+    --------
+    >>> fallback_problems("${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}")
+    []
+    >>> len(fallback_problems("${{ github.workflow }}-${{ github.run_id }}"))
+    2
+    """
+    found = expressions(group)
+    misplaced = [
+        operands
+        for operands in found
+        if operands != ESTATE_FALLBACK and any(name in RUN_UNIQUE for name in operands)
+    ]
+    problems: list[str] = []
+    if found.count(ESTATE_FALLBACK) != 1:
+        problems.append(
+            f"must contain exactly one `${{{{ {' || '.join(ESTATE_FALLBACK)} }}}}`,"
+            f" found {found}"
+        )
+    if misplaced:
+        problems.append(f"uses a run-unique value outside the fallback: {misplaced}")
+    return problems
 
 
 def shared_groups(rendered: dict[str, str]) -> dict[str, list[str]]:
