@@ -8,14 +8,13 @@ run; the loader here refuses the document instead. It also reads both
 spellings of the extension, compared case-insensitively, because GitHub runs
 ``CI.YML`` as readily as ``ci.yml``.
 
-Use ``repository_workflows`` for this repository's tree, ``read_workflows``
-for any other directory and ``load_workflow`` for one document. Parse
+Use ``read_workflows`` for a directory, passing ``WORKFLOW_DIR`` for this
+repository's tree, and ``load_workflow`` for one document. Parse
 workflow files through nothing else in this directory.
 """
 
 from __future__ import annotations
 
-import functools
 import typing as typ
 from pathlib import Path
 
@@ -35,6 +34,16 @@ Document = dict[object, object]
 
 class DuplicateKeyError(yaml.constructor.ConstructorError):
     """A mapping declared the same key twice."""
+
+
+class WorkflowReadError(OSError):
+    """A workflow directory or file could not be read or parsed.
+
+    Reading fails in ways that look nothing alike to a caller: a missing
+    directory, an unreadable file, bytes that are not UTF-8, text that is not
+    YAML, or a repeated key. Each arrives here carrying the path, so a
+    contract can report which workflow broke instead of a bare decode error.
+    """
 
 
 class StrictLoader(yaml.SafeLoader):
@@ -98,46 +107,40 @@ def read_workflows(directory: Path) -> dict[str, Document]:
     Parameters
     ----------
     directory
-        The directory holding the workflow files, usually
-        ``.github/workflows``.
+        The directory holding the workflow files, usually ``WORKFLOW_DIR``.
 
     Returns
     -------
     dict[str, Document]
-        Each ``.yml`` or ``.yaml`` file's parsed document, keyed by file name
-        and in file-name order; the extension is matched case-insensitively.
+        Each regular ``.yml`` or ``.yaml`` file's parsed document, keyed by
+        file name and inserted in file-name order; the extension is matched
+        case-insensitively, and a document that is not a mapping reads as
+        an empty one.
 
     Raises
     ------
-    DuplicateKeyError
-        When any workflow declares a mapping key twice.
+    WorkflowReadError
+        When the directory cannot be listed, or a workflow cannot be read,
+        is not UTF-8, is not YAML, or declares a mapping key twice. The
+        message names the path.
     """
-    paths = sorted(
+    try:
+        entries = sorted(directory.iterdir())
+    except OSError as error:
+        message = f"{directory} could not be listed: {error}"
+        raise WorkflowReadError(message) from error
+    paths = [
         path
-        for path in directory.iterdir()
+        for path in entries
         if path.is_file() and path.suffix.lower() in WORKFLOW_SUFFIXES
-    )
-    return {
-        path.name: load_workflow(path.read_text(encoding="utf-8"))
-        for path in paths
-    }
+    ]
+    return {path.name: _read_one(path) for path in paths}
 
 
-@functools.cache
-def repository_workflows() -> dict[str, Document]:
-    """Read and parse this repository's workflows once.
-
-    Returns
-    -------
-    dict[str, Document]
-        Every workflow under ``.github/workflows``, keyed by file name. The
-        mapping is cached, so callers must not mutate it.
-
-    Raises
-    ------
-    DuplicateKeyError
-        When any workflow declares a mapping key twice.
-    """
-    documents = read_workflows(WORKFLOW_DIR)
-    assert documents, "the repository should define at least one workflow"
-    return documents
+def _read_one(path: Path) -> Document:
+    """Read and parse one workflow file, naming it in any failure."""
+    try:
+        return load_workflow(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as error:
+        message = f"{path} could not be read as a workflow: {error}"
+        raise WorkflowReadError(message) from error

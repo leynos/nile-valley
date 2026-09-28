@@ -37,7 +37,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 from pr_concurrency_groups import (
     FIRST_PUSH,
     MUST_PART,
@@ -51,8 +50,9 @@ from workflow_loader import (
     Document,
     DuplicateKeyError,
     load_workflow,
+    WORKFLOW_DIR,
+    WorkflowReadError,
     read_workflows,
-    repository_workflows,
 )
 
 #: Parsed workflows keyed by file name, as `read_workflows` returns them.
@@ -115,8 +115,8 @@ def workflows() -> Workflows:
     breaking collection of the whole module.
     """
     try:
-        return repository_workflows()
-    except (OSError, yaml.YAMLError) as error:
+        return read_workflows(WORKFLOW_DIR)
+    except WorkflowReadError as error:
         pytest.fail(f"cannot read the workflows under .github/workflows: {error}")
 
 
