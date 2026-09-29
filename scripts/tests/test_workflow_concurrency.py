@@ -96,8 +96,9 @@ def _concurrency(document: Document) -> Document:
 
 
 def _group(document: Document) -> str:
-    """Return a workflow's concurrency group as written, or an empty string."""
-    return str(_concurrency(document).get("group", ""))
+    """Return a workflow's concurrency group if it is a string, else ``""``."""
+    declared = _concurrency(document).get("group")
+    return declared if isinstance(declared, str) else ""
 
 
 def _workflow_name(name: str, document: Document) -> str:
@@ -247,8 +248,8 @@ def test_every_pull_request_workflow_declares_a_concurrency_group(
     )
     assert not missing, (
         f"{', '.join(missing)} start on pull_request and must declare "
-        "concurrency.group; without it a superseded run holds a runner until "
-        "it finishes"
+        "concurrency.group as a string; without it a superseded run holds a "
+        "runner until it finishes"
     )
 
 
