@@ -538,14 +538,25 @@ casefolded because GitHub treats group names case-insensitively. Because
 `ci.yml` is the only pull-request workflow today, each group is also rendered
 under two synthetic workflow names and must differ, so a group without
 `github.workflow` fails now rather than when a second workflow lands. It reads
-the files through a loader that refuses a duplicated mapping key, because
-PyYAML keeps the last of two `concurrency:` blocks and says nothing. Each
-clause was proved by mutation: the cancel line removed, a literal `true`, a
-`ref` fallback, the run identifier ahead of the number, a constant group, a
-`head_ref` group, a `format()` group, the block removed, the trigger renamed to
-`pull_request_target`, a duplicated block, an unquoted `on:` beside the quoted
-one, the `github.workflow` prefix dropped, and the casefold removed from the
-comparison each fail it.
+the files at test setup, not at import, through `workflow_loader.py`, which
+refuses a duplicated mapping key because PyYAML keeps the last of two
+`concurrency:` blocks and says nothing. The fixture calls
+`read_workflows(WORKFLOW_DIR)` on every use, with no cache, and any read
+failure (a missing directory, an unreadable or non-UTF-8 file, malformed YAML,
+a repeated key) arrives as `WorkflowReadError` naming the path, so the tests
+that need the workflows fail with the reason. A test drives the scope decision
+over a constructed directory, and `test_workflow_loader.py` drives the loader
+itself: suffixes in any case and in file-name order, directories and other
+files skipped, non-mapping documents read as empty, nested repeated keys
+refused, and each read failure reported with its path.
+`test_pr_concurrency_groups.py` drives `fallback_problems` over each broken
+clause. Each clause was proved by mutation: the cancel line removed, a literal
+`true`, a `ref` fallback, the run identifier ahead of the number, a constant
+group, a `head_ref` group, a `format()` group, the block removed, the trigger
+renamed to `pull_request_target`, a duplicated block, an unquoted `on:` beside
+the quoted one, the `github.workflow` prefix dropped, and the casefold removed
+from the comparison each fail it. So does a reader that stops reading `.yaml`
+files, which the contract passed while it read the directory at import.
 
 ### Placement rule
 
