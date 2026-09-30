@@ -6,13 +6,18 @@ updates:
       github-actions:
         patterns:
           - '*'
-    directory: "/"
+        update-types:
+          - 'minor'
+          - 'patch'
+    directories:
+      - "/"
+      - "/.github/actions/*"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
     schedule:
-      interval: "weekly"
+      interval: "daily"
       day: "sunday"
       time: "02:00"
       timezone: "Etc/UTC"
@@ -28,7 +33,7 @@ updates:
       - "dependencies"
       - "bun"
     schedule:
-      interval: "weekly"
+      interval: "daily"
       day: "monday"
       time: "02:10"
       timezone: "Etc/UTC"
@@ -46,12 +51,19 @@ updates:
   # Enable version updates for Helm charts
   - package-ecosystem: "helm"
     directory: "/deploy/charts/example-app"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "helm"
     schedule:
-      interval: "weekly"
+      interval: "daily"
       day: "sunday"
       time: "03:00"
       timezone: "Etc/UTC"
@@ -74,6 +86,13 @@ updates:
       - "/infra/modules/valkey/tests"
       - "/infra/modules/vault_appliance/tests"
       - "/infra/modules/vault_eso/tests"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
