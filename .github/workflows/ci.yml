@@ -180,7 +180,7 @@ jobs:
 
       - name: Setup Bun
         id: setup-bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -290,7 +290,7 @@ jobs:
       - name: Install TFLint
         id: install-tflint
         # v6.2.1
-        uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33
+        uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
 

@@ -141,7 +141,7 @@ runs:
 
     - name: Install doctl
       id: install-doctl
-      uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824
+      uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f
       with:
         token: ${{ inputs.digitalocean_token }}
 
