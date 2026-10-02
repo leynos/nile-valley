@@ -14,6 +14,11 @@ by `TYPOS_CONFIG_BUILDER_VERSION` in the `Makefile`. It regenerates
 every run, runs the pinned Typos binary over the tracked Markdown, and enforces
 the shared prohibited-phrase policy.
 
+The pin is currently `v0.1.3`; raise it together with the regenerated
+`typos.toml`, never on its own. The builder requires Python 3.14 or newer, so
+the target passes `--python 3.14` and `uv` fetches that interpreter when the
+host lacks one.
+
 `typos.toml` is therefore a generated artefact. It is never edited by hand and
 never drift-checked in CI, because the shared dictionary is the authority and a
 dictionary change would otherwise fail every consumer's pipeline. Narrow
