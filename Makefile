@@ -47,8 +47,8 @@ UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 # The spelling gate is one pinned command: it regenerates `typos.toml` from the
 # live shared dictionary and `typos.local.toml`, runs the pinned Typos binary
 # over the tracked Markdown, and enforces the shared phrase policy.
-TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.1
-TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run \
+TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
+TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 \
     --from "git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
     typos-config-builder
 
