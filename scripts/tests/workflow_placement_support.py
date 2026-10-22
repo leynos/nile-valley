@@ -103,6 +103,11 @@ AUTHOR_FIELD: typ.Final = "github.event.pull_request.user.login"
 #: The author test the fallback must carry, compared as a whole.
 DEPENDABOT_TEST: typ.Final = f"{AUTHOR_FIELD} == 'dependabot[bot]'"
 
+#: The whole condition the fallback must carry: the two tests joined by `||`,
+#: so a pull request from a fork or by Dependabot takes the hosted arm. An `&&`
+#: would send an internal Dependabot pull request to Ubicloud.
+HOSTED_CONDITION: typ.Final = f"({FORK_FIELD} || {DEPENDABOT_TEST})"
+
 #: The Ubicloud size the gate is sized to. Asserted by name rather than
 #: left to the registry contract, which only requires the workflow and
 #: `.github/actionlint.yaml` to agree: setting both files back to
@@ -128,6 +133,7 @@ __all__ = [
     "GATE_UBICLOUD_LABEL",
     "GATE_WORKFLOW",
     "GITHUB_HOSTED_LABELS",
+    "HOSTED_CONDITION",
     "TRUNK_BRANCH",
     "TRUNK_REFERENCE",
     "UNREADABLE_RUNNER",

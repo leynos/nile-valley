@@ -32,6 +32,7 @@ from workflow_placement_support import (
     GATE_UBICLOUD_LABEL,
     GATE_WORKFLOW,
     GITHUB_HOSTED_LABELS,
+    HOSTED_CONDITION,
     TRUNK_BRANCH,
     TRUNK_REFERENCE,
     UNREADABLE_RUNNER,
@@ -175,9 +176,10 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
         f"{job.qualified_name} must key its fallback on {FORK_FIELD}: "
         f"{expression.condition!r}"
     )
-    assert DEPENDABOT_TEST in expression.condition, (
-        f"{job.qualified_name} must also send Dependabot's pull requests to "
-        f"the hosted arm, testing {DEPENDABOT_TEST}: {expression.condition!r}"
+    assert expression.condition == HOSTED_CONDITION, (
+        f"{job.qualified_name} must send a fork's and Dependabot's pull "
+        f"requests to the hosted arm with {HOSTED_CONDITION}: "
+        f"{expression.condition!r}"
     )
     assert expression.when_true in GITHUB_HOSTED_LABELS, (
         f"{job.qualified_name} sends a fork's pull request to "
@@ -194,8 +196,13 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
 def test_an_actor_test_is_not_the_dependabot_author_test() -> None:
     """`github.actor` is whoever triggered the run, so it is no stand-in."""
     condition = f"({FORK_FIELD} || github.actor == 'dependabot[bot]')"
-    assert DEPENDABOT_TEST not in condition
+    assert condition != HOSTED_CONDITION
     assert not condition_names_field(condition, AUTHOR_FIELD)
+
+
+def test_an_and_between_the_tests_is_not_the_hosted_condition() -> None:
+    """`fork && author` would keep an internal Dependabot pull request paid."""
+    assert f"({FORK_FIELD} && {DEPENDABOT_TEST})" != HOSTED_CONDITION
 
 
 def test_the_gate_is_sized_to_the_label_the_measurements_justify(
