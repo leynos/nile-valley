@@ -94,6 +94,20 @@ TRUNK_BRANCH: typ.Final = "main"
 #: would send every private-repository pull request to a hosted runner.
 FORK_FIELD: typ.Final = "github.event.pull_request.head.repo.fork"
 
+#: The pull request's author, not `github.actor`: the actor is whoever
+#: triggered the run, so a person pushing to a Dependabot branch would flip
+#: the runner. Dependabot's pull requests take the hosted arm because hosted
+#: minutes cost nothing on a public repository.
+AUTHOR_FIELD: typ.Final = "github.event.pull_request.user.login"
+
+#: The author test the fallback must carry, compared as a whole.
+DEPENDABOT_TEST: typ.Final = f"{AUTHOR_FIELD} == 'dependabot[bot]'"
+
+#: The whole condition the fallback must carry: the two tests joined by `||`,
+#: so a pull request from a fork or by Dependabot takes the hosted arm. An `&&`
+#: would send an internal Dependabot pull request to Ubicloud.
+HOSTED_CONDITION: typ.Final = f"({FORK_FIELD} || {DEPENDABOT_TEST})"
+
 #: The Ubicloud size the gate is sized to. Asserted by name rather than
 #: left to the registry contract, which only requires the workflow and
 #: `.github/actionlint.yaml` to agree: setting both files back to
@@ -112,11 +126,14 @@ GATE_UBICLOUD_LABEL: typ.Final = "ubicloud-standard-2"
 UNREADABLE_RUNNER: typ.Final = "<unreadable runs-on expression>"
 
 __all__ = [
+    "AUTHOR_FIELD",
     "BUILD_JOBS",
+    "DEPENDABOT_TEST",
     "FORK_FIELD",
     "GATE_UBICLOUD_LABEL",
     "GATE_WORKFLOW",
     "GITHUB_HOSTED_LABELS",
+    "HOSTED_CONDITION",
     "TRUNK_BRANCH",
     "TRUNK_REFERENCE",
     "UNREADABLE_RUNNER",

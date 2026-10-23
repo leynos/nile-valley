@@ -55,8 +55,12 @@ jobs:
     # run of this job came in at 132 seconds with `Lint` at 23, inside
     # the standard-8 band. See "Why two vCPUs" in
     # docs/developers-guide.md.
+    # Dependabot pull requests run on the hosted pool too (free on a public
+    # repository). The author is tested, not the actor, which changes when
+    # someone else pushes to the branch.
     runs-on: >-
-      ${{ github.event.pull_request.head.repo.fork
+      ${{ (github.event.pull_request.head.repo.fork
+      || github.event.pull_request.user.login == 'dependabot[bot]')
       && 'ubuntu-latest' || 'ubicloud-standard-2' }}
     timeout-minutes: 30
     # The gate only reads the repository and fetches public release archives.

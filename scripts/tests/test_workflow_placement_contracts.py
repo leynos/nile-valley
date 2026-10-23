@@ -26,10 +26,13 @@ from workflow_contract_support import (
     runner_labels,
 )
 from workflow_placement_support import (
+    AUTHOR_FIELD,
+    DEPENDABOT_TEST,
     FORK_FIELD,
     GATE_UBICLOUD_LABEL,
     GATE_WORKFLOW,
     GITHUB_HOSTED_LABELS,
+    HOSTED_CONDITION,
     TRUNK_BRANCH,
     TRUNK_REFERENCE,
     UNREADABLE_RUNNER,
@@ -140,8 +143,9 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
 ) -> None:
     """A fork's pull request must land on a GitHub-hosted runner.
 
-    A fork cannot obtain an Ubicloud runner, so a bare Ubicloud label
-    leaves the only required check unable to start and the pull request
+    A fork cannot obtain an Ubicloud runner, and a Dependabot pull request
+    is kept off Ubicloud too (hosted minutes cost nothing on a public
+    repository), so a bare Ubicloud label leaves the only required check unable to start and the pull request
     waiting on a job that will never be scheduled.
 
     The fork field is asserted by name rather than the expression being
@@ -172,6 +176,11 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
         f"{job.qualified_name} must key its fallback on {FORK_FIELD}: "
         f"{expression.condition!r}"
     )
+    assert expression.condition == HOSTED_CONDITION, (
+        f"{job.qualified_name} must send a fork's and Dependabot's pull "
+        f"requests to the hosted arm with {HOSTED_CONDITION}: "
+        f"{expression.condition!r}"
+    )
     assert expression.when_true in GITHUB_HOSTED_LABELS, (
         f"{job.qualified_name} sends a fork's pull request to "
         f"{expression.when_true!r}, which is not a GitHub-hosted runner, so "
@@ -182,6 +191,18 @@ def test_the_gate_falls_back_to_a_hosted_runner_for_a_fork(
         f"{expression.when_false!r}, a GitHub-hosted runner, so the fallback "
         f"buys nothing"
     )
+
+
+def test_an_actor_test_is_not_the_dependabot_author_test() -> None:
+    """`github.actor` is whoever triggered the run, so it is no stand-in."""
+    condition = f"({FORK_FIELD} || github.actor == 'dependabot[bot]')"
+    assert condition != HOSTED_CONDITION
+    assert not condition_names_field(condition, AUTHOR_FIELD)
+
+
+def test_an_and_between_the_tests_is_not_the_hosted_condition() -> None:
+    """`fork && author` would keep an internal Dependabot pull request paid."""
+    assert f"({FORK_FIELD} && {DEPENDABOT_TEST})" != HOSTED_CONDITION
 
 
 def test_the_gate_is_sized_to_the_label_the_measurements_justify(

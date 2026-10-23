@@ -574,16 +574,22 @@ registered in `.github/actionlint.yaml`.
 
 ```yaml
 runs-on: >-
-  ${{ github.event.pull_request.head.repo.fork
+  ${{ (github.event.pull_request.head.repo.fork
+  || github.event.pull_request.user.login == 'dependabot[bot]')
   && 'ubuntu-latest' || 'ubicloud-standard-2' }}
 ```
 
 A pull request from a fork cannot obtain an Ubicloud runner, so a bare Ubicloud
 label would leave the only required check unable to start and the pull request
-waiting on a job that is never scheduled. Keep the continuation at the same
-indent: a more-indented continuation in a folded scalar keeps its line break,
-which puts a newline inside the expression. GitHub evaluates the broken value
-anyway, so a green run is no evidence that it is written correctly.
+waiting on a job that is never scheduled. A pull request Dependabot opened
+takes the hosted arm too: hosted minutes cost nothing on a public repository,
+and Dependabot opens many pull requests, which therefore build cold. The
+expression tests the pull request's author, not `github.actor`, because the
+actor is whoever triggered the run, so a person pushing to a Dependabot branch
+would flip the runner. Keep the continuation at the same indent: a
+more-indented continuation in a folded scalar keeps its line break, which puts
+a newline inside the expression. GitHub evaluates the broken value anyway, so a
+green run is no evidence that it is written correctly.
 
 The contracts are split across three modules, because no code file here may
 exceed 400 lines. `scripts/tests/test_workflow_contracts.py` asks what the jobs
@@ -596,13 +602,14 @@ anything that can reach it.
 The placement module asserts, among other things, that no `runs-on` parses with
 a line break in it, and that the fork arm is the hosted one: the two arms are
 read by position, because an expression that sends a fork to the paid runner
-names exactly the same two labels as one that does not. It asserts the fork
-field as a bounded token rather than as a substring, since `head.repo.forked`
-names no field GitHub defines, evaluates false, and sends every fork to the
-runner a fork cannot obtain. An expression the reader cannot follow, such as
-`${{ matrix.runner }}`, yields a sentinel label rather than nothing: nothing
-reads as "declares no runner", which every placement contract skips, so an
-unreadable declaration would pass them all by being unreadable.
+names exactly the same two labels as one that does not. It asserts the
+Dependabot author test as a whole and the fork field as a bounded token rather
+than as a substring, since `head.repo.forked` names no field GitHub defines,
+evaluates false, and sends every fork to the runner a fork cannot obtain. An
+expression the reader cannot follow, such as `${{ matrix.runner }}`, yields a
+sentinel label rather than nothing: nothing reads as "declares no runner",
+which every placement contract skips, so an unreadable declaration would pass
+them all by being unreadable.
 
 The filter module drives `scripts/tests/workflow_filter_support.py`, which
 reads GitHub's own glob rather than a near neighbour. `*` stops at a separator
