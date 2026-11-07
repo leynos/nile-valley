@@ -51,6 +51,7 @@ class ActionValidatorInstallError(RuntimeError):
 
 
 def _download(url: str, destination: Path) -> None:
+    """Fetch a URL into destination, wrapping HTTP and URL errors."""
     request = Request(url, headers={"User-Agent": "nile-valley-ci"})
     try:
         with urlopen(request) as response:
@@ -66,12 +67,14 @@ def _download(url: str, destination: Path) -> None:
 
 
 def _is_hex_sha256(value: str) -> bool:
+    """Report whether value is a 64-character hexadecimal SHA256 digest."""
     return len(value) == 64 and all(
         char in "0123456789abcdefABCDEF" for char in value
     )
 
 
 def _parse_checksum_json(payload: dict[str, object], binary_name: str) -> str:
+    """Return the sha256 digest of binary_name from release asset metadata."""
     assets = payload.get("assets", [])
     if not isinstance(assets, list):
         raise ActionValidatorInstallError("Release metadata assets are invalid.")
@@ -92,6 +95,7 @@ def _parse_checksum_json(payload: dict[str, object], binary_name: str) -> str:
 
 
 def _parse_checksum_text(text: str, binary_name: str) -> str:
+    """Return the sha256 digest of binary_name from a checksum listing."""
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped:
@@ -109,6 +113,7 @@ def _parse_checksum_text(text: str, binary_name: str) -> str:
 
 
 def _read_checksum(checksum_file: Path, binary_name: str) -> str:
+    """Read the checksum for binary_name from a JSON or plain text file."""
     content = checksum_file.read_text(encoding="utf-8").strip()
     try:
         payload = json.loads(content)
@@ -118,6 +123,7 @@ def _read_checksum(checksum_file: Path, binary_name: str) -> str:
 
 
 def _file_sha256(path: Path) -> str:
+    """Return the hex SHA256 digest of the file at path."""
     hasher = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 128), b""):
@@ -126,6 +132,7 @@ def _file_sha256(path: Path) -> str:
 
 
 def _verify_sha256(path: Path, expected: str) -> None:
+    """Raise if the file at path does not match the expected SHA256 digest."""
     actual = _file_sha256(path)
     if actual.lower() != expected.lower():
         raise ActionValidatorInstallError(
@@ -134,6 +141,7 @@ def _verify_sha256(path: Path, expected: str) -> None:
 
 
 def _install_binary(source: Path, destination_dir: Path) -> Path:
+    """Copy source to destination_dir as action-validator and mark it executable."""
     destination_dir.mkdir(parents=True, exist_ok=True)
     destination_path = destination_dir / "action-validator"
     destination_path.write_bytes(source.read_bytes())
@@ -142,6 +150,7 @@ def _install_binary(source: Path, destination_dir: Path) -> Path:
 
 
 def _run_version(binary_path: Path) -> None:
+    """Run the installed binary with --version to confirm it works."""
     local[str(binary_path)]["--version"]()
 
 
@@ -169,6 +178,7 @@ def install_action_validator(config: InstallConfig) -> Path:
 
 
 def _parse_args(argv: list[str] | None) -> InstallConfig:
+    """Parse command-line arguments into an InstallConfig."""
     parser = argparse.ArgumentParser(
         description="Install action-validator with checksum verification."
     )

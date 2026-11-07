@@ -29,6 +29,7 @@ from scripts.bootstrap_vault_appliance import (
 
 
 def _make_config(tmp_path: Path, **overrides: object) -> VaultBootstrapConfig:
+    """Build a VaultBootstrapConfig in tmp_path, applying keyword overrides."""
     state_file = tmp_path / "state.json"
     defaults: dict[str, object] = {
         "vault_addr": "https://vault.example",
@@ -57,6 +58,7 @@ def _sync_plumbum_path() -> None:
 
 
 def _stub_doctl(mox: CmdMox, ip: str) -> None:
+    """Stub doctl to list one droplet tagged vault-dev with the given IP."""
     mox.stub("doctl").with_args(
         "compute",
         "droplet",
@@ -84,6 +86,7 @@ def _stub_doctl(mox: CmdMox, ip: str) -> None:
 
 
 def _stub_ssh(mox: CmdMox, ip: str, *, user: str = "root") -> None:
+    """Stub ssh to report the vault service as active on the given host."""
     mox.stub("ssh").with_args(
         "-o",
         "BatchMode=yes",
@@ -130,6 +133,7 @@ def _build_configured_vault_handler(
     }
 
     def handler(invocation) -> Response:
+        """Answer vault calls for a configured cluster and reject secret rotation."""
         args = tuple(invocation.args)
         if args in command_responses:
             return command_responses[args]
@@ -162,6 +166,7 @@ def test_bootstrap_initializes_vault(tmp_path: Path) -> None:
     }
 
     def vault_handler(invocation) -> Response:
+        """Serve Vault CLI calls for a fresh cluster that must be initialised."""
         args = invocation.args
         env = invocation.env
         assert env["VAULT_ADDR"] == config.vault_addr
@@ -295,9 +300,11 @@ def _build_rotation_test_handler(
     }
 
     def get_rotation_count() -> int:
+        """Return how many secret-ID rotation writes the handler has seen."""
         return rotation_invocations
 
     def handler(invocation) -> Response:
+        """Answer vault calls, counting secret-ID rotation writes."""
         nonlocal rotation_invocations
         args = tuple(invocation.args)
         if args in command_responses:
@@ -369,6 +376,7 @@ def test_bootstrap_errors_when_unseal_keys_missing(tmp_path: Path) -> None:
     config.state_file.write_text(json.dumps({"root_token": "root-token"}), encoding="utf-8")
 
     def vault_handler(invocation) -> Response:
+        """Report a sealed, initialised Vault so bootstrap needs unseal keys."""
         args = invocation.args
         if args == ["status", "-format=json"]:
             return Response(stdout=json.dumps({"initialized": True, "sealed": True}))

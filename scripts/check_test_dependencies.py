@@ -200,6 +200,7 @@ def _validate_minimum_version(
     dependency: Dependency,
     probe: VersionProbeResult,
 ) -> str | None:
+    """Return the failing version detail if the probe is below the minimum."""
     if dependency.minimum_version is None:
         return None
     if probe.parsed_version is None:
@@ -213,6 +214,7 @@ def _validate_minimum_opa_version(
     dependency: Dependency,
     probe: VersionProbeResult,
 ) -> str | None:
+    """Return the failing OPA version detail if it is below the OPA minimum."""
     if dependency.minimum_opa_version is None:
         return None
     if probe.raw_output is None:
@@ -229,6 +231,7 @@ def _validate_minimum_opa_version(
 def _validate_dependency_requirements(
     dependency: Dependency,
 ) -> str | None:
+    """Probe a dependency when it sets a minimum and return any version failure."""
     if dependency.minimum_version is None and dependency.minimum_opa_version is None:
         return None
 
@@ -449,6 +452,7 @@ def format_failure_message(
 
 
 def _format_requirement_label(required: str) -> str:
+    """Prefix ">= " to a version requirement unless it already names OPA."""
     if required.startswith("OPA >="):
         return required
     return f">= {required}"
@@ -459,6 +463,7 @@ def _format_incompatible_dependencies(
     *,
     include_separator: bool,
 ) -> list[str]:
+    """Build report lines for incompatible tools, optionally led by a blank line."""
     if not incompatible:
         return []
 

@@ -73,6 +73,7 @@ GITHUB_ENV_PARAM = Parameter(help="GITHUB_ENV path override.")
 def _collect_cli_values(values: Mapping[str, object]) -> RawInputs:
     """Collect CLI overrides into raw input values."""
     def _normalise_value(value: object | None) -> object | None:
+        """Return None for unset or cyclopts placeholder values, else value."""
         if value is None:
             return None
         if _is_cyclopts_parameter(value):
@@ -80,9 +81,11 @@ def _collect_cli_values(values: Mapping[str, object]) -> RawInputs:
         return value
 
     def _get_str(key: str) -> str | None:
+        """Return the normalised value for key as a string or None."""
         return cast("str | None", _normalise_value(values.get(key)))
 
     def _get_path(key: str) -> Path | None:
+        """Return the normalised value for key as a Path or None."""
         return cast("Path | None", _normalise_value(values.get(key)))
 
     return RawInputs(

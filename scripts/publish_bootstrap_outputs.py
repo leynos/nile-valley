@@ -72,6 +72,7 @@ class StateFields:
 
 
 def _append_output(output_file: Path, lines: list[str]) -> None:
+    """Append lines to output_file, creating its parent directory if needed."""
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with output_file.open("a", encoding="utf-8") as handle:
         for line in lines:

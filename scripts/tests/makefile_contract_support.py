@@ -153,6 +153,7 @@ def _expand(declaration: str, assignments: dict[str, str]) -> str:
     """Substitute variable references, refusing to drop an unknown one."""
 
     def resolve(match: re.Match[str]) -> str:
+        """Return the value of a referenced variable, refusing unknown names."""
         name = match.group(1)
         if name not in assignments:
             message = (
