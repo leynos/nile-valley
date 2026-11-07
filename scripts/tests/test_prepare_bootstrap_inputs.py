@@ -18,6 +18,7 @@ from scripts.prepare_bootstrap_inputs import (
 
 
 def test_writes_state_and_exports_env(tmp_path: Path) -> None:
+    """Bootstrap state is saved privately, and env values are exported and masked."""
     env_file = tmp_path / "env"
     runner_temp = tmp_path / "rt"
     state_payload = base64.b64encode(b'{"hello":"world"}').decode("utf-8")
@@ -67,6 +68,7 @@ def test_writes_state_and_exports_env(tmp_path: Path) -> None:
 
 
 def test_respects_explicit_paths_and_skips_blank_payloads(tmp_path: Path) -> None:
+    """An explicit state path is used, and blank payloads write no files."""
     env_file = tmp_path / "env"
     state_path = tmp_path / "state.json"
 
@@ -103,6 +105,7 @@ def test_respects_explicit_paths_and_skips_blank_payloads(tmp_path: Path) -> Non
 
 
 def test_invalid_json_raises(tmp_path: Path) -> None:
+    """Invalid JSON in the bootstrap state exits with an error."""
     env_file = tmp_path / "env"
 
     with pytest.raises(SystemExit, match=r"Invalid JSON supplied"):

@@ -18,6 +18,7 @@ from scripts.install_action_validator import (
 
 
 def test_read_checksum_from_json(tmp_path: Path) -> None:
+    """A digest for the named asset is read from JSON release metadata."""
     binary_name = "action-validator_linux_amd64"
     expected = "a" * 64
     payload = {
@@ -35,6 +36,7 @@ def test_read_checksum_from_json(tmp_path: Path) -> None:
 
 
 def test_read_checksum_from_text(tmp_path: Path) -> None:
+    """A checksum for the named file is read from a text checksum list."""
     binary_name = "action-validator_linux_amd64"
     expected = "b" * 64
     checksum_file = tmp_path / "checksum.txt"
@@ -47,6 +49,7 @@ def test_read_checksum_from_text(tmp_path: Path) -> None:
 
 
 def test_verify_sha256_mismatch(tmp_path: Path) -> None:
+    """A digest that does not match the file raises ActionValidatorInstallError."""
     binary_path = tmp_path / "binary"
     binary_path.write_bytes(b"nile-valley")
 
@@ -55,6 +58,7 @@ def test_verify_sha256_mismatch(tmp_path: Path) -> None:
 
 
 def test_install_action_validator_with_file_urls(tmp_path: Path) -> None:
+    """The validator is installed from file URLs after its checksum verifies."""
     binary_name = "action-validator_linux_amd64"
     binary_source = tmp_path / binary_name
     binary_source.write_text(

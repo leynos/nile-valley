@@ -250,6 +250,7 @@ def test_action_flow_happy_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Run the full dry-run action flow and check the published outputs."""
     paths = _mk_paths(tmp_path)
     _set_base_env(monkeypatch, paths)
     outputs = _run_full_flow(paths, monkeypatch.setenv)

@@ -21,6 +21,7 @@ def token_factory() -> Callable[[], str]:
     """Return a token factory for tests that need unique secrets."""
 
     def _factory() -> str:
+        """Return a new prefixed random token."""
         return f"token-{secrets.token_hex(8)}"
 
     return _factory
@@ -60,6 +61,7 @@ def test_resolve_all_inputs_happy_path(
     monkeypatch: pytest.MonkeyPatch,
     base_env: dict[str, str],
 ) -> None:
+    """Valid inputs resolve with a normalized name and parsed flags."""
     env = dict(base_env)
     env.update(
         {
@@ -96,6 +98,7 @@ def test_resolve_all_inputs_rejects_invalid_cluster(
     monkeypatch: pytest.MonkeyPatch,
     base_env: dict[str, str],
 ) -> None:
+    """An invalid cluster name makes input resolution raise ValueError."""
     env = dict(base_env)
     env["INPUT_CLUSTER_NAME"] = "Invalid_Name"
     for key, value in env.items():
@@ -110,6 +113,7 @@ def test_prepare_inputs_masks_and_exports(
     tmp_path: Path,
     token_factory: Callable[[], str],
 ) -> None:
+    """Prepared inputs are exported to the env file and their secrets masked."""
     env_file = tmp_path / "env"
     masks: list[str] = []
     gitops_token = token_factory()

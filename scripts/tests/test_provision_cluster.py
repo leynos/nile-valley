@@ -19,6 +19,7 @@ from scripts._provision_cluster_inputs import (
 
 
 def _make_inputs(tmp_path: Path, **overrides: object) -> ProvisionInputs:
+    """Build a ProvisionInputs with valid defaults, applying any overrides."""
     defaults: dict[str, object] = {
         "cluster_name": "preview-1",
         "environment": "preview",
@@ -49,6 +50,7 @@ def _make_inputs(tmp_path: Path, **overrides: object) -> ProvisionInputs:
 
 
 def test_build_backend_config(tmp_path: Path) -> None:
+    """The backend endpoint follows the region and the state key the cluster."""
     inputs = _make_inputs(tmp_path)
     backend = build_backend_config(inputs)
     assert (
@@ -60,6 +62,7 @@ def test_build_backend_config(tmp_path: Path) -> None:
 
 
 def test_build_tfvars_includes_node_pools(tmp_path: Path) -> None:
+    """tfvars carry the cluster name and the node pools as a list."""
     inputs = _make_inputs(tmp_path)
     tfvars = build_tfvars(inputs)
     assert (
@@ -74,6 +77,7 @@ def test_resolve_provision_inputs_cli_override(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """A cluster name passed on the CLI overrides the CLUSTER_NAME variable."""
     monkeypatch.setenv("CLUSTER_NAME", "env-name")
     monkeypatch.setenv("ENVIRONMENT", "preview")
     monkeypatch.setenv("REGION", "nyc1")
@@ -90,20 +94,24 @@ def test_provision_cluster_dry_run_skips_apply(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Dry-run provisioning succeeds without applying and returns no outputs."""
     inputs = _make_inputs(tmp_path, dry_run=True)
     backend = build_backend_config(inputs)
     tfvars = build_tfvars(inputs)
     calls: list[str] = []
 
     def fake_init(*_args: object, **_kwargs: object) -> TofuResult:
+        """Record an init call and return a successful result."""
         calls.append("init")
         return TofuResult(success=True, stdout="", stderr="", return_code=0)
 
     def fake_plan(*_args: object, **_kwargs: object) -> TofuResult:
+        """Record a plan call and return a successful result."""
         calls.append("plan")
         return TofuResult(success=True, stdout="", stderr="", return_code=0)
 
     def fake_apply(*_args: object, **_kwargs: object) -> TofuResult:
+        """Record an apply call and return a successful result."""
         calls.append("apply")
         return TofuResult(success=True, stdout="", stderr="", return_code=0)
 
@@ -121,6 +129,7 @@ def test_provision_cluster_apply_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """A successful apply returns the cluster outputs."""
     inputs = _make_inputs(tmp_path, dry_run=False)
     backend = build_backend_config(inputs)
     tfvars = build_tfvars(inputs)
@@ -168,6 +177,7 @@ def test_export_cluster_outputs_writes_kubeconfig(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Cluster outputs are exported to the env file, with secrets masked."""
     inputs = _make_inputs(tmp_path)
     env_file = inputs.github_env
     masked: list[str] = []
