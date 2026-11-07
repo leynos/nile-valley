@@ -122,7 +122,7 @@ class _StubResult:
 
 
 def test_run_tofu_invokes_subprocess(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """run_tofu runs the tofu binary in the given directory."""
+    """Check run_tofu passes the command and directory to a mocked subprocess."""
     captured: dict[str, object] = {}
 
     def fake_run(*args: object, **kwargs: object) -> _StubResult:
@@ -143,7 +143,7 @@ def test_run_tofu_invokes_subprocess(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 
 def test_run_tofu_rejects_invalid_args(tmp_path: Path) -> None:
-    """Arguments with control characters raise ValueError."""
+    """Check an argument containing a newline raises ValueError."""
     with pytest.raises(ValueError, match="invalid control character"):
         run_tofu(["plan\n"], tmp_path)
 
