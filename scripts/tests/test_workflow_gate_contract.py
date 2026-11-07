@@ -74,6 +74,7 @@ def _condition_on_step(
     """Return a mutation that puts ``condition`` on the gate's step."""
 
     def mutate(document: Document) -> None:
+        """Set the condition on the gate's step."""
         find_step(document, gate)["if"] = condition
 
     return mutate
@@ -83,6 +84,7 @@ def _condition_on_job(gate: str, condition: object) -> typ.Callable[[Document], 
     """Return a mutation that puts ``condition`` on the gate's job."""
 
     def mutate(document: Document) -> None:
+        """Set the condition on the gate's job."""
         find_job(document, gate)["if"] = condition
 
     return mutate
@@ -92,6 +94,7 @@ def _replace_run(gate: str, replacement: str) -> typ.Callable[[Document], None]:
     """Return a mutation that rewrites the gate step's run value."""
 
     def mutate(document: Document) -> None:
+        """Set the gate step's run value to the replacement."""
         find_step(document, gate)["run"] = replacement
 
     return mutate
@@ -106,6 +109,7 @@ def _drop_step(gate: str) -> typ.Callable[[Document], None]:
     """
 
     def mutate(document: Document) -> None:
+        """Remove the gate's step from its job."""
         job = find_job(document, gate)
         job["steps"].remove(find_step(document, gate))
 
@@ -175,6 +179,7 @@ def test_a_conditioned_duplicate_does_not_disqualify_the_gate(
     """
 
     def add_conditioned_duplicate(mutated: Document) -> None:
+        """Insert a copy of the gate step, with a false condition, first."""
         job = find_job(mutated, gate)
         duplicate = {"name": "Again", "run": gate, "if": False}
         job["steps"].insert(0, duplicate)

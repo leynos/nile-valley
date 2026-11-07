@@ -102,6 +102,7 @@ def workflows_fixture() -> tuple[Workflow, ...]:
 
 
 def _step_by_id(job: Job, identifier: str) -> Step:
+    """Return the job's step with the given id, failing if there is none."""
     for step in job.steps:
         if step.identifier == identifier:
             return step
@@ -109,6 +110,7 @@ def _step_by_id(job: Job, identifier: str) -> Step:
 
 
 def _run_scripts(workflows: tuple[Workflow, ...]) -> Iterator[tuple[str, str]]:
+    """Yield a location and run script for each step that has a script."""
     for job, step in iter_steps(workflows):
         if step.run:
             yield f"{job.qualified_name}/{step.name}", step.run

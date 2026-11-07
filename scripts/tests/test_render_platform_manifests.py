@@ -19,6 +19,7 @@ from scripts.render_platform_manifests import (
 
 
 def test_resolve_render_inputs_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Check that render inputs resolve from environment variables."""
     monkeypatch.setenv("CLUSTER_NAME", "preview")
     monkeypatch.setenv("DOMAIN", "example.test")
     monkeypatch.setenv("ACME_EMAIL", "admin@example.test")
@@ -34,6 +35,7 @@ def test_resolve_render_inputs_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
 
 
 def test_resolve_render_inputs_cli_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that a CLI cluster name overrides the environment value."""
     monkeypatch.setenv("CLUSTER_NAME", "env")
     monkeypatch.setenv("DOMAIN", "example.test")
     monkeypatch.setenv("ACME_EMAIL", "admin@example.test")
@@ -60,6 +62,7 @@ def test_build_render_tfvars_skips_vault_when_disabled(
     cloudflare_secret_name: str,
     vault_secret_value: str,
 ) -> None:
+    """Check that build_render_tfvars omits Vault settings when ESO is off."""
     inputs = RenderInputs(
         cluster_name="preview",
         domain="example.test",
@@ -85,6 +88,7 @@ def test_build_render_tfvars_skips_vault_when_disabled(
 
 
 def test_extract_rendered_manifests_handles_wrapped_value() -> None:
+    """Check that manifests wrapped under a value key are unwrapped."""
     outputs = {
         "rendered_manifests": {
             "value": {"platform/traefik.yaml": "apiVersion: v1"}
@@ -101,6 +105,7 @@ def test_render_manifests_runs_tofu(
     tmp_path: Path,
     cloudflare_secret_name: str,
 ) -> None:
+    """Check that render_manifests runs tofu init and apply, then reads outputs."""
     inputs = RenderInputs(
         cluster_name="preview",
         domain="example.test",
@@ -124,6 +129,7 @@ def test_render_manifests_runs_tofu(
     calls: list[list[str]] = []
 
     def fake_run_tofu(args: list[str], _cwd: Path) -> TofuResult:
+        """Record the tofu arguments and report a successful run."""
         calls.append(args)
         return TofuResult(success=True, stdout="", stderr="", return_code=0)
 
