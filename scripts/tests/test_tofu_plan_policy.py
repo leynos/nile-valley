@@ -185,6 +185,7 @@ def test_exported_plan_is_the_document_conftest_reads(cmd_mox: CmdMox) -> None:
     observed: dict[str, str] = {}
 
     def conftest_handler(invocation: Invocation) -> Response:
+        """Read the plan file that conftest is given and record its contents."""
         plan_path = Path(invocation.args[1])
         observed["contents"] = plan_path.read_text(encoding="utf-8")
         return Response(exit_code=0)
@@ -207,6 +208,7 @@ def test_flux_policy_passes_inline_data_as_a_file(
     observed: dict[str, str] = {}
 
     def conftest_handler(invocation: Invocation) -> Response:
+        """Record the data file contents and whether a namespace was passed."""
         arguments = list(invocation.args)
         data_path = Path(arguments[arguments.index("-d") + 1])
         observed["data"] = data_path.read_text(encoding="utf-8")
@@ -269,6 +271,7 @@ def _observe_conftest(mox: CmdMox, observed: dict[str, typ.Any]) -> None:
     """
 
     def handler(invocation: Invocation) -> Response:
+        """Record the conftest arguments and any data file it is passed."""
         arguments = list(invocation.args)
         observed["arguments"] = arguments
         if "-d" in arguments:

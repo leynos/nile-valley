@@ -57,7 +57,7 @@ GO_TEST_ENV := GOPATH=$(GO_CACHE_ROOT) GOMODCACHE=$(GO_CACHE_ROOT)/pkg/mod GOCAC
 
 # Place one consolidated PHONY declaration near the top of the file
 .PHONY: all clean fmt lint test typecheck deps \
-        check-fmt check-test-deps markdownlint markdownlint-docs mermaid-lint nixie spelling \
+        check-fmt check-test-deps interrogate markdownlint markdownlint-docs mermaid-lint nixie spelling \
         yamllint \
         lint-makefile lint-actions lint-infra conftest tofu doks-test doks-policy fluxcd-test fluxcd-policy \
         vault-appliance-test vault-appliance-policy dev-cluster-test cluster-provision-test scripts-test traefik-test traefik-policy traefik-e2e \
@@ -84,8 +84,32 @@ fmt:
 	$(MDLINT) --fix "**/*.md"
 
 lint:
+	$(MAKE) interrogate
 	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))
 	$(MAKE) lint-makefile lint-actions lint-infra
+
+# Interrogate measures docstring presence over the Python files it scans under
+# INTERROGATE_TARGETS (it skips some path prefixes by default, so check a new
+# file against the verbose report). Add a new Python directory to the targets.
+INTERROGATE_VERSION ?= 1.7.0
+INTERROGATE_TARGETS ?= scripts
+# Level 2 prints a MISSED row per undocumented definition, which the
+# `interrogate` target fails on: the rounded percentage alone passes a lone gap.
+INTERROGATE_FLAGS ?= -vv --no-color --ext pyi --fail-under 100
+INTERROGATE = $(UV_ENV) $(UV) tool run --from 'interrogate==$(INTERROGATE_VERSION)' interrogate
+
+interrogate:
+	@set -euo pipefail; \
+	  status=0; \
+	  report="$$($(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS))" || status=$$?; \
+	  printf '%s\n' "$$report"; \
+	  test "$$status" -eq 0 || exit "$$status"; \
+	  found=0; \
+	  grep -q '| *MISSED *|' <<<"$$report" || found=$$?; \
+	  if test "$$found" -ne 1; then \
+	    printf '%s\n' 'interrogate: undocumented definitions remain (or the MISSED check failed); see above' >&2; \
+	    exit 1; \
+	  fi
 
 typecheck:
 	$(call exec_or_bunx,tsc,--allowJs --checkJs --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext scripts/install-mermaid-browser.mjs,typescript@$(TYPESCRIPT_VERSION))

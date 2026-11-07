@@ -17,6 +17,7 @@ from scripts.publish_infra_k8s_outputs import (
 
 
 def test_resolve_output_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that cluster output values are resolved from the environment."""
     monkeypatch.setenv("CLUSTER_NAME", "preview")
     monkeypatch.setenv("CLUSTER_ID", "abc")
     monkeypatch.setenv("CLUSTER_ENDPOINT", "https://kube")
@@ -28,6 +29,7 @@ def test_resolve_output_values(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_publish_outputs_writes_file(tmp_path: Path) -> None:
+    """Check publish_outputs writes the cluster name, commit SHA and count."""
     output_file = tmp_path / "out"
     values = OutputValues(
         cluster_name="preview",
@@ -46,6 +48,7 @@ def test_publish_outputs_writes_file(tmp_path: Path) -> None:
 
 
 def test_final_secret_masking(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the GitOps token from the environment is masked."""
     token = _dummy_token()
     monkeypatch.setenv("GITOPS_TOKEN", token)
     masked: list[str] = []
@@ -57,4 +60,5 @@ def test_final_secret_masking(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _dummy_token() -> str:
+    """Return a random token-like string for use as a test secret."""
     return f"token-{secrets.token_hex(8)}"

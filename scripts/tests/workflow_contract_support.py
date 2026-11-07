@@ -144,6 +144,7 @@ class Workflow:
 
 
 def _as_text(value: object) -> str:
+    """Return ``value`` if it is a string, otherwise an empty string."""
     return value if isinstance(value, str) else ""
 
 
@@ -195,6 +196,10 @@ def runner_labels(raw: object) -> tuple[str, ...]:
 
 
 def _step_from_mapping(index: int, raw: dict[str, object]) -> Step:
+    """Build a Step from its mapping; a missing name falls back to ``uses``.
+
+    Other absent keys read as empty values.
+    """
     inputs = raw.get("with")
     return Step(
         index=index,
@@ -208,6 +213,7 @@ def _step_from_mapping(index: int, raw: dict[str, object]) -> Step:
 
 
 def _job_from_mapping(workflow: str, identifier: str, raw: dict[str, object]) -> Job:
+    """Build a Job from its mapping, skipping any step that is not a mapping."""
     raw_steps = raw.get("steps")
     steps = tuple(
         _step_from_mapping(index, step)
@@ -247,6 +253,7 @@ def _triggers(document: object) -> dict[str, object]:
 
 
 def _workflow_from_path(path: Path) -> Workflow:
+    """Parse one workflow file into a Workflow, skipping non-mapping jobs."""
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     raw_jobs = document.get("jobs", {}) if isinstance(document, dict) else {}
     jobs = tuple(

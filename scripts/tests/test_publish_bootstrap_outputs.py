@@ -15,6 +15,7 @@ from scripts.publish_bootstrap_outputs import (
 
 
 def test_masks_secrets_and_writes_outputs(tmp_path: Path) -> None:
+    """Check that secrets are masked and the outputs are written to the file."""
     state_file = tmp_path / "state.json"
     state_file.write_text(
         """
@@ -67,6 +68,7 @@ def test_masks_secrets_and_writes_outputs(tmp_path: Path) -> None:
 
 
 def test_missing_state_file_errors(tmp_path: Path) -> None:
+    """Check that a missing state file raises FileNotFoundError."""
     output_file = tmp_path / "out"
     with pytest.raises(FileNotFoundError):
         publish_bootstrap_outputs(
