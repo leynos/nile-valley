@@ -62,7 +62,7 @@ def test_build_render_tfvars_skips_vault_when_disabled(
     cloudflare_secret_name: str,
     vault_secret_value: str,
 ) -> None:
-    """Check that build_render_tfvars omits Vault settings when ESO is off."""
+    """Check build_render_tfvars omits vault_address and disables Vault ESO."""
     inputs = RenderInputs(
         cluster_name="preview",
         domain="example.test",
