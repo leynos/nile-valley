@@ -84,8 +84,9 @@ fmt:
 	$(MDLINT) --fix "**/*.md"
 
 lint:
+	$(MAKE) interrogate
 	$(call exec_or_bunx,biome,ci --formatter-enabled=true --reporter=github scripts,@biomejs/biome@$(BIOME_VERSION))
-	$(MAKE) interrogate lint-makefile lint-actions lint-infra
+	$(MAKE) lint-makefile lint-actions lint-infra
 
 # Interrogate measures docstring presence over the Python files it scans under
 # INTERROGATE_TARGETS (it skips some path prefixes by default, so check a new
@@ -103,8 +104,10 @@ interrogate:
 	  report="$$($(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS))" || status=$$?; \
 	  printf '%s\n' "$$report"; \
 	  test "$$status" -eq 0 || exit "$$status"; \
-	  if grep -q '| *MISSED *|' <<<"$$report"; then \
-	    printf '%s\n' 'interrogate: undocumented definitions remain; see the MISSED rows above' >&2; \
+	  found=0; \
+	  grep -q '| *MISSED *|' <<<"$$report" || found=$$?; \
+	  if test "$$found" -ne 1; then \
+	    printf '%s\n' 'interrogate: undocumented definitions remain (or the MISSED check failed); see above' >&2; \
 	    exit 1; \
 	  fi
 

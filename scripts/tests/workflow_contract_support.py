@@ -196,7 +196,10 @@ def runner_labels(raw: object) -> tuple[str, ...]:
 
 
 def _step_from_mapping(index: int, raw: dict[str, object]) -> Step:
-    """Build a Step from its mapping; absent keys read as empty values."""
+    """Build a Step from its mapping; a missing name falls back to ``uses``.
+
+    Other absent keys read as empty values.
+    """
     inputs = raw.get("with")
     return Step(
         index=index,

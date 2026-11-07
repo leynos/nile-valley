@@ -179,7 +179,7 @@ def test_a_conditioned_duplicate_does_not_disqualify_the_gate(
     """
 
     def add_conditioned_duplicate(mutated: Document) -> None:
-        """Insert a copy of the gate step, with a false condition, first."""
+        """Insert a new gate step with a false condition at the start."""
         job = find_job(mutated, gate)
         duplicate = {"name": "Again", "run": gate, "if": False}
         job["steps"].insert(0, duplicate)

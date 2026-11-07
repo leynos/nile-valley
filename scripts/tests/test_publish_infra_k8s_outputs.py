@@ -29,7 +29,7 @@ def test_resolve_output_values(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_publish_outputs_writes_file(tmp_path: Path) -> None:
-    """Check that publish_outputs writes each value to the output file."""
+    """Check publish_outputs writes the cluster name, commit SHA and count."""
     output_file = tmp_path / "out"
     values = OutputValues(
         cluster_name="preview",

@@ -105,7 +105,7 @@ def test_render_manifests_runs_tofu(
     tmp_path: Path,
     cloudflare_secret_name: str,
 ) -> None:
-    """Check that render_manifests runs tofu init and apply, then reads outputs."""
+    """Check render_manifests makes two tofu calls and returns the manifest."""
     inputs = RenderInputs(
         cluster_name="preview",
         domain="example.test",
