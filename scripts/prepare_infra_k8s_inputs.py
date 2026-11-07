@@ -81,11 +81,11 @@ def _collect_cli_values(values: Mapping[str, object]) -> RawInputs:
         return value
 
     def _get_str(key: str) -> str | None:
-        """Return the normalised value for key as a string or None."""
+        """Return the normalised value for key, with no runtime conversion."""
         return cast("str | None", _normalise_value(values.get(key)))
 
     def _get_path(key: str) -> Path | None:
-        """Return the normalised value for key as a Path or None."""
+        """Return the normalised value for key, with no runtime type check."""
         return cast("Path | None", _normalise_value(values.get(key)))
 
     return RawInputs(

@@ -234,7 +234,7 @@ def _resolve_approle_config(
     state_file: Path,
     context: EnvContext,
 ) -> ResolvedAppRoleConfig:
-    """Resolve AppRole and KV settings, saving inline policy content to a file."""
+    """Resolve AppRole and KV settings; save inline policy if no path is set."""
     resolved_kv_mount_path = resolve_input(
         approle.kv_mount_path,
         InputResolution(env_key="KV_MOUNT_PATH", default="secret"),

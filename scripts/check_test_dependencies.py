@@ -200,7 +200,7 @@ def _validate_minimum_version(
     dependency: Dependency,
     probe: VersionProbeResult,
 ) -> str | None:
-    """Return the failing version detail if the probe is below the minimum."""
+    """Return failure detail if a minimum cannot be checked or is not met."""
     if dependency.minimum_version is None:
         return None
     if probe.parsed_version is None:
@@ -214,7 +214,7 @@ def _validate_minimum_opa_version(
     dependency: Dependency,
     probe: VersionProbeResult,
 ) -> str | None:
-    """Return the failing OPA version detail if it is below the OPA minimum."""
+    """Return failure detail if the OPA minimum cannot be checked or is not met."""
     if dependency.minimum_opa_version is None:
         return None
     if probe.raw_output is None:
@@ -452,7 +452,7 @@ def format_failure_message(
 
 
 def _format_requirement_label(required: str) -> str:
-    """Prefix ">= " to a version requirement unless it already names OPA."""
+    """Prefix ">= " unless the requirement already starts with "OPA >="."""
     if required.startswith("OPA >="):
         return required
     return f">= {required}"

@@ -63,7 +63,7 @@ def test_bootstrap_step_invokes_helper_with_idempotent_flags() -> None:
 
 
 def test_publish_step_emits_expected_outputs() -> None:
-    """Assert the publish step declares, wires and masks the expected outputs."""
+    """Assert the action declares and wires the outputs, and the script masks."""
     action = _load_action()
     outputs = action["outputs"]
 

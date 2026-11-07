@@ -95,7 +95,7 @@ def _parse_checksum_json(payload: dict[str, object], binary_name: str) -> str:
 
 
 def _parse_checksum_text(text: str, binary_name: str) -> str:
-    """Return the sha256 digest of binary_name from a checksum listing."""
+    """Return the first valid checksum from an unnamed or matching-name line."""
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped:
@@ -113,7 +113,7 @@ def _parse_checksum_text(text: str, binary_name: str) -> str:
 
 
 def _read_checksum(checksum_file: Path, binary_name: str) -> str:
-    """Read the checksum for binary_name from a JSON or plain text file."""
+    """Read a matching JSON asset digest or an unnamed or matching text checksum."""
     content = checksum_file.read_text(encoding="utf-8").strip()
     try:
         payload = json.loads(content)

@@ -159,7 +159,7 @@ def test_commit_and_push_no_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
 
 def test_commit_and_push_dry_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Assert a dry run computes the commit SHA without pushing."""
+    """Assert a dry run returns the stubbed SHA and does not push."""
     inputs = _make_inputs(tmp_path, dry_run=True)
     clone_dir = tmp_path / "clone"
     clone_dir.mkdir()
