@@ -151,6 +151,7 @@ def _write_payload_file(payload: str, destination: Path) -> None:
 
 
 def _append_env(env_file: Path, lines: list[str]) -> None:
+    """Append lines to env_file, creating its parent directory if needed."""
     env_file.parent.mkdir(parents=True, exist_ok=True)
     with env_file.open("a", encoding="utf-8") as handle:
         for line in lines:

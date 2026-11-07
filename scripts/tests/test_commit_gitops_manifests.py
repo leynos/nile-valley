@@ -19,6 +19,7 @@ from scripts.commit_gitops_manifests import (
 
 
 def _make_inputs(tmp_path: Path, **overrides: object) -> GitOpsInputs:
+    """Build GitOpsInputs in tmp_path with a dummy token, applying overrides."""
     token = _dummy_token()
     defaults: dict[str, object] = {
         "gitops_repository": "leynos/nile-valley-infra",
@@ -34,10 +35,12 @@ def _make_inputs(tmp_path: Path, **overrides: object) -> GitOpsInputs:
     return GitOpsInputs(**defaults)
 
 def _dummy_token() -> str:
+    """Return a random token-like string for use as a fake credential."""
     return f"token-{secrets.token_hex(8)}"
 
 
 def test_resolve_gitops_inputs_cli_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Assert a CLI repository override takes precedence over the environment."""
     token = _dummy_token()
     monkeypatch.setenv("GITOPS_REPOSITORY", "leynos/env")
     monkeypatch.setenv("GITOPS_TOKEN", token)
@@ -50,6 +53,7 @@ def test_resolve_gitops_inputs_cli_override(monkeypatch: pytest.MonkeyPatch, tmp
 
 
 def test_clone_repository_uses_askpass(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Assert clone keeps the token out of argv and uses a temporary askpass."""
     token = _dummy_token()
     inputs = _make_inputs(tmp_path, gitops_token=token)
     clone_dir = tmp_path / "clone"
@@ -58,11 +62,15 @@ def test_clone_repository_uses_askpass(monkeypatch: pytest.MonkeyPatch, tmp_path
     captured: dict[str, object] = {}
 
     class _Result:
+        """Minimal stand-in for a completed subprocess result."""
+
         def __init__(self) -> None:
+            """Set a zero exit code and empty stderr."""
             self.returncode = 0
             self.stderr = ""
 
     def fake_run(cmd: list[str], **kwargs: object) -> _Result:  # type: ignore[override]
+        """Record the command and env, then return a successful result."""
         captured["cmd"] = cmd
         captured["env"] = kwargs.get("env")
         return _Result()
@@ -88,6 +96,7 @@ def test_clone_repository_uses_askpass(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 
 def test_sync_manifests_copies_files(tmp_path: Path) -> None:
+    """Assert sync copies rendered manifests into the cluster directory."""
     inputs = _make_inputs(tmp_path)
     inputs.render_output_dir.mkdir(parents=True)
     (inputs.render_output_dir / "platform").mkdir()
@@ -106,6 +115,7 @@ def test_sync_manifests_copies_files(tmp_path: Path) -> None:
 
 
 def test_sync_manifests_removes_stale_files(tmp_path: Path) -> None:
+    """Assert sync removes cluster manifests absent from the render output."""
     inputs = _make_inputs(tmp_path)
     inputs.render_output_dir.mkdir(parents=True)
     (inputs.render_output_dir / "platform").mkdir()
@@ -126,6 +136,7 @@ def test_sync_manifests_removes_stale_files(tmp_path: Path) -> None:
 
 
 def test_commit_and_push_no_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Assert commit_and_push returns None when there is nothing to commit."""
     inputs = _make_inputs(tmp_path)
     clone_dir = tmp_path / "clone"
     clone_dir.mkdir()
@@ -133,7 +144,10 @@ def test_commit_and_push_no_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     monkeypatch.setattr("scripts._gitops_repo.run_git", lambda *_args, **_kwargs: "")
 
     class _Result:
+        """Minimal stand-in for a completed subprocess result."""
+
         def __init__(self) -> None:
+            """Set a zero exit code."""
             self.returncode = 0
 
     monkeypatch.setattr("scripts._gitops_repo.subprocess.run", lambda *_args, **_kwargs: _Result())
@@ -145,6 +159,7 @@ def test_commit_and_push_no_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
 
 def test_commit_and_push_dry_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Assert a dry run returns the stubbed SHA and does not push."""
     inputs = _make_inputs(tmp_path, dry_run=True)
     clone_dir = tmp_path / "clone"
     clone_dir.mkdir()
@@ -154,6 +169,7 @@ def test_commit_and_push_dry_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     def fake_run_git(
         args: list[str], _cwd: Path, _env: dict[str, str] | None = None
     ) -> str:
+        """Record git calls, returning a fixed SHA for rev-parse HEAD."""
         calls.append(args)
         if args[:2] == ["rev-parse", "HEAD"]:
             return "abc123"
@@ -162,7 +178,10 @@ def test_commit_and_push_dry_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     monkeypatch.setattr("scripts._gitops_repo.run_git", fake_run_git)
 
     class _Result:
+        """Minimal stand-in for a completed subprocess result."""
+
         def __init__(self) -> None:
+            """Set a non-zero exit code."""
             self.returncode = 1
 
     monkeypatch.setattr("scripts._gitops_repo.subprocess.run", lambda *_args, **_kwargs: _Result())

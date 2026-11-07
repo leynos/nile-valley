@@ -161,6 +161,7 @@ def _ensure_policy_path(
 
 
 def _to_bool(*, value: str | bool | None) -> bool:
+    """Coerce a bool, string or None to a bool using common truthy spellings."""
     if isinstance(value, bool):
         return value
     if value is None:
@@ -173,6 +174,7 @@ def _resolve_core_config(
     connection: ConnectionConfig,
     context: EnvContext,
 ) -> ResolvedConnectionConfig:
+    """Resolve the state file, Vault address, droplet tag and optional CA path."""
     resolved_state_file = resolve_input(
         connection.state_file,
         InputResolution(env_key="STATE_FILE", required=True, as_path=True),
@@ -209,6 +211,7 @@ def _resolve_ssh_config(
     ssh: SSHConfig,
     context: EnvContext,
 ) -> ResolvedSSHConfig:
+    """Resolve the SSH user (default "root") and optional identity file."""
     resolved_ssh_user = resolve_input(
         ssh.ssh_user,
         InputResolution(env_key="SSH_USER", default="root"),
@@ -231,6 +234,7 @@ def _resolve_approle_config(
     state_file: Path,
     context: EnvContext,
 ) -> ResolvedAppRoleConfig:
+    """Resolve AppRole and KV settings; save inline policy if no path is set."""
     resolved_kv_mount_path = resolve_input(
         approle.kv_mount_path,
         InputResolution(env_key="KV_MOUNT_PATH", default="secret"),
@@ -275,6 +279,7 @@ def _resolve_shamir_config(
     vault_init: VaultInitConfig,
     context: EnvContext,
 ) -> ShamirConfig:
+    """Resolve Shamir settings as integers and reject threshold above shares."""
     raw_key_shares = resolve_input(
         vault_init.key_shares,
         InputResolution(env_key="KEY_SHARES", default="5"),
@@ -307,6 +312,7 @@ def _resolve_ttl_config(
     approle: AppRoleConfig,
     context: EnvContext,
 ) -> TTLConfig:
+    """Resolve token, secret ID TTL and secret rotation settings."""
     resolved_token_ttl = resolve_input(
         approle.token_ttl,
         InputResolution(env_key="TOKEN_TTL", default="1h"),

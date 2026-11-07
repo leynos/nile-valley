@@ -201,6 +201,7 @@ def render_group(template: str, context: dict[str, str]) -> str:
     """
 
     def evaluate(match: re.Match[str]) -> str:
+        """Return the first truthy context value named in one expression."""
         paths = [operand.strip() for operand in match.group(1).split("||")]
         unmodelled = [
             path

@@ -14,10 +14,12 @@ ACTION_PATH = (
 
 
 def _load_action() -> dict[str, Any]:
+    """Load the bootstrap-vault-appliance action metadata as a mapping."""
     return yaml.safe_load(ACTION_PATH.read_text(encoding="utf-8"))
 
 
 def test_inputs_cover_credentials_and_env() -> None:
+    """Check required inputs, and that token and state lack a secret key."""
     action = _load_action()
     inputs = action["inputs"]
 
@@ -40,6 +42,7 @@ def test_inputs_cover_credentials_and_env() -> None:
 
 
 def test_bootstrap_step_invokes_helper_with_idempotent_flags() -> None:
+    """Assert the bootstrap step runs the helper with the expected env wiring."""
     action = _load_action()
     steps = action["runs"]["steps"]
     bootstrap = next(
@@ -60,6 +63,7 @@ def test_bootstrap_step_invokes_helper_with_idempotent_flags() -> None:
 
 
 def test_publish_step_emits_expected_outputs() -> None:
+    """Assert the action declares and wires the outputs, and the script masks."""
     action = _load_action()
     outputs = action["outputs"]
 
