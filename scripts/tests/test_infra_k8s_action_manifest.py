@@ -14,6 +14,7 @@ ACTION_PATH = (
 
 
 def _load_action() -> dict[str, object]:
+    """Load the composite action metadata as a mapping."""
     result = yaml.safe_load(ACTION_PATH.read_text(encoding="utf-8"))
     assert isinstance(result, dict)
     return cast(dict[str, object], result)
@@ -25,6 +26,7 @@ def _assert_step_invokes_script(
     step_id: str,
     expected_substring: str,
 ) -> None:
+    """Assert that the named step's run command invokes the expected script."""
     runs = action.get("runs")
     assert isinstance(runs, dict), "action['runs'] must be a mapping"
     steps = runs.get("steps")

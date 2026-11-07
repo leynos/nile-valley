@@ -23,6 +23,7 @@ from scripts._infra_k8s import (
 
 
 def test_parse_bool_defaults() -> None:
+    """A missing value defaults to True unless the caller overrides the default."""
     assert parse_bool(None) is True, "Default should be True when value is None"
     assert (
         parse_bool(None, default=False) is False
@@ -30,6 +31,7 @@ def test_parse_bool_defaults() -> None:
 
 
 def test_parse_bool_truthy_and_falsey() -> None:
+    """Truthy spellings parse to True and falsey spellings parse to False."""
     assert parse_bool("true") is True, "true should parse to True"
     assert parse_bool("YES") is True, "YES should parse to True"
     assert parse_bool("1") is True, "1 should parse to True"
@@ -38,17 +40,20 @@ def test_parse_bool_truthy_and_falsey() -> None:
 
 
 def test_parse_node_pools_valid() -> None:
+    """A JSON array of pools parses into a list of mappings."""
     pools = parse_node_pools('[{"name": "default"}]')
     assert isinstance(pools, list), "Expected list of node pools"
     assert pools[0]["name"] == "default", "Expected default pool name"
 
 
 def test_parse_node_pools_rejects_non_list() -> None:
+    """A JSON value that is not an array is rejected with TypeError."""
     with pytest.raises(TypeError, match="node_pools must be a JSON array"):
         parse_node_pools('{"name": "default"}')
 
 
 def test_append_github_env_supports_multiline(tmp_path: Path) -> None:
+    """Multiline values are written as a heredoc to the GitHub env file."""
     env_file = tmp_path / "env"
     append_github_env(env_file, {"KUBECONFIG_RAW": "line1\nline2"})
     content = env_file.read_text(encoding="utf-8")
@@ -57,6 +62,7 @@ def test_append_github_env_supports_multiline(tmp_path: Path) -> None:
 
 
 def test_append_github_env_single_line(tmp_path: Path) -> None:
+    """A single-line value is written directly as KEY=VALUE."""
     env_file = tmp_path / "env"
     append_github_env(env_file, {"CLUSTER_NAME": "preview-1"})
     assert (
@@ -65,6 +71,7 @@ def test_append_github_env_single_line(tmp_path: Path) -> None:
 
 
 def test_append_github_output_supports_multiline(tmp_path: Path) -> None:
+    """Multiline values are written as a heredoc to the GitHub output file."""
     output_file = tmp_path / "out"
     append_github_output(output_file, {"kubeconfig": "line1\nline2"})
     content = output_file.read_text(encoding="utf-8")
@@ -73,6 +80,7 @@ def test_append_github_output_supports_multiline(tmp_path: Path) -> None:
 
 
 def test_write_tfvars_and_manifests(tmp_path: Path) -> None:
+    """tfvars and manifests are written to disk with their contents intact."""
     tfvars_path = tmp_path / "vars" / "vars.tfvars.json"
     write_tfvars(tfvars_path, {"cluster_name": "preview"})
     data = json.loads(tfvars_path.read_text(encoding="utf-8"))
@@ -90,6 +98,7 @@ def test_write_tfvars_and_manifests(tmp_path: Path) -> None:
 
 
 def test_validate_cluster_name_normalizes() -> None:
+    """A cluster name with spaces and capitals is normalized."""
     assert (
         validate_cluster_name(" Preview-1 ") == "preview-1"
     ), "Cluster name should be normalized"
@@ -97,21 +106,27 @@ def test_validate_cluster_name_normalizes() -> None:
 
 @pytest.mark.parametrize("value", ["", "Invalid_Name", "-bad", "bad-"])
 def test_validate_cluster_name_rejects_invalid(value: str) -> None:
+    """Empty and malformed cluster names raise ValueError naming cluster_name."""
     with pytest.raises(ValueError, match="cluster_name"):
         validate_cluster_name(value)
 
 
 class _StubResult:
+    """Stand-in for a subprocess result with a return code and output."""
+
     def __init__(self, returncode: int = 0, stdout: str = "ok", stderr: str = "") -> None:
+        """Store the return code and output streams."""
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
 
 
 def test_run_tofu_invokes_subprocess(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Check run_tofu passes the command and directory to a mocked subprocess."""
     captured: dict[str, object] = {}
 
     def fake_run(*args: object, **kwargs: object) -> _StubResult:
+        """Record the command and working directory, then return a stub result."""
         cmd = args[0]
         assert isinstance(cmd, list), "Expected command argument list"
         assert all(isinstance(part, str) for part in cmd), "Command parts must be strings"
@@ -128,12 +143,15 @@ def test_run_tofu_invokes_subprocess(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 
 def test_run_tofu_rejects_invalid_args(tmp_path: Path) -> None:
+    """Check an argument containing a newline raises ValueError."""
     with pytest.raises(ValueError, match="invalid control character"):
         run_tofu(["plan\n"], tmp_path)
 
 
 def test_tofu_output_raises_on_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A failed tofu output call raises TofuCommandError."""
     def fake_run(*_args: object, **_kwargs: object) -> TofuResult:
+        """Return a failed TofuResult in place of running tofu."""
         return TofuResult(success=False, stdout="", stderr="boom", return_code=1)
 
     monkeypatch.setattr("scripts._infra_k8s_tofu.run_tofu", fake_run)
@@ -143,5 +161,6 @@ def test_tofu_output_raises_on_failure(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 
 def test_write_manifests_rejects_path_traversal(tmp_path: Path) -> None:
+    """Manifest names that escape the output directory are refused."""
     with pytest.raises(ValueError, match="Refusing to write manifest"):
         write_manifests(tmp_path, {"../escape.yaml": "apiVersion: v1"})

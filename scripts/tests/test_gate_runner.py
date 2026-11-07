@@ -267,6 +267,7 @@ def test_run_gate_reports_gate_error_without_traceback(
     """A gate failure exits 1 with a one-line diagnostic on stderr."""
 
     def failing() -> None:
+        """Raise a GateError that names a failing tool."""
         message = "actionlint failed with exit status 1"
         raise GateError(message)
 
@@ -285,6 +286,7 @@ def test_run_gate_propagates_unexpected_errors() -> None:
     """Programming errors are not swallowed by the gate wrapper."""
 
     def broken() -> None:
+        """Raise an unexpected ValueError, as a programming error would."""
         raise ValueError("bug")
 
     with pytest.raises(ValueError, match="bug"):
