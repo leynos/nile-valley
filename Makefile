@@ -105,7 +105,7 @@ interrogate:
 	  printf '%s\n' "$$report"; \
 	  test "$$status" -eq 0 || exit "$$status"; \
 	  found=0; \
-	  grep -q '| *MISSED *|' <<<"$$report" || found=$$?; \
+	  grep '| *MISSED *|' >/dev/null <<<"$$report" || found=$$?; \
 	  if test "$$found" -ne 1; then \
 	    printf '%s\n' 'interrogate: undocumented definitions remain (or the MISSED check failed); see above' >&2; \
 	    exit 1; \
