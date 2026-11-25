@@ -35,6 +35,9 @@ if typ.TYPE_CHECKING:
 
 CACHE_ACTION_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 SHARED_ACTIONS_SHA = "c5a54701c8603a0fa756a6b34c49bc2af75a6c11"
+#: The delayed PR comment workflow only sleeps and posts, so it moves on its own
+#: pin (shared-actions #706) rather than with the estate pin.
+DELAYED_PR_COMMENT_SHA = "8091b7cb5f9bab2d4a76ced2e749fd4c1bccdb02"
 
 # Forms that compile a tool from source inside CI. `uv tool install` is absent
 # from this list because uv resolves published wheels rather than building the
@@ -266,8 +269,13 @@ def test_shared_action_references_are_pinned(workflows: tuple[Workflow, ...]) ->
     ]
     assert references, "expected at least one leynos/shared-actions reference"
     for location, reference in references:
-        assert reference.endswith(f"@{SHARED_ACTIONS_SHA}"), (
-            f"{location} must pin leynos/shared-actions to {SHARED_ACTIONS_SHA}"
+        required = (
+            DELAYED_PR_COMMENT_SHA
+            if reference.split("@", 1)[0].endswith("/delayed-pr-comment.yml")
+            else SHARED_ACTIONS_SHA
+        )
+        assert reference.endswith(f"@{required}"), (
+            f"{location} must pin leynos/shared-actions to {required}"
         )
 
 
